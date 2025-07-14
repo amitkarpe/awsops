@@ -1,9 +1,17 @@
 ---
 
 marp: true
-theme: default
+#theme: cybertopia
+#theme: dracula
+theme: uncover
+#theme: gaia
 paginate: true
+class: invert
+title: "AWS CloudWatch Agent & EC2 Monitoring Training"
+description: "AWS CloudWatch Agent & EC2 Monitoring Training"
 --------------
+
+<!-- vscode-theme: dark.css -->
 
 # AWS CloudWatch Agent & EC2 Monitoring Training
 

@@ -1,0 +1,15 @@
+/* dark.css */
+@import 'gaia';
+
+@media (prefers-color-scheme: dark) {
+  section {
+    --color-background: #111;
+    --color-text:       #eee;
+    --color-heading:    #fff;
+    --color-link:       #9cdcfe;
+    background: var(--color-background);
+    color: var(--color-text);
+  }
+  h1, h2, h3 { color: var(--color-heading); }
+  a          { color: var(--color-link); }
+}
