@@ -5,6 +5,9 @@ marp: true
 theme: uncover
 paginate: true
 class: invert
+author: Amit Karpe
+size: 4:3
+keywords: aws, monitoring, cloudwatch 
 title: "AWS CloudWatch Agent & EC2 Monitoring Training"
 description: "AWS CloudWatch Agent & EC2 Monitoring Training"
 --------------

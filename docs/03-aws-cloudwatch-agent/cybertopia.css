@@ -1,4 +1,7 @@
 /* @theme cybertopia */
+/*
+curl -L -o cybertopia.css https://raw.githubusercontent.com/noraj/cybertopia-marp/main/themes/cybertopia.css
+*/
 
 @import 'uncover';
 

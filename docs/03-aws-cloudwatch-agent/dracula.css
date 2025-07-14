@@ -8,6 +8,9 @@
  * @size 4:3 960px 720px
  * @size 16:9 1280px 720px
  */
+ /*
+ curl -L -o dracula.css https://raw.githubusercontent.com/dracula/marp/master/dracula/dracula.css
+*/
  
 @import url("https://fonts.googleapis.com/css?family=Lato:400,900|IBM+Plex+Sans:400,700");
 
