@@ -1,10 +1,8 @@
 ---
 
 marp: true
-#theme: cybertopia
-#theme: dracula
-theme: uncover
 #theme: gaia
+theme: uncover
 paginate: true
 class: invert
 title: "AWS CloudWatch Agent & EC2 Monitoring Training"
