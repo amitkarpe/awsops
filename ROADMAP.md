@@ -2,21 +2,28 @@
 
 Owning roadmap: Issue #1.
 
-## M1 — migration inventory + clean contract — ACTIVE
+## M1 — migration inventory + clean contract — COMPLETE
 
 - clean repository control files;
 - KEEP / REWRITE / LEAVE BEHIND matrix;
 - layered source layout;
-- one dependency-free test command and CI skeleton;
+- dependency-free test command and CI;
 - no legacy implementation copied.
 
-## M2 — read-only s3_ssl vertical slice — NEXT
+## M2 — read-only s3_ssl vertical slice — ACTIVE
 
 `LAB identity -> fixed S3 TLS evidence read -> normalized finding -> exact prepare/freeze -> provider readback`
 
-No AWS mutation.
+Acceptance:
+- exact registered aliases and Region verified;
+- fixed read operations only;
+- bounded resource reads;
+- alias-only/public-safe evidence and digests;
+- exact freeze for one current finding;
+- fresh provider readback can prove unchanged/changed state;
+- no AWS mutation or legacy executor dependency.
 
-## M3 — native Reject-only decision
+## M3 — native Reject-only decision — NEXT
 
 `prepare/freeze -> native decision -> durable REJECTED receipt -> zero dispatch -> unchanged readback`
 
