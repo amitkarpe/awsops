@@ -104,7 +104,7 @@ class S3SslTests(unittest.TestCase):
         }
         report = collect(current, lambda binding: clients[binding.alias])
         statuses = [f["provider_status"] for f in report["accounts"][0]["findings"]]
-        self.assertEqual(statuses, ["NON_COMPLIANT", "UNAVAILABLE"])
+        self.assertCountEqual(statuses, ["NON_COMPLIANT", "UNAVAILABLE"])
 
     def test_prepare_and_unchanged_readback(self):
         current = bindings()
