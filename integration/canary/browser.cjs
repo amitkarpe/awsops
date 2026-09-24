@@ -23,6 +23,8 @@ async function run(root) {
   process.env.PLAYWRIGHT_BROWSERS_PATH = path.join(root, 'state/browser');
   const {chromium} = require(path.join(root, 'app/node_modules/playwright'));
   let browser;
+  let page;
+  const pageErrors = [];
   let stage = 'launch';
   const observations = [];
   let authenticated = false;
@@ -31,13 +33,14 @@ async function run(root) {
     const context = await browser.newContext();
     // The disposable browser only loads this isolated native application's origin.
     await context.route('**/*', route => localRoute(route.request().url()) ? route.continue() : route.abort());
-    const page = await context.newPage();
+    page = await context.newPage();
+    page.on('pageerror', error => { if (pageErrors.length < 8) pageErrors.push(error.name); });
     page.setDefaultTimeout(30000);
     page.on('response', response => {
       const pathname = new URL(response.url()).pathname;
       if (pathname === '/api/auth/login' && response.status() === 200) authenticated = true;
-      if (authenticated && ['/api/user', '/api/convos', '/api/agents', '/api/endpoints'].includes(pathname)) {
-        if (observations.length < 64) observations.push({route: pathname, status: response.status()});
+      if (authenticated && pathname.startsWith('/api/')) {
+        if (observations.length < 64) observations.push({route: pathname.replace(/[a-f0-9]{24,}|[a-f0-9-]{36}/g, '[id]').slice(0,100), status: response.status()});
       }
     });
     stage = 'login_page';
@@ -59,7 +62,9 @@ async function run(root) {
       native_decision: 'NOT_RUN', provider_readback: 'NOT_RUN', model: 'DISABLED'};
   } catch {
     return {version: 1, outcome: 'AUTH_BLOCKED', stage, normal_login: authenticated,
-      observed_routes: observations, browser_auth_exported: false, native_decision: 'NOT_RUN'};
+      observed_routes: observations, page_error_types: pageErrors,
+      page_path: page ? new URL(page.url()).pathname.replace(/[a-f0-9]{24,}|[a-f0-9-]{36}/g, '[id]') : null,
+      browser_auth_exported: false, native_decision: 'NOT_RUN'};
   } finally {
     login.password = '';
     if (browser) await browser.close();
