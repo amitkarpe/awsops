@@ -8,25 +8,28 @@ Updated: 2026-09-23
 
 Roadmap Autopilot Issue #1 owns the clean migration from `amitkarpe/aws-secops`.
 
-Current milestone: **M1 — migration inventory + clean contract**.
+M1 is complete and merged.
 
-M1 is repository-only:
-- no AWS deployment or mutation;
-- no IAM/OIDC/network change;
-- no cleanup/archive of the source repository.
+Current milestone: **M2 — read-only s3_ssl vertical slice**.
+
+M2 permits:
+- repository implementation and tests;
+- personal-LAB read-only verification for the exact registered aliases;
+- exact identity/Region validation;
+- no AWS mutation.
 
 ## Current truth
 
 - `awsops` is the new clean product repository.
-- `aws-secops` remains the reference/archive until explicit cutover.
+- `aws-secops` remains reference/archive until explicit cutover.
 - Migration is selective: KEEP / REWRITE / LEAVE BEHIND.
-- The accepted source baseline includes the released bounded Compliance Agent, durable approval/audit contracts, and later read-only `s3_ssl` research.
-- Draft/partial source work is evidence for design, not accepted product truth.
+- M2 implements a runtime-neutral fixed S3 TLS evidence path; account IDs remain private runtime input and are never emitted.
+- No legacy S3 BPA/SSH executor is part of M2.
 
 ## Next
 
-Finish M1 acceptance and then continue to M2: one clean read-only `s3_ssl` vertical slice.
+Finish M2 tests and personal-LAB read-only evidence. Then continue to M3 native Reject-only decision.
 
 ## Restart
 
-`Read AGENTS.md, CONTEXT.md, SPEC.md and Issue #1. Continue the active migration milestone; treat aws-secops only as migration source material.`
+`Read AGENTS.md, CONTEXT.md, SPEC.md and Issue #1. Continue M2 read-only s3_ssl; no AWS mutation.`
