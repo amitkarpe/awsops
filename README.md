@@ -1,14 +1,20 @@
 # AWS Ops
 
-Clean successor to [aws-secops](https://github.com/amitkarpe/aws-secops).
+Clean, selectively migrated AWS security-operations contracts.
 
-`awsops` keeps only proven security-operation contracts and rebuilds them behind a small layered architecture. The old repository remains the reference/archive until migration cutover.
+## Current acceptance
 
-## Current status
+- M2 live read/prepare/readback passed across the four registered personal-LAB
+  aliases. The temporary probe changed no deployed services or AWS resources.
+- M3A supplies a repository-only durable decision ledger and native adapter
+  contract. No native runtime integration or live Reject E2E is claimed yet.
+- Remediation remains disabled. The old repository is reference material,
+  not a runtime dependency or an automatic source of deployment authority.
 
-Roadmap Autopilot migration is tracked in Issue #1. M1 establishes the clean contract and migration inventory; no AWS mutation is part of M1.
+Read `CONTEXT.md` for the restart point, `SPEC.md` for boundaries, and Issue #1
+for the roadmap. Migration choices are in `docs/architecture/MIGRATION.md`.
 
-## Test
+## Tests
 
 ```bash
 python -m unittest discover -s tests -p 'test_*.py'

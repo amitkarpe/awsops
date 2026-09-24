@@ -1,0 +1,134 @@
+{
+  "accounts": [
+    {
+      "alias": "lab-dev",
+      "complete": true,
+      "identity_verified": true,
+      "pages_read": 1,
+      "provider_evidence_digest": "b77c3a5581562466caca830a3caf40d4c17ddc9fefccb05fe3b1cf65e5e6986c",
+      "region": "ap-southeast-1",
+      "resource_count": 1,
+      "state": "AVAILABLE",
+      "status_counts": {
+        "COMPLIANT": 0,
+        "NON_COMPLIANT": 1,
+        "UNAVAILABLE": 0,
+        "UNKNOWN": 0
+      }
+    },
+    {
+      "alias": "lab-poc",
+      "complete": true,
+      "identity_verified": true,
+      "pages_read": 1,
+      "provider_evidence_digest": "8d8df32a3858ef9724abc8141c0796b4e02b1e18471371bad4e8ee47c55aed65",
+      "region": "ap-southeast-1",
+      "resource_count": 1,
+      "state": "AVAILABLE",
+      "status_counts": {
+        "COMPLIANT": 0,
+        "NON_COMPLIANT": 1,
+        "UNAVAILABLE": 0,
+        "UNKNOWN": 0
+      }
+    },
+    {
+      "alias": "lab-qa",
+      "complete": true,
+      "identity_verified": true,
+      "pages_read": 1,
+      "provider_evidence_digest": "ea02c67650e914d551ef4b2ce9617ada158d16e5c6c6cee1da73a24eec6eeefe",
+      "region": "ap-southeast-1",
+      "resource_count": 1,
+      "state": "AVAILABLE",
+      "status_counts": {
+        "COMPLIANT": 0,
+        "NON_COMPLIANT": 1,
+        "UNAVAILABLE": 0,
+        "UNKNOWN": 0
+      }
+    },
+    {
+      "alias": "lab-sec",
+      "complete": true,
+      "identity_verified": true,
+      "pages_read": 1,
+      "provider_evidence_digest": "dd9d1f3e096a88d0756ed6459fd19b3109e657d865fe5afed6ece09aae30e2c0",
+      "region": "ap-southeast-1",
+      "resource_count": 1,
+      "state": "AVAILABLE",
+      "status_counts": {
+        "COMPLIANT": 0,
+        "NON_COMPLIANT": 1,
+        "UNAVAILABLE": 0,
+        "UNKNOWN": 0
+      }
+    }
+  ],
+  "api_attempt_counts": {
+    "s3.GetBucketPolicy": 12,
+    "s3.ListBuckets": 12,
+    "sts.AssumeRole": 12,
+    "sts.GetCallerIdentity": 13
+  },
+  "aws_resource_write_calls": 0,
+  "controller_verified": true,
+  "finished_at": "2026-09-24T00:57:28.525606+00:00",
+  "fleet_evidence_digest": "1647475a40ee3957dbec065dbbfefbda25d8d03f8fade76f0f5b8b85da153079",
+  "native_decision": "NOT_RUN",
+  "offline_tests": {
+    "count": 52,
+    "passed": true
+  },
+  "outcome": "PASS",
+  "plan": {
+    "entrypoint": "awsops.runtime.read_probe.probe",
+    "region": "ap-southeast-1",
+    "repository": "amitkarpe/awsops",
+    "runner_alias": "retained-personal-lab-host",
+    "runtime_changes_allowed": false,
+    "selection_alias": "lab-dev",
+    "source_commit": "ee7c9270e3843398912d76c27cd2d81ed18261c7",
+    "target_aliases": [
+      "lab-dev",
+      "lab-poc",
+      "lab-qa",
+      "lab-sec"
+    ]
+  },
+  "plan_digest": "924ee3f21db01bddb892022f22e148aa8ae42c367c20eed587ff0618a8559fdf",
+  "prepare": {
+    "account_alias": "lab-dev",
+    "batch_id": "b5fb59b1a81f42d0a08ff0638e5ff173",
+    "evidence_digest": "aeabd98dfe62a158c4611158d0083fdd8ad8ea65cd9b1e99c3323b2c7a811e8b",
+    "expires_at": 1790211747,
+    "issued_at": 1790211447,
+    "live_execution_authorized": false,
+    "provider_status": "NON_COMPLIANT",
+    "resource_ref": "bucket-ref-c56e4bb7b0125e5192bd",
+    "scope_hash": "462c7fd7840af45cad836a0c0f8bb95ff50c41a03bfce28e5e813e23825bec9f"
+  },
+  "readback": {
+    "finding_evidence_digest": "aeabd98dfe62a158c4611158d0083fdd8ad8ea65cd9b1e99c3323b2c7a811e8b",
+    "state": "NON_COMPLIANT",
+    "unchanged": true
+  },
+  "remediation": "NOT_IMPLEMENTED",
+  "schema_version": 1,
+  "scope": "M2 only; not a native decision or account-wide audit",
+  "sdk": {
+    "boto3": "1.40.0",
+    "botocore": "1.40.76"
+  },
+  "services_active": true,
+  "services_unchanged": true,
+  "source_tree": "0e233f343e11a6f973a22e73aaee8ab267375b09",
+  "source_unchanged": true,
+  "ssm_command_id": "60aae0ef-e63d-4b87-9144-5560ad533f00",
+  "started_at": "2026-09-24T00:57:22.072450+00:00",
+  "structured_provider_errors": {
+    "s3.GetBucketPolicy:NoSuchBucketPolicy": 12
+  },
+  "temporary_directory_removed": true,
+  "unapproved_api_attempts": 0
+}
