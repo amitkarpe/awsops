@@ -1,55 +1,45 @@
 # Specification
 
-Status: **ACTIVE — migration bootstrap**
+Status: ACTIVE - M2 evidence hardening; live acceptance pending.
 
-## Goal
+## Goal and layering
 
-Build a small AWS security-operations agent platform that moves from evidence to governed action without giving the model broad AWS mutation authority.
+Read evidence -> normalized finding -> exact fresh prepare/freeze -> native
+human decision -> durable receipt -> bounded action -> independent readback.
 
-## Architecture
+Domain contracts do not depend on LibreChat. AWS reads, controls, approval,
+execution and runtime integration remain separate. M2 implements only the
+read/prepare/readback portion. No executor or native decision is exposed yet.
 
-```text
-AWS evidence/read adapters
-        ↓
-normalized findings + control registry
-        ↓
-prepare + exact freeze
-        ↓
-native human decision
-        ↓
-decision receipt + audit
-        ↓
-bounded executor capability
-        ↓
-provider readback + verification
-```
+## Current security contract
 
-Modules stay separate:
-- `domain` — normalized contracts and frozen scope;
-- `aws` — fixed provider reads and identity verification;
-- `controls` — per-control definitions/capabilities;
-- `approval` — human-decision and durable receipt boundary;
-- `execution` — explicit bounded mutation adapters only;
-- `runtime` — product/runtime integration, never domain authority.
+- Model/user input nominates an alias, resource reference and expected digest;
+  it never supplies authoritative evidence, an account ID, role or AWS API.
+- Prepare rereads provider truth. Incomplete, unverified, stale, UNKNOWN or
+  changed candidate evidence cannot be prepared.
+- Four distinct operator-registered LAB aliases only: lab-dev, lab-poc,
+  lab-qa, lab-sec. Controller and assumed target identity must match private
+  bindings. Client and returned bucket Region must be ap-southeast-1.
+- Provider reads use bounded pagination and an expected-owner guard. Limits
+  and provider failures are explicit, never silently complete.
+- The TLS evaluator proves only its documented conventional policy pattern.
+  UNKNOWN is not COMPLIANT and is not an AWS Config evaluation result.
+- Digests bind provider policy, identity binding, resource, Region and evaluator
+  version. They are not authorization tokens. Observation time is separate.
+- Preparations have unique IDs, exact scope hashes and a maximum five-minute
+  TTL. They are server-owned in-process planning records, not durable approval
+  receipts. Restart invalidates them; M3 will own durable human decisions.
+- Readback compares actual policy evidence, not just a compliance label.
+  Missing, partial, expired or unavailable evidence is never unchanged success.
+- No live remediation, Approve, generic AWS API tool, deployment, IAM/OIDC,
+  network/public exposure, new credential or company/PROD work is authorized.
+- Public evidence contains aliases and digests, not raw policies, account IDs,
+  bucket names, runtime credentials or browser state.
 
-## Security invariants
+## Milestone boundaries
 
-- Model output is not authorization.
-- No generic model-accessible AWS API/mutation tool.
-- Exact account/resource/action scope is server-owned and frozen before approval.
-- Reject never dispatches remediation.
-- Provider readback is execution truth; asynchronous security/compliance systems are separate evidence.
-- Uncertain mutation is not success and must not be blindly retried.
-- Public Git state contains aliases/digests only, not private identifiers or auth material.
-
-## Migration scope
-
-M1 is repository-only.
-
-M2 introduces one fixed **read-only** personal-LAB `s3_ssl` vertical slice.
-
-M3 adds native Reject-only approval and durable decision evidence for `s3_ssl`; live remediation remains disabled.
-
-M4 may selectively add the two previously proven bounded LAB mutation controls after separate acceptance.
-
-Company/office/PROD is outside current scope.
+M1 is merged. M2 needs corrected-code tests AND fresh target-scoped LAB evidence.
+M3 native Reject-only integration starts after M2 acceptance; its durable
+receipt and runtime adapter must remain separate from domain logic.
+M4 mutation controls need their own exact canary authority. Existing v1 write
+permissions are not inherited by this repository. M5 cutover remains future.
