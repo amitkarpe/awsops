@@ -1,40 +1,38 @@
 # Roadmap
 
-Owner: Issue #1. Implementation owner: G.
+Owning roadmap: Issue #1. G owns direct implementation and verification.
 
-## M1 - COMPLETE
+## M1 - clean migration bootstrap - COMPLETE
 
-Clean bootstrap, migration matrix, layered skeleton and credential-free CI.
+Layered source layout, current-only control docs, selective migration matrix
+and dependency-free CI. No wholesale source-repo copy.
 
-## M2 - ACTIVE; not live-accepted
+## M2 - trustworthy read/prepare/readback - ACCEPTED
 
-Issue #4 hardens the initial read-only implementation before acceptance:
+PR #5 hardened evidence/identity/completeness/freshness. Issue #6 executed its
+exact merged reader on the retained LAB host: four aliases identity/Region
+verified, complete inventory, one fresh lab-dev preparation, unchanged actual
+provider-policy readback. 52 tests passed on that runner. Temporary files were
+removed and deployed services were unchanged. See `docs/evidence/M2_LAB_READ.json`.
 
-1. Conservative TLS-deny coverage and real provider-policy evidence.
-2. Verified account/Region, bounded inventory, explicit partial/error states.
-3. Fresh exact prepare, unique expiring batch, changed-policy readback.
-4. Adversarial tests, source-backed contract and opt-in LAB probe.
+## M3 - native Reject-only decision - IN PROGRESS
 
-Repository proof and live proof are separate. The controller/registry read is
-not a four-target read. Acceptance still needs the corrected reader running
-with the existing registered target-role sessions, then fresh prepare/readback.
+M3A / Issue #7: repository-only durable ledger and runtime-neutral native
+adapter. Native scope is exact; receipt commit precedes return. Reject records
+REJECTED, synthetic Approve records APPROVE_BLOCKED, neither permits dispatch.
 
-## M3 - NEXT; not started
+M3 live acceptance is NOT complete. Next: reviewed platform-specific wiring,
+normal authenticated session, one native Reject, durable receipt, fresh
+provider readback, cleanup and failure/terminalization proof. Do not infer
+runtime deployment authority from repository merge or M2's temporary SSM probe.
 
-Runtime-neutral durable Reject/blocked-Approve decision service, then one
-thin native UI adapter and authenticated Reject-only E2E. No live Approve.
+## M4 - bounded remediation migration - NOT STARTED
 
-## M4 - FUTURE
+Only S3 BPA and restricted SSH on retained demo scope may be considered.
+Code migration and synthetic tests do not authorize live AWS mutation.
+Require a separate explicit exact-canary authority before any live Approve.
 
-Selective S3 BPA and restricted-SSH migration only after exact per-control
-canary authority. No generic executor or inherited old-repo write authority.
+## M5 - parity and cutover - NOT STARTED
 
-## M5 - FUTURE
-
-Capability parity, reversible cutover and explicit archival decision. Preserve
-old evidence. Do not run two equal product development tracks.
-
-## Boundaries
-
-No company/PROD, third live remediation control, automatic uncertain retries,
-old-repo cleanup or infrastructure/auth expansion under M2.
+Parity/deferred list, deployment/runbook, explicit cutover. Preserve source
+history and evidence; no destructive old-repository cleanup.

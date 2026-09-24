@@ -6,33 +6,36 @@ Updated: 2026-09-24
 
 ## Authority
 
-Issue #1 owns migration. G owns implementation, validation and review; X is not
-required for this work. Issue #4 owns M2 evidence/prepare acceptance hardening.
-Repository work and verified personal-LAB reads are allowed. No deployment,
-AWS mutation, IAM/OIDC/network/credential changes or source-repo changes.
+Roadmap #1 owns migration. G owns implementation, validation and review.
+Issue #6 owns M2 live evidence; Issue #7 owns repository-only M3A decisions.
+No Codex handoff is required. No live approval, remediation, deployment,
+IAM/OIDC/network/credential changes or source-repo modifications are authorized.
 
 ## Current truth
 
 - M1 bootstrap is merged.
-- M2 implementation is present; acceptance hardening corrects policy coverage,
-  partial inventory reporting, provider-policy digests and fresh preparation.
-- M2 live four-alias read/prepare/readback acceptance is still PENDING.
-- G verified the personal controller and registry with the AWS app. This does
-  not verify target-role sessions or run the new reader in those accounts.
-- The read-only probe requires an operator-owned private configuration and an
-  existing runner with the registered read-role sessions. No credentials are
-  exported between tools to manufacture that access.
-- M3 is next, not started or accepted. No native UI/decision/executor is exposed.
-- `aws-secops` remains reference/archive material; it has not been archived,
-  changed or deployed by this work.
+- M2 is accepted: the corrected exact reader ran on the verified retained LAB
+  host using existing SDK sessions. All four aliases passed identity/Region and
+  complete inventory checks. One fresh lab-dev freeze had unchanged readback.
+- The same runner passed all 52 M2 tests. Probe files were removed and both
+  deployed services retained their original process/start identities.
+- Evidence: `docs/evidence/M2_LAB_READ.json`; source revision is recorded there.
+- M3A adds a private durable decision ledger and an in-process native adapter.
+  Reject and synthetic blocked Approve have no execution path. This is tested
+  repository code, NOT an authenticated native browser acceptance result.
+- M3 overall remains incomplete. Real native integration must authenticate the
+  user and bind the exact paused action before calling the adapter. No HTTP,
+  model tool, browser session or deployed adapter exists in this package.
+- `aws-secops` remains reference/archive material, not archived or modified.
 
 ## Next
 
-Review the exact-head proof on Issue #4, then run the corrected read-only probe
-through an authorized target-scoped LAB runner. Keep M2 open until it passes.
-Do not substitute mocked tests, a root-controller read or old-repo evidence.
+Review/accept the repository-only M3A package. Then define the exact existing
+LAB native-runtime integration and deployment boundary before live changes.
+Reuse normal platform authentication; do not extract browser credentials,
+replace the old runtime, or treat a SQLite receipt as authentication.
 
 ## Restart
 
-Read AGENTS.md, CONTEXT.md, SPEC.md, Issue #1 and Issue #4. Reconcile current
-main/PRs; continue G-owned M2 acceptance before M3.
+Read AGENTS.md, CONTEXT.md, SPEC.md and roadmap #1; inspect #6/#7 and current
+PR/main truth. Preserve M2 acceptance and keep M3 live proof explicitly pending.
