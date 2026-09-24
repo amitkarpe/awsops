@@ -29,7 +29,9 @@ connections. The store checks the registered scope and context, freshness,
 expiry and absence of a prior terminal decision in that same transaction.
 SQLite synchronous=FULL is configured. The adapter returns only after commit;
 connections are explicitly closed. Storage failure propagates with no retry
-or continuation. The caller must terminalize/reconcile its claimed native job.
+or continuation. If an acknowledgement is lost after a successful commit, the
+receipt remains consumed; bound audit read, not another continuation, is the
+recovery path. The caller must terminalize/reconcile its claimed native job.
 That platform failure behavior is NOT implemented or proven by this module.
 
 Reject yields REJECTED. An Approve request yields APPROVE_BLOCKED and a reject

@@ -185,6 +185,24 @@ class NativeDecisionTests(unittest.TestCase):
         self.assertEqual(len(self.store.timeline(self.frozen.batch_id, self.binding)), 1)
         self.assertEqual(self.decide().outcome, "REJECTED")
 
+    def test_lost_commit_ack_requires_audit_not_replay(self):
+        original = self.store._commit
+        def committed_but_ack_lost(db):
+            original(db)
+            raise OSError("test acknowledgement lost after commit")
+        with patch.object(self.store, "_commit", side_effect=committed_but_ack_lost):
+            with self.assertRaises(OSError):
+                NativeDecisionAdapter(self.store).after_native_claim(
+                    batch_id=self.frozen.batch_id, scope_hash=self.frozen.scope_hash,
+                    binding=self.binding, decision="reject")
+        reopened = DecisionStore(self.path, clock=lambda: NOW)
+        events = reopened.timeline(self.frozen.batch_id, self.binding)
+        self.assertEqual(events[-1]["payload"]["outcome"], "REJECTED")
+        with self.assertRaisesRegex(DecisionError, "ALREADY_RECORDED"):
+            NativeDecisionAdapter(reopened).after_native_claim(
+                batch_id=self.frozen.batch_id, scope_hash=self.frozen.scope_hash,
+                binding=self.binding, decision="reject")
+
     def test_adapter_rejects_wrong_receipt_response(self):
         receipt = DecisionReceipt(self.frozen.batch_id, self.frozen.scope_hash, "REJECTED", "a" * 64, NOW)
         for wrong in (None, {"outcome": "REJECTED"}, replace(receipt, outcome="APPROVE_BLOCKED"), replace(receipt, scope_hash="d" * 64)):

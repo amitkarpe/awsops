@@ -30,7 +30,7 @@ IAM/OIDC/network/credential changes or source-repo modifications are authorized.
 
 ## Next
 
-Review/accept the repository-only M3A package. Then define the exact existing
+PR #8 records M3A code/review/merge status. Define and validate the exact
 LAB native-runtime integration and deployment boundary before live changes.
 Reuse normal platform authentication; do not extract browser credentials,
 replace the old runtime, or treat a SQLite receipt as authentication.
