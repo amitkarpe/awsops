@@ -135,18 +135,23 @@ test('producer apply/reapply/rollback preserves exact original and refuses drift
   assert.equal(patch.change(candidate,'rollback','pause').state,'ORIGINAL');assert.deepEqual(fs.readFileSync(target),raw);
 });
 
-test('provider pipe excludes browser and ambient AWS credentials from child environment',async t=>{
-  const f=setup(t),configPath=path.join(f.dir,'read.json'),fake=path.join(f.dir,'env-python');
-  fs.writeFileSync(configPath,'{}',{mode:0o600});
+test('provider pipe uses an explicit existing SDK home and excludes ambient credentials',async t=>{
+  const f=setup(t),configPath=path.join(f.dir,'read.json'),fake=path.join(f.dir,'env-python'),sdk=path.join(f.dir,'sdk-home');
+  fs.writeFileSync(configPath,'{}',{mode:0o600});fs.mkdirSync(sdk,{mode:0o700});
   fs.writeFileSync(fake,`#!/bin/sh
 if [ -n "$AUTH_TOKEN$AWS_SECRET_ACCESS_KEY$AWS_SESSION_TOKEN" ]; then exit 2; fi
 [ "$AWS_EC2_METADATA_DISABLED" = true ] || exit 2
-[ -n "$HOME" ] || exit 2
+[ "$HOME" = "$AWSOPS_EXPECTED_HOME" ] || exit 2
 echo '{"isolated":true}'
 `,{mode:0o700});
-  const names=['AWSOPS_READ_CONFIG','AUTH_TOKEN','AWS_SECRET_ACCESS_KEY','AWS_SESSION_TOKEN'];
+  const names=['AWSOPS_READ_CONFIG','AWSOPS_SDK_HOME','AUTH_TOKEN','AWS_SECRET_ACCESS_KEY','AWS_SESSION_TOKEN','AWSOPS_EXPECTED_HOME'];
   const before=Object.fromEntries(names.map(k=>[k,process.env[k]]));
-  Object.assign(process.env,{AWSOPS_READ_CONFIG:configPath,AUTH_TOKEN:'test-only',AWS_SECRET_ACCESS_KEY:'test-only',AWS_SESSION_TOKEN:'test-only'});
-  try{assert.deepEqual(await pause.providerPipe({...f.config,python:fake},{operation:'test'}),{isolated:true});}
-  finally{for(const key of names){if(before[key]===undefined)delete process.env[key];else process.env[key]=before[key];}}
+  Object.assign(process.env,{AWSOPS_READ_CONFIG:configPath,AWSOPS_SDK_HOME:sdk,AWSOPS_EXPECTED_HOME:sdk,
+    AUTH_TOKEN:'test-only',AWS_SECRET_ACCESS_KEY:'test-only',AWS_SESSION_TOKEN:'test-only'});
+  try{
+    assert.equal(pause.sdkHome(),sdk);
+    assert.deepEqual(await pause.providerPipe({...f.config,python:fake},{operation:'test'}),{isolated:true});
+    delete process.env.AWSOPS_SDK_HOME;
+    await assert.rejects(pause.providerPipe({...f.config,python:fake},{operation:'test'}));
+  } finally {for(const key of names){if(before[key]===undefined)delete process.env[key];else process.env[key]=before[key];}}
 });
