@@ -141,12 +141,12 @@ test('provider pipe uses an explicit existing SDK home and excludes ambient cred
   fs.writeFileSync(fake,`#!/bin/sh
 if [ -n "$AUTH_TOKEN$AWS_SECRET_ACCESS_KEY$AWS_SESSION_TOKEN" ]; then exit 2; fi
 [ "$AWS_EC2_METADATA_DISABLED" = true ] || exit 2
-[ "$HOME" = "$AWSOPS_EXPECTED_HOME" ] || exit 2
+[ "$HOME" = "${sdk}" ] || exit 2
 echo '{"isolated":true}'
 `,{mode:0o700});
-  const names=['AWSOPS_READ_CONFIG','AWSOPS_SDK_HOME','AUTH_TOKEN','AWS_SECRET_ACCESS_KEY','AWS_SESSION_TOKEN','AWSOPS_EXPECTED_HOME'];
+  const names=['AWSOPS_READ_CONFIG','AWSOPS_SDK_HOME','AUTH_TOKEN','AWS_SECRET_ACCESS_KEY','AWS_SESSION_TOKEN'];
   const before=Object.fromEntries(names.map(k=>[k,process.env[k]]));
-  Object.assign(process.env,{AWSOPS_READ_CONFIG:configPath,AWSOPS_SDK_HOME:sdk,AWSOPS_EXPECTED_HOME:sdk,
+  Object.assign(process.env,{AWSOPS_READ_CONFIG:configPath,AWSOPS_SDK_HOME:sdk,
     AUTH_TOKEN:'test-only',AWS_SECRET_ACCESS_KEY:'test-only',AWS_SESSION_TOKEN:'test-only'});
   try{
     assert.equal(pause.sdkHome(),sdk);
