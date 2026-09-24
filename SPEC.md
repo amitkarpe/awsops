@@ -1,76 +1,78 @@
 # Specification
 
-Status: ACTIVE - M2 live accepted; M3 repository integration, not deployed.
+Status: ACTIVE - M2 live accepted; M3C integration, native canary still pending.
 
 ## Goal and layering
 
 Read evidence -> normalized finding -> fresh freeze -> native human choice
--> durable receipt -> bounded action -> independent provider readback.
-Domain and decision records do not depend on LibreChat or AWS clients.
-Remediation is disabled; no model-facing executor or decision API is enabled.
+-> durable receipt -> independent provider readback. Remediation is disabled.
+Domain/decision records remain independent of LibreChat and AWS clients.
+There is no generic model-facing AWS or decision API.
 
-## M2 evidence contract
+## Evidence and preparation
 
-- Candidate input never supplies authoritative policy/account/role/API data.
-- Prepare rereads provider truth and requires complete verified coverage,
-  current NON_COMPLIANT evidence and an unchanged candidate digest.
-- Exactly four distinct private LAB bindings: lab-dev, lab-poc, lab-qa, lab-sec.
-  Controller and target read-role identities must match; Region ap-southeast-1.
-- Bounded pagination, expected owner and returned bucket Region are enforced.
-  Partial/provider/UNKNOWN results cannot be invented into success.
+- Exactly four private registered LAB bindings: lab-dev, lab-poc, lab-qa,
+  lab-sec; expected controller/read-role identities and ap-southeast-1 Region.
+- Fixed bounded SDK reads verify returned Region and expected bucket owner.
+  Partial, unavailable, UNKNOWN or stale evidence cannot become preparation.
 - Digests bind actual policy, identity, resource, Region and evaluator version.
-- Provider readback compares policy evidence, not only the compliance label.
-- Unique in-process planning scopes expire within five minutes. Registration
-  requires the actual server/provider-backed scope, not caller JSON or a hash.
+  Provider readback compares policy evidence, not a compliance label alone.
+- Candidate input nominates alias/resource reference/expected digest. It never
+  supplies a frozen scope, provider policy, account ID, role or AWS operation.
+- Prepare rereads provider truth and expires within five minutes. Model input,
+  JSON value types and digests are not authorization.
 
-## M3A durable decision contract
+## Durable native decisions
 
-- One private SQLite ledger records PREPARE_FROZEN and NATIVE_DECISION events.
-- Exact tool/principal/tenant/conversation/action/generation/tool-call binding
-  is stored as a digest with the frozen scope. Neither digest is a credential.
-- Native authentication/ownership and the winning resume claim belong to the
-  hosting platform, before final decision handling. JSON/Python value types
-  do not form an authentication boundary against untrusted server code.
-- A final decision returns only after its database transaction commits.
-  Replay, mismatch, expiry and persistence failure produce no continuation.
-- Reject records REJECTED. A synthetic Approve records APPROVE_BLOCKED and
-  maps to reject. Both have dispatch_allowed=false; no executor exists.
-- A lost response after commit requires bound audit read, never re-resume.
-- Filesystem/server administrators are trusted. Hash links/triggers detect
-  ordinary corruption; this is not an externally anchored audit service.
+- One private SQLite ledger records PREPARE_FROZEN and NATIVE_DECISION.
+- Exact server-owned tool/principal/tenant/conversation/action/generation/call
+  binding is persisted as a digest. The platform owns authentication and claims.
+- Final choices return only after commit. Replay, mismatch, expiry or storage
+  failure cannot continue the native job. Audit reads never mint continuation.
+- Reject records REJECTED. Synthetic Approve records APPROVE_BLOCKED and maps
+  to reject; no executor exists. Live Approve remains prohibited.
+- Hash links/triggers detect ordinary corruption under trusted local server/
+  filesystem administration; they are not an externally anchored audit service.
 
-## M3B native-runtime integration contract
+## Trusted pause producer and private processes
 
-- Default-off private OS-pipe bridge reuses the existing ledger. No new HTTP
-  listener, shared secret, browser credential extraction or cloud dependency.
-- Only a trusted pause producer may register the provider-backed scope with
-  the actual native action identity. Missing registration cannot be bypassed
-  by auto-registering request input during resume.
-- Exact pinned upstream controller: native guards, strict canary envelope,
-  existing single-winner CAS, committed receipt, then only a reject resolution.
-- Mixed/unknown tool requests and edited scope/decisions fail closed. Existing
-  unrelated native tool paths bypass the new integration unchanged.
-- Receipt failure before continuation attempts exact-generation terminalization,
-  checkpoint cleanup only on a confirmed win, and separate slot release.
-  Timeout/failure reports RECONCILE_REQUIRED. No blind retry or fake success.
-- The offline candidate patch tool verifies source/helper bytes and refuses
-  drift or unsafe paths. It never operates a service or deletes ledger state.
-- Controller tests stub external native/auth/persistence/model dependencies.
-  They do not certify production authentication, Redis/Mongo or browser E2E.
+- An exact source-pinned insertion runs BEFORE native approvals.pause/card
+  publication. The actual running generation/user/tenant/agent is validated.
+- One exact reject-only tool nominates a candidate. The provider process reads
+  fresh evidence, freezes it and commits its native registration before reply.
+- Native identity and candidate are rechecked after provider work. Only then
+  may the pending action receive the committed batch/scope and reduced expiry.
+- Failure/lost acknowledgement or losing the subsequent native pause claim
+  can leave orphan PREPARE evidence, never readiness or execution authority.
+  Preserve/reconcile it; do not silently rebind or manufacture a decision.
+- Only ['reject'] is offered on the native card. Unrelated tools bypass the
+  canary integration; mixed/reserved lookalikes and edited input fail closed.
+- Receipt and provider processes are separate. The receipt child receives no
+  credentials. The provider child uses only the configured existing local SDK
+  profile, not copied parent/browser tokens. Bounded pipes expose no listener.
+- A bound REJECTED receipt permits fresh read-only comparison after reopening
+  state, without restoring the planning cache/job. Missing, expired, changed,
+  partial or unknown evidence cannot report unchanged. Readback output must be
+  retained in the final canary evidence packet; no new ledger event is claimed.
+- Runtime controller tests explicitly stub external auth/store/model services.
+  They cannot certify native login, complete application startup or browser E2E.
 
-## Live and publication boundaries
+## Deployment and rollback
 
-Issue #6's authorized temporary read-only SSM probe is complete and cleaned.
-Issue #9 permits repository/local/CI integration and rollback rehearsal only.
-The canary plan in docs/architecture/M3_NATIVE_RUNTIME.md needs explicit exact
-deployment scope before new processes, listeners, runtime/auth/state changes.
-No change to the retained LibreChat service is inherited from repository merge.
+Issue #11 records the approved isolated canary on the existing verified LAB
+host, separate files/chat/checkpoint/ledger state, loopback only and no changes
+to existing services. Preflight has run; no canary was launched. Source pins,
+capacity, normal native authentication and isolated writable state must all
+pass before a live run. New native auth account/session-secret provisioning
+requires its explicit gate; do not reuse the old database or extract its keys.
 
-No live Approve, remediation, generic AWS operation, credential/IAM/OIDC/network
-or public exposure change, company/PROD or old-runtime modification. Synthetic
-blocked-Approve tests have no AWS/native production access. Public proof uses
-aliases/digests, not raw policies, account IDs, bucket names, native identities
-or browser state. M3 full acceptance still needs trusted pause wiring, normal
-login, native Reject, durable receipt, fresh provider readback and cleanup.
+The source patch utility still edits only marked offline candidates. Verify
+both producer and resume components before startup. Partial apply/drift must
+refuse startup; rollback only restores its exact files and never deletes audit.
+No existing service restart, auth bypass, public DNS/ingress/network, IAM/OIDC,
+new AWS resource, company/PROD or old-repository mutation is authorized.
 
-M4 mutation controls require separate exact canary authority. M5 remains future.
+M3 overall requires REAL authenticated native Reject, durable receipt, fresh
+provider readback and cleanup. M4 mutation needs separate exact-canary authority.
+Public proof uses aliases/digests, never private account/resource/native IDs,
+policies, login material or browser state.

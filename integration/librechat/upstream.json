@@ -1,10 +1,10 @@
 {
-  "repository": "danny-avila/LibreChat",
+  "repository": "LibreChat-AI/LibreChat",
   "version": "v0.8.8-rc1",
   "commit": "eaef87fa2684025627e25d649a56f4f2a63417a7",
   "controller": "api/server/controllers/agents/resume.js",
   "controller_blob": "a5bae98f76d0dac120d72da9bcd5e1c81a144b8d",
-  "fixture_max_bytes": 131072,
-  "native_tool": "decide_s3_ssl_reject_only_mcp_awsops",
-  "deployment_enabled": false
+  "producer": "api/server/controllers/agents/client.js",
+  "producer_blob": "ec949241204f2865a7a3ce47fc5a70c86c14340e",
+  "fixture_max_bytes": 1048576
 }

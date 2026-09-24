@@ -1,0 +1,36 @@
+{
+  "auth_material_read_or_exported": false,
+  "binaries_present": {
+    "docker": false,
+    "mongod": true,
+    "node": true,
+    "npm": true,
+    "redis-server": false
+  },
+  "canary_directory_present": false,
+  "canary_started": false,
+  "capacity_acceptance": "NOT_ESTABLISHED_BY_SNAPSHOT",
+  "disk_free_bytes": 4399017984,
+  "existing_service_changes_issued": false,
+  "existing_services_active": true,
+  "identity_ownership_ssm_verified": true,
+  "issue": 11,
+  "kind": "READ_ONLY_PREFLIGHT_NOT_NATIVE_ACCEPTANCE",
+  "memory_kib": {
+    "available": 2249628,
+    "swap_total": 0,
+    "total": 3924252
+  },
+  "native_authentication": "NOT_PROVISIONED",
+  "native_reject": "NOT_RUN",
+  "observed_unix": 1790218730,
+  "provider_readback": "NOT_RUN_IN_THIS_PREFLIGHT",
+  "region": "ap-southeast-1",
+  "remaining_gate": "Dedicated canary normal login and local session-key provisioning; no old auth/database copying.",
+  "retained_librechat_version": "v0.8.8-rc1",
+  "retained_resume_sha256": "9a5ea6723b0daddf7812fba7fb03f47f76183889c3e96a6ad827972f2ad9e0a7",
+  "source_commit": "1ee21e15017a066413bf705c96749ab7bf9cffd2",
+  "ssm_command_id": "bde5d6bd-ee52-42e3-a97c-798f241b2684",
+  "target": "retained-personal-lab-host",
+  "version": 1
+}
