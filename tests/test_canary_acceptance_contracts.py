@@ -18,6 +18,8 @@ class CanaryAcceptanceContracts(unittest.TestCase):
         self.assertIn("decision!=='reject'",browser)
         self.assertIn("dispatchAttempts!==0",browser)
         self.assertIn("provider_readback:'PENDING'",browser)
+        self.assertIn("pythonLink.isSymbolicLink()",browser)
+        self.assertIn("(pythonTarget.mode&0o022)!==0",browser)
 
     def test_runtime_config_is_exact_and_idempotent(self):
         with tempfile.TemporaryDirectory() as d:

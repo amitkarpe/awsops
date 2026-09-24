@@ -56,7 +56,12 @@ async function run(root){
      JSON.stringify(manifest.tools)!==JSON.stringify([TOOL]))throw Error('CANARY_MANIFEST_REQUIRED');
   const login=privateJson(path.join(root,'state/login.json'));
   const python=process.env.AWSOPS_CANARY_PYTHON;
-  if(typeof python!=='string'||!path.isAbsolute(python)||fs.realpathSync(python)!==python)throw Error('CANARY_PYTHON_REQUIRED');
+  if(typeof python!=='string'||!path.isAbsolute(python))throw Error('CANARY_PYTHON_REQUIRED');
+  const pythonLink=fs.lstatSync(python), pythonTarget=fs.statSync(fs.realpathSync(python));
+  const pythonParent=fs.statSync(path.dirname(python));
+  if(!(pythonLink.isFile()||pythonLink.isSymbolicLink())||!pythonTarget.isFile()||
+     (pythonTarget.mode&0o111)===0||(pythonTarget.mode&0o022)!==0||(pythonParent.mode&0o022)!==0)
+    throw Error('CANARY_PYTHON_REQUIRED');
   process.env.PLAYWRIGHT_BROWSERS_PATH=path.join(root,'state/browser');
   const {chromium}=require(path.join(root,'app/node_modules/playwright'));
   let browser,page,agentId,conversationId;
