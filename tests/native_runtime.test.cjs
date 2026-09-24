@@ -139,6 +139,7 @@ function harness(f, options = {}) {
     completeJob: async (_id, _error, createdAt) => {
       calls.terminal++; calls.terminalGeneration = createdAt;
       if (options.terminalFails) throw Error('private-store-error');
+      if (options.terminalHangs) return new Promise(() => {});
       if (options.replaceJob) current = {...current, createdAt: current.createdAt + 1};
       if (current.createdAt !== createdAt) return false;
       current = {...current, status: 'error'}; return true;
@@ -212,16 +213,31 @@ test('pinned upstream controller + real SQLite process bridge', {skip: !hasUpstr
     assert.equal(h.calls.terminalGeneration, f.job.createdAt); assert.equal(h.calls.checkpoint, 1); assert.equal(h.calls.decrement, 1);
     if (fault === 'lostAck') await assert.rejects(record(f));
   });
-  for (const fault of ['replaceJob', 'terminalFails', 'slotFails', 'checkpointFails']) await t.test(fault+' reports reconciliation, not success', async t => {
+  for (const fault of ['replaceJob', 'terminalFails', 'terminalHangs', 'slotFails', 'checkpointFails']) await t.test(fault+' reports reconciliation, not success', async t => {
     const f = setup(t); const h = harness(f, {receiptFails: true, [fault]: true}); await h.run();
     assert.equal(h.res.code, 503); assert.equal(h.res.body.terminalization, 'RECONCILE_REQUIRED');
     assert.equal(h.calls.resume, 0); assert.equal(h.calls.decrement, 1);
-    if (['replaceJob', 'terminalFails'].includes(fault)) assert.equal(h.calls.checkpoint, 0);
+    if (['replaceJob', 'terminalFails', 'terminalHangs'].includes(fault)) assert.equal(h.calls.checkpoint, 0);
   });
   for (const fault of ['loseClaim', 'claimFails', 'concurrencyBlocked']) await t.test(fault+' never records or resumes', async t => {
     const f = setup(t); const h = harness(f, {[fault]: true}); await h.run();
     assert.equal(h.calls.receipt, 0); assert.equal(h.calls.resume, 0);
     assert.notEqual(h.res.code, 200);
+  });
+  await t.test('concurrent native submissions have one receipt and continuation', async t => {
+    const f = setup(t); await register(f); const h = harness(f);
+    await Promise.all([h.run(), h.run()]);
+    assert.equal(h.calls.claim, 2); assert.equal(h.calls.receipt, 1);
+    assert.equal(h.calls.resume, 1); assert.equal(h.calls.finished, 1);
+    assert.equal(h.calls.decrement, 2);
+    assert.equal(h.calls.resolution['call-1'].type, 'reject');
+  });
+  await t.test('registered scope mismatch is terminal and never resumes', async t => {
+    const f = setup(t); await register(f);
+    f.job.metadata.pendingAction.payload.action_requests[0].arguments.scope_hash = 'd'.repeat(64);
+    const h = harness(f); await h.run();
+    assert.equal(h.res.code, 503); assert.equal(h.calls.receipt, 1); assert.equal(h.calls.resume, 0);
+    assert.equal(h.res.body.terminalization, 'FINALIZED');
   });
   await t.test('native ownership guard runs before receipt or claim', async t => {
     const f = setup(t); f.req.user = {id: 'wrong-user'};
