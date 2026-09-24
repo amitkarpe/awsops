@@ -37,7 +37,7 @@ if(cfg.endpoints.agents.toolApproval.ask[0]!==c.TOOL||cfg.endpoints.agents.toolA
 if(cfg.mcpServers.awsops.args[1]!==r||cfg.endpoints.custom[0].baseURL!=='http://127.0.0.1:4312/v1')process.exit(4);
 if(!fs.existsSync(p.join(r,'app/api/server/controllers/agents/awsops-native-gate.cjs')))process.exit(5);
 const pause=p.join(r,'app/api/server/controllers/agents/awsops-pause-gate.cjs');
-fs.writeFileSync(pause,'unexpected drift');let refused=false;try{c.configure(r)}catch{refused=true}
+fs.writeFileSync(pause,'unexpected drift');let refused=false;try{{c.configure(r)}}catch{{refused=true}}
 if(!refused)process.exit(6);
 """
             self.node(code)
