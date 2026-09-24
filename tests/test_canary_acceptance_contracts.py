@@ -37,8 +37,13 @@ if(cfg.endpoints.agents.toolApproval.ask[0]!==c.TOOL||cfg.endpoints.agents.toolA
 if(cfg.mcpServers.awsops.args[1]!==r||cfg.endpoints.custom[0].baseURL!=='http://127.0.0.1:4312/v1')process.exit(4);
 if(!fs.existsSync(p.join(r,'app/api/server/controllers/agents/awsops-native-gate.cjs')))process.exit(5);
 const pause=p.join(r,'app/api/server/controllers/agents/awsops-pause-gate.cjs');
+const pauseSource=fs.readFileSync(pause,'utf8');
+if(!pauseSource.includes("require('./awsops-native-gate.cjs')")||pauseSource.includes("require('./native_gate.cjs')"))process.exit(6);
+const prior=c.deployedPauseHelper(Buffer.from(fs.readFileSync('./integration/librechat/pause_gate.cjs','utf8')
+  .replace("const fs = require('node:fs');","const fs = require('node:fs');")));
+if(!Buffer.isBuffer(prior))process.exit(7);
 fs.writeFileSync(pause,'unexpected drift');let refused=false;try{{c.configure(r)}}catch{{refused=true}}
-if(!refused)process.exit(6);
+if(!refused)process.exit(8);
 """
             self.node(code)
 
