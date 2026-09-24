@@ -127,3 +127,24 @@ module.exports.approvalHook = () => context => async input => {
     return {decision:'ask',allowedDecisions:['reject'],reason:'Read-only S3 TLS validation. Reject only; no remediation.'};
   } catch {return {decision:'deny',reason:'AWSOPS_PAUSE_NOT_READY'};}
 };
+
+// A trusted server may compare provider truth after a committed Reject. This
+// returns audit evidence only, never permission to resume or another decision.
+module.exports.readbackRejected = async (envelope, transport=providerPipe) => {
+  const {config,message}=envelope;
+  gate.validateConfig(config);
+  const result=await transport(config,{version:1,operation:'readback',binding:message.binding,
+    batch_id:message.batch_id,scope_hash:message.scope_hash});
+  if(result?.version!==1 || result.ok!==true || result.operation!=='readback' || result.dispatch_allowed!==false ||
+      result.batch_id!==message.batch_id || result.scope_hash!==message.scope_hash || result.read_only!==true ||
+      typeof result.unchanged!=='boolean' || !['COMPLIANT','NON_COMPLIANT','UNKNOWN','UNAVAILABLE'].includes(result.state) ||
+      !Number.isSafeInteger(result.observed_at) || result.observed_at<0 || Object.hasOwn(result,'resume_value'))fail();
+  keys(result,['version','ok','operation','dispatch_allowed','batch_id','scope_hash',
+    'receipt_event_hash','state','unchanged','read_only','observed_at',
+    ...(Object.hasOwn(result,'finding_evidence_digest') ? ['finding_evidence_digest'] : [])]);
+  text(result.receipt_event_hash,HEX64);
+  if(result.unchanged && result.state!=='NON_COMPLIANT')fail();
+  if(Object.hasOwn(result,'finding_evidence_digest'))text(result.finding_evidence_digest,HEX64);
+  else if(result.unchanged)fail();
+  return result;
+};

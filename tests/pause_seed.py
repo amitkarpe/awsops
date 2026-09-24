@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_s3_ssl import FakeClient, bindings, collect
 from awsops.approval.decisions import DecisionStore
-from awsops.runtime.prepare_pause import prepare_and_register
+from awsops.runtime.prepare_pause import prepare_and_register, readback_after_reject
 from awsops.runtime.s3_ssl_service import S3SslService
 
 bound = bindings()
@@ -19,6 +19,8 @@ if len(sys.argv) == 3 and sys.argv[2] == "candidate":
     result = {"control": "s3_ssl", "account_alias": f["account_alias"],
               "resource_ref": f["resource_ref"], "expected_evidence_digest": f["evidence_digest"]}
 else:
-    result = prepare_and_register(service, store, json.load(sys.stdin))
+    message = json.load(sys.stdin)
+    handler = readback_after_reject if message.get("operation") == "readback" else prepare_and_register
+    result = handler(service, store, message)
     assert sum(c.calls.count("policy") for c in clients.values()) == 4
 print(json.dumps(result, separators=(",", ":")))

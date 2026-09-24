@@ -102,6 +102,9 @@ test('actual pinned producer commits before pause/card; native receipt then reje
   const env=gate.prepareNativeRequest({req,job:f.job,pendingAction:f.pendingAction,streamId:f.streamId},f.config);
   const result=await gate.persistNativeDecision(env);assert.equal(result.receipt.outcome,'REJECTED');
   assert.equal(result.resumeValue['call-1'].type,'reject');assert.equal((await inspect(f)).events.length,2);
+  const readback=await pause.readbackRejected(env,f.transport);
+  assert.equal(readback.unchanged,true);assert.equal(readback.resume_value,undefined);
+  assert.equal((await inspect(f)).events.length,2);
   await assert.rejects(gate.persistNativeDecision(env));
 });
 test('actual producer storage failure withholds both pause and card', {skip:!hasFixture},async t=>{
@@ -130,4 +133,20 @@ test('producer apply/reapply/rollback preserves exact original and refuses drift
   const originalPatched=fs.readFileSync(target);fs.appendFileSync(target,'\n// drift');
   assert.throws(()=>patch.change(candidate,'rollback','pause'));fs.writeFileSync(target,originalPatched);
   assert.equal(patch.change(candidate,'rollback','pause').state,'ORIGINAL');assert.deepEqual(fs.readFileSync(target),raw);
+});
+
+test('provider pipe excludes browser and ambient AWS credentials from child environment',async t=>{
+  const f=setup(t),configPath=path.join(f.dir,'read.json'),fake=path.join(f.dir,'env-python');
+  fs.writeFileSync(configPath,'{}',{mode:0o600});
+  fs.writeFileSync(fake,`#!/bin/sh
+if [ -n "$AUTH_TOKEN$AWS_SECRET_ACCESS_KEY$AWS_SESSION_TOKEN" ]; then exit 2; fi
+[ "$AWS_EC2_METADATA_DISABLED" = true ] || exit 2
+[ -n "$HOME" ] || exit 2
+echo '{"isolated":true}'
+`,{mode:0o700});
+  const names=['AWSOPS_READ_CONFIG','AUTH_TOKEN','AWS_SECRET_ACCESS_KEY','AWS_SESSION_TOKEN'];
+  const before=Object.fromEntries(names.map(k=>[k,process.env[k]]));
+  Object.assign(process.env,{AWSOPS_READ_CONFIG:configPath,AUTH_TOKEN:'test-only',AWS_SECRET_ACCESS_KEY:'test-only',AWS_SESSION_TOKEN:'test-only'});
+  try{assert.deepEqual(await pause.providerPipe({...f.config,python:fake},{operation:'test'}),{isolated:true});}
+  finally{for(const key of names){if(before[key]===undefined)delete process.env[key];else process.env[key]=before[key];}}
 });

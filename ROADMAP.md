@@ -1,40 +1,36 @@
 # Roadmap
 
-Owning roadmap: Issue #1. G owns direct implementation and verification.
+Owning roadmap: Issue #1. G owns implementation and verification.
 
 ## M1 - clean migration bootstrap - COMPLETE
 
-Layered layout, current-only control docs, selective migration and credential-
-free CI. No wholesale source-repo copy.
+Layered source layout, current-only docs, selective migration and CI.
 
 ## M2 - trustworthy read/prepare/readback - ACCEPTED
 
-PR #5 hardened evidence/identity/completeness/freshness. Issue #6 executed the
-exact corrected reader on the retained LAB host: four verified aliases,
-complete inventory and one fresh lab-dev prepare with unchanged policy readback.
-Temporary files were removed and deployed services unchanged. Evidence is in
-`docs/evidence/M2_LAB_READ.json`.
+The corrected reader passed four verified LAB aliases and one fresh exact
+preparation/readback through the isolated SSM probe. Evidence is in
+`docs/evidence/M2_LAB_READ.json`. Temporary files were removed; services unchanged.
 
 ## M3 - native Reject-only decision - IN PROGRESS
 
-M3A / #7 / PR #8: accepted repository-only private durable ledger. Exact binding,
-commit-before-return, replay/expiry checks, Reject and blocked-Approve handling.
+- M3A (#7 / #8): private durable ledger and runtime-neutral decision adapter.
+- M3B (#9 / #10): private receipt pipe, pinned resume seam and offline rollback.
+- M3C (#11 / #12): trusted pause producer, fresh provider registration before
+  readiness, and bound post-Reject readback. Review/CI establish code acceptance.
 
-M3B / #9: private process bridge, source-pinned native resume integration,
-controller-contract rehearsal and isolated apply/rollback tool. Full exact-head
-CI/review must pass. It does not install a live pause producer or authenticate
-users. Proposed canary boundary: `docs/architecture/M3_NATIVE_RUNTIME.md`.
-
-M3 live acceptance is NOT complete. The next canary must connect trusted native
-pause registration, normal login, real Reject, durable receipt, fresh provider
-readback, cleanup and recovery. Exact deployment authority is still required;
-M2's previous temporary probe is not blanket runtime authority.
+The real isolated native canary is NOT accepted. Preflight only has run;
+normal isolated login/session provisioning remains an explicit gate. No old
+runtime/database/credential copying to bypass it. Continue in #11, not a new
+sequence of troubleshooting issues. Require authenticated native Reject,
+receipt, unchanged provider readback, cleanup and retained-service protection.
 
 ## M4 - bounded remediation migration - NOT STARTED
 
 Only S3 BPA and restricted SSH on retained demo scope may be considered.
-Separate exact-canary authority is required before live mutation/Approve.
+Separate exact-canary authority is required before any live Approve or write.
 
 ## M5 - parity and cutover - NOT STARTED
 
-Parity/deferred list, runbook and explicit cutover. Preserve old source/history.
+Parity/deferred list, deployment/runbook and explicit cutover. Preserve source
+history and evidence; no destructive old-repository cleanup.

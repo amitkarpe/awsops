@@ -6,37 +6,36 @@ Updated: 2026-09-24
 
 ## Authority
 
-Roadmap #1 owns migration. G owns direct implementation, validation and review.
-M2 live probe #6 and M3A ledger #7 are complete. Issue #9 owns the repository-only
-M3B native-runtime bridge, source-pinned rehearsal and rollback plan.
-No runtime deployment, live approval/remediation, IAM/OIDC/network/credential
-change or modification of the source repository is authorized.
+Roadmap #1 owns migration. G implements, validates and reviews directly.
+M2 live reads and M3A/M3B repository integration are accepted. Issue #11 owns
+M3C trusted pause registration and the isolated native canary; PR #12 records
+its current code/review/merge state. No Codex handoff is required.
+
+Amit approved an isolated canary on the same verified personal-LAB host, with
+separate state and no changes to existing services. New native login/secret
+provisioning is an explicit remaining gate; never copy old browser/auth data.
+No target-resource mutation, live Approve, IAM/OIDC/network or PROD work.
 
 ## Current truth
 
-- M1 bootstrap and M2 corrected live read/prepare/readback are accepted.
-- M2 evidence: `docs/evidence/M2_LAB_READ.json`. Its temporary files were removed;
-  deployed services stayed unchanged. This is not native browser evidence.
-- M3A provides the private durable ledger and runtime-neutral decision adapter.
-- M3B provides a private Node/Python process bridge, an exact-source native
-  resume seam, bounded failure terminalization, and offline apply/rollback.
-  Current Issue #9/PR checks record its review/acceptance state.
-- The bridge is default-off. It neither authenticates callers nor supplies an
-  HTTP/model tool. Native server ownership/claim and trusted pause registration
-  are mandatory. Missing registration fails closed.
-- M3 live browser acceptance is still PENDING. No new agent, native session,
-  service or deployed adapter was created. Real pause registration/auth/readback
-  must be connected and tested in an explicitly isolated canary.
-- `aws-secops` remains reference/archive material; its runtime is untouched.
+- M2 live evidence remains `docs/evidence/M2_LAB_READ.json`.
+- M3A/M3B supply the private ledger, receipt pipe and pinned resume adapter.
+- M3C connects the pinned pause producer to a fresh provider-backed preparation
+  before native readiness. Failed registration/replaced generations cannot
+  publish a card. Only Reject is offered; no executor exists.
+- Bound post-Reject readback can reopen durable evidence without reconstructing
+  a job or replaying its decision. Readback output is not a new ledger event.
+- Producer/controller rehearsal uses pinned upstream code, genuine local
+  service/ledger logic and explicit provider/native dependency doubles. It is
+  not proof of live native authentication, Redis/Mongo or browser behavior.
+- Preflight found the retained services active and no isolated canary. No
+  canary process/listener/login was created. The retained patched source is
+  not the clean upstream pin; it must not be altered or silently reused.
+- M3 live acceptance is PENDING; Issue #11 remains open after repository merge.
+- `aws-secops` stays reference/archive material; neither repo nor runtime changed.
 
 ## Next
 
-Review the M3B exact-head proof under #9, then establish the explicit isolated
-canary boundary in `docs/architecture/M3_NATIVE_RUNTIME.md` before deployment.
-Do not treat controller tests, a ledger receipt or a previous SSM probe as
-native browser proof, authentication or permission to change old services.
-
-## Restart
-
-Read AGENTS.md, CONTEXT.md, SPEC.md, roadmap #1 and Issue #9; reconcile current
-main/PRs. Keep M2 acceptance and M3 repository/live evidence separate.
+Complete the isolated canary's normal authentication/bootstrap boundary under
+#11, then real Reject -> durable receipt -> provider readback -> cleanup.
+Do not create another roadmap or mistake code/CI acceptance for live completion.
