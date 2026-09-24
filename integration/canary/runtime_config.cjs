@@ -10,7 +10,15 @@ const SERVER='awsops';
 const TOOL='decide_s3_ssl_reject_only_mcp_awsops';
 const MODEL_ENDPOINT='awsops_canary_fixture';
 const MODEL='awsops-canary-fixed';
-const PREVIOUS_PAUSE_BLOB='ef068f7a1223377610ea04fc52aa042e2f494dd6';
+// Previous deployed helper from accepted M3C main. Deployment renames the native helper,
+// so the deployed pause helper has a distinct blob from the repository source file.
+const PREVIOUS_PAUSE_BLOB='d1fcdb0cbfd2d951ae3a37ea1f391a1b5c2f7adb';
+function deployedPauseHelper(data){
+  const marker="require('./native_gate.cjs')";
+  const source=data.toString('utf8');
+  if(source.split(marker).length!==2)fail('PAUSE_HELPER_SEAM_DRIFT');
+  return Buffer.from(source.replace(marker,"require('./awsops-native-gate.cjs')"));
+}
 function gitBlob(data){return createHash('sha1').update(Buffer.concat([Buffer.from('blob '+data.length+'\\0'),data])).digest('hex');}
 
 function fail(message){throw Error(message);}
@@ -84,7 +92,8 @@ function configure(root,sourceRoot=path.resolve(__dirname,'../..')){
     [path.join(sourceRoot,'integration/librechat/native_gate.cjs'),path.join(controllers,'awsops-native-gate.cjs'),null],
     [path.join(sourceRoot,'integration/librechat/pause_gate.cjs'),path.join(controllers,'awsops-pause-gate.cjs'),PREVIOUS_PAUSE_BLOB],
   ]){
-    const expected=fs.readFileSync(source);
+    const rawExpected=fs.readFileSync(source);
+    const expected=target.endsWith('awsops-pause-gate.cjs')?deployedPauseHelper(rawExpected):rawExpected;
     if(fs.existsSync(target)){
       const info=fs.lstatSync(target);
       if(!info.isFile()||fs.realpathSync(target)!==target)fail('HELPER_DRIFT');
@@ -121,4 +130,4 @@ if(require.main===module){
     console.log(JSON.stringify(action==='apply'?configure(root):rollback(root)));
   }catch{console.error('AWSOPS_CANARY_CONFIG_REFUSED');process.exitCode=2;}
 }
-module.exports={configure,rollback,gitBlob,PREVIOUS_PAUSE_BLOB,PURPOSE,SERVER,TOOL,MODEL_ENDPOINT,MODEL};
+module.exports={configure,rollback,gitBlob,deployedPauseHelper,PREVIOUS_PAUSE_BLOB,PURPOSE,SERVER,TOOL,MODEL_ENDPOINT,MODEL};
