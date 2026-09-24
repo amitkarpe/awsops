@@ -6,36 +6,37 @@ Updated: 2026-09-24
 
 ## Authority
 
-Roadmap #1 owns migration. G owns implementation, validation and review.
-Issue #6 owns M2 live evidence; Issue #7 owns repository-only M3A decisions.
-No Codex handoff is required. No live approval, remediation, deployment,
-IAM/OIDC/network/credential changes or source-repo modifications are authorized.
+Roadmap #1 owns migration. G owns direct implementation, validation and review.
+M2 live probe #6 and M3A ledger #7 are complete. Issue #9 owns the repository-only
+M3B native-runtime bridge, source-pinned rehearsal and rollback plan.
+No runtime deployment, live approval/remediation, IAM/OIDC/network/credential
+change or modification of the source repository is authorized.
 
 ## Current truth
 
-- M1 bootstrap is merged.
-- M2 is accepted: the corrected exact reader ran on the verified retained LAB
-  host using existing SDK sessions. All four aliases passed identity/Region and
-  complete inventory checks. One fresh lab-dev freeze had unchanged readback.
-- The same runner passed all 52 M2 tests. Probe files were removed and both
-  deployed services retained their original process/start identities.
-- Evidence: `docs/evidence/M2_LAB_READ.json`; source revision is recorded there.
-- M3A adds a private durable decision ledger and an in-process native adapter.
-  Reject and synthetic blocked Approve have no execution path. This is tested
-  repository code, NOT an authenticated native browser acceptance result.
-- M3 overall remains incomplete. Real native integration must authenticate the
-  user and bind the exact paused action before calling the adapter. No HTTP,
-  model tool, browser session or deployed adapter exists in this package.
-- `aws-secops` remains reference/archive material, not archived or modified.
+- M1 bootstrap and M2 corrected live read/prepare/readback are accepted.
+- M2 evidence: `docs/evidence/M2_LAB_READ.json`. Its temporary files were removed;
+  deployed services stayed unchanged. This is not native browser evidence.
+- M3A provides the private durable ledger and runtime-neutral decision adapter.
+- M3B provides a private Node/Python process bridge, an exact-source native
+  resume seam, bounded failure terminalization, and offline apply/rollback.
+  Current Issue #9/PR checks record its review/acceptance state.
+- The bridge is default-off. It neither authenticates callers nor supplies an
+  HTTP/model tool. Native server ownership/claim and trusted pause registration
+  are mandatory. Missing registration fails closed.
+- M3 live browser acceptance is still PENDING. No new agent, native session,
+  service or deployed adapter was created. Real pause registration/auth/readback
+  must be connected and tested in an explicitly isolated canary.
+- `aws-secops` remains reference/archive material; its runtime is untouched.
 
 ## Next
 
-PR #8 records M3A code/review/merge status. Define and validate the exact
-LAB native-runtime integration and deployment boundary before live changes.
-Reuse normal platform authentication; do not extract browser credentials,
-replace the old runtime, or treat a SQLite receipt as authentication.
+Review the M3B exact-head proof under #9, then establish the explicit isolated
+canary boundary in `docs/architecture/M3_NATIVE_RUNTIME.md` before deployment.
+Do not treat controller tests, a ledger receipt or a previous SSM probe as
+native browser proof, authentication or permission to change old services.
 
 ## Restart
 
-Read AGENTS.md, CONTEXT.md, SPEC.md and roadmap #1; inspect #6/#7 and current
-PR/main truth. Preserve M2 acceptance and keep M3 live proof explicitly pending.
+Read AGENTS.md, CONTEXT.md, SPEC.md, roadmap #1 and Issue #9; reconcile current
+main/PRs. Keep M2 acceptance and M3 repository/live evidence separate.
