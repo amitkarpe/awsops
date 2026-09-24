@@ -1,35 +1,38 @@
 # Agent Context
 
-Repository: `amitkarpe/awsops`  
-Status: ACTIVE  
-Updated: 2026-09-23
+Repository: `amitkarpe/awsops`
+Status: ACTIVE
+Updated: 2026-09-24
 
-## Current authority
+## Authority
 
-Roadmap Autopilot Issue #1 owns the clean migration from `amitkarpe/aws-secops`.
-
-M1 is complete and merged.
-
-Current milestone: **M2 — read-only s3_ssl vertical slice**.
-
-M2 permits:
-- repository implementation and tests;
-- personal-LAB read-only verification for the exact registered aliases;
-- exact identity/Region validation;
-- no AWS mutation.
+Issue #1 owns migration. G owns implementation, validation and review; X is not
+required for this work. Issue #4 owns M2 evidence/prepare acceptance hardening.
+Repository work and verified personal-LAB reads are allowed. No deployment,
+AWS mutation, IAM/OIDC/network/credential changes or source-repo changes.
 
 ## Current truth
 
-- `awsops` is the new clean product repository.
-- `aws-secops` remains reference/archive until explicit cutover.
-- Migration is selective: KEEP / REWRITE / LEAVE BEHIND.
-- M2 implements a runtime-neutral fixed S3 TLS evidence path; account IDs remain private runtime input and are never emitted.
-- No legacy S3 BPA/SSH executor is part of M2.
+- M1 bootstrap is merged.
+- M2 implementation is present; acceptance hardening corrects policy coverage,
+  partial inventory reporting, provider-policy digests and fresh preparation.
+- M2 live four-alias read/prepare/readback acceptance is still PENDING.
+- G verified the personal controller and registry with the AWS app. This does
+  not verify target-role sessions or run the new reader in those accounts.
+- The read-only probe requires an operator-owned private configuration and an
+  existing runner with the registered read-role sessions. No credentials are
+  exported between tools to manufacture that access.
+- M3 is next, not started or accepted. No native UI/decision/executor is exposed.
+- `aws-secops` remains reference/archive material; it has not been archived,
+  changed or deployed by this work.
 
 ## Next
 
-Finish M2 tests and personal-LAB read-only evidence. Then continue to M3 native Reject-only decision.
+Review the exact-head proof on Issue #4, then run the corrected read-only probe
+through an authorized target-scoped LAB runner. Keep M2 open until it passes.
+Do not substitute mocked tests, a root-controller read or old-repo evidence.
 
 ## Restart
 
-`Read AGENTS.md, CONTEXT.md, SPEC.md and Issue #1. Continue M2 read-only s3_ssl; no AWS mutation.`
+Read AGENTS.md, CONTEXT.md, SPEC.md, Issue #1 and Issue #4. Reconcile current
+main/PRs; continue G-owned M2 acceptance before M3.

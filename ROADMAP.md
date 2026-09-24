@@ -1,54 +1,40 @@
 # Roadmap
 
-Owning roadmap: Issue #1.
+Owner: Issue #1. Implementation owner: G.
 
-## M1 — migration inventory + clean contract — COMPLETE
+## M1 - COMPLETE
 
-- clean repository control files;
-- KEEP / REWRITE / LEAVE BEHIND matrix;
-- layered source layout;
-- dependency-free test command and CI;
-- no legacy implementation copied.
+Clean bootstrap, migration matrix, layered skeleton and credential-free CI.
 
-## M2 — read-only s3_ssl vertical slice — ACTIVE
+## M2 - ACTIVE; not live-accepted
 
-`LAB identity -> fixed S3 TLS evidence read -> normalized finding -> exact prepare/freeze -> provider readback`
+Issue #4 hardens the initial read-only implementation before acceptance:
 
-Acceptance:
-- exact registered aliases and Region verified;
-- fixed read operations only;
-- bounded resource reads;
-- alias-only/public-safe evidence and digests;
-- exact freeze for one current finding;
-- fresh provider readback can prove unchanged/changed state;
-- no AWS mutation or legacy executor dependency.
+1. Conservative TLS-deny coverage and real provider-policy evidence.
+2. Verified account/Region, bounded inventory, explicit partial/error states.
+3. Fresh exact prepare, unique expiring batch, changed-policy readback.
+4. Adversarial tests, source-backed contract and opt-in LAB probe.
 
-## M3 — native Reject-only decision — NEXT
+Repository proof and live proof are separate. The controller/registry read is
+not a four-target read. Acceptance still needs the corrected reader running
+with the existing registered target-role sessions, then fresh prepare/readback.
 
-`prepare/freeze -> native decision -> durable REJECTED receipt -> zero dispatch -> unchanged readback`
+## M3 - NEXT; not started
 
-Approve remains structurally blocked for `s3_ssl`.
+Runtime-neutral durable Reject/blocked-Approve decision service, then one
+thin native UI adapter and authenticated Reject-only E2E. No live Approve.
 
-## M4 — selective bounded remediation migration
+## M4 - FUTURE
 
-Evaluate only:
-1. S3 Block Public Access on retained demo scope;
-2. restricted SSH on retained unattached demo Security Groups.
+Selective S3 BPA and restricted-SSH migration only after exact per-control
+canary authority. No generic executor or inherited old-repo write authority.
 
-Port contracts and safety guards; rewrite coupled executor plumbing when simpler.
+## M5 - FUTURE
 
-## M5 — parity + cutover
+Capability parity, reversible cutover and explicit archival decision. Preserve
+old evidence. Do not run two equal product development tracks.
 
-- capability parity matrix;
-- deployment/runbook;
-- deferred list;
-- explicit cutover;
-- preserve `aws-secops` as reference/archive.
+## Boundaries
 
-## Permanent boundaries
-
-- no generic model AWS mutation;
-- no silent scope widening;
-- no company/PROD rollout;
-- no destructive source-repo cleanup;
-- no third live remediation control before explicit roadmap authority.
+No company/PROD, third live remediation control, automatic uncertain retries,
+old-repo cleanup or infrastructure/auth expansion under M2.
