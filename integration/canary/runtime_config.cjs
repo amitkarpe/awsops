@@ -3,12 +3,15 @@
 const fs=require('node:fs');
 const path=require('node:path');
 const {isDeepStrictEqual}=require('node:util');
+const {createHash}=require('node:crypto');
 
 const PURPOSE='awsops-issue11-isolated-auth-canary';
 const SERVER='awsops';
 const TOOL='decide_s3_ssl_reject_only_mcp_awsops';
 const MODEL_ENDPOINT='awsops_canary_fixture';
 const MODEL='awsops-canary-fixed';
+const PREVIOUS_PAUSE_BLOB='ef068f7a1223377610ea04fc52aa042e2f494dd6';
+function gitBlob(data){return createHash('sha1').update(Buffer.concat([Buffer.from('blob '+data.length+'\\0'),data])).digest('hex');}
 
 function fail(message){throw Error(message);}
 function atomic(file,data,mode){
@@ -77,13 +80,19 @@ function configure(root,sourceRoot=path.resolve(__dirname,'../..')){
   cfg.mcpServers={[SERVER]:mcp};
 
   const controllers=path.join(app,'api/server/controllers/agents');
-  for(const [source,target] of [
-    [path.join(sourceRoot,'integration/librechat/native_gate.cjs'),path.join(controllers,'awsops-native-gate.cjs')],
-    [path.join(sourceRoot,'integration/librechat/pause_gate.cjs'),path.join(controllers,'awsops-pause-gate.cjs')],
+  for(const [source,target,previousBlob] of [
+    [path.join(sourceRoot,'integration/librechat/native_gate.cjs'),path.join(controllers,'awsops-native-gate.cjs'),null],
+    [path.join(sourceRoot,'integration/librechat/pause_gate.cjs'),path.join(controllers,'awsops-pause-gate.cjs'),PREVIOUS_PAUSE_BLOB],
   ]){
     const expected=fs.readFileSync(source);
     if(fs.existsSync(target)){
-      if(!fs.readFileSync(target).equals(expected))fail('HELPER_DRIFT');
+      const info=fs.lstatSync(target);
+      if(!info.isFile()||fs.realpathSync(target)!==target)fail('HELPER_DRIFT');
+      const current=fs.readFileSync(target);
+      if(!current.equals(expected)){
+        if(previousBlob==null||gitBlob(current)!==previousBlob)fail('HELPER_DRIFT');
+        atomic(target,expected,info.mode&0o777);
+      }
     }else atomic(target,expected,0o644);
   }
 
@@ -112,4 +121,4 @@ if(require.main===module){
     console.log(JSON.stringify(action==='apply'?configure(root):rollback(root)));
   }catch{console.error('AWSOPS_CANARY_CONFIG_REFUSED');process.exitCode=2;}
 }
-module.exports={configure,rollback,PURPOSE,SERVER,TOOL,MODEL_ENDPOINT,MODEL};
+module.exports={configure,rollback,gitBlob,PREVIOUS_PAUSE_BLOB,PURPOSE,SERVER,TOOL,MODEL_ENDPOINT,MODEL};
