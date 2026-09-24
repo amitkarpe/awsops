@@ -63,15 +63,33 @@ const POST = `  // awsops: the native single-winner CAS has succeeded. Commit be
   }
 
 `;
+const PAUSE_MARKER = '    const paused = await GenerationJobManager.approvals.pause(streamId, pendingAction, {';
+const PAUSE = `    // awsops: bind fresh provider evidence BEFORE publishing any native pause.
+    if (Array.isArray(pendingAction?.payload?.action_requests) &&
+        pendingAction.payload.action_requests.some(a =>
+          typeof a?.name === 'string' && a.name.startsWith('decide_s3_ssl_reject_only'))) {
+      await require('./awsops-pause-gate.cjs').beforePause({
+        client: this, manager: GenerationJobManager, pendingAction, streamId,
+      });
+    }
+
+`;
 function sha(raw) { return crypto.createHash('sha256').update(raw).digest('hex'); }
 function blob(raw) {
   const data = Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
   return crypto.createHash('sha1').update(Buffer.from(`blob ${data.length}\0`)).update(data).digest('hex');
 }
-function render(raw) {
-  if (blob(raw) !== pin.controller_blob) throw Error('UPSTREAM_SOURCE_DRIFT');
+function componentSpec(component) {
+  if(component === 'resume') return {source:pin.controller, blob:pin.controller_blob, helper:'native_gate.cjs', installed:'awsops-native-gate.cjs', backup:'resume.original', suffix:'native'};
+  if(component === 'pause') return {source:pin.producer, blob:pin.producer_blob, helper:'pause_gate.cjs', installed:'awsops-pause-gate.cjs', backup:'client.original', suffix:'pause'};
+  throw Error('UNSUPPORTED_COMPONENT');
+}
+function render(raw, component='resume') {
+  const spec=componentSpec(component);
+  if (blob(raw) !== spec.blob) throw Error('UPSTREAM_SOURCE_DRIFT');
   let source = raw.toString('utf8');
-  for (const [marker, insertion] of [[PRE_MARKER, PRE], [POST_MARKER, POST]]) {
+  const insertions=component === 'pause' ? [[PAUSE_MARKER,PAUSE]] : [[PRE_MARKER,PRE],[POST_MARKER,POST]];
+  for (const [marker, insertion] of insertions) {
     if (source.split(marker).length !== 2) throw Error('UPSTREAM_SEAM_DRIFT');
     source = source.replace(marker, insertion + marker);
   }
@@ -82,25 +100,27 @@ function file(p, limit = pin.fixture_max_bytes) {
   if (!st.isFile() || fs.realpathSync(p) !== p || st.size > limit) throw Error('UNSAFE_CANDIDATE_PATH');
   return fs.readFileSync(p);
 }
-function candidate(root) {
+function candidate(root, component) {
   if (!path.isAbsolute(root) || fs.realpathSync(root) !== root) throw Error('ISOLATED_COPY_REQUIRED');
   const marker = JSON.parse(file(path.join(root, '.awsops-offline-candidate.json'), 4096));
   if (marker.purpose !== 'offline-rehearsal' || marker.root !== root || marker.upstream_commit !== pin.commit || marker.live !== false) throw Error('ISOLATED_COPY_REQUIRED');
   const pkg = JSON.parse(file(path.join(root, 'package.json')));
   if (pkg.version !== pin.version) throw Error('UPSTREAM_VERSION_DRIFT');
+  const spec=componentSpec(component);
   return {
-    root, target: path.join(root, pin.controller), helper: path.join(root, path.dirname(pin.controller), 'awsops-native-gate.cjs'),
-    backupDir: path.join(root, '.awsops-native-backup'), lock: path.join(root, '.awsops-native-lock'),
+    root, component, spec, target:path.join(root,spec.source), helper:path.join(root,path.dirname(spec.source),spec.installed),
+    backupDir:path.join(root,`.awsops-${spec.suffix}-backup`), lock:path.join(root,'.awsops-native-lock'),
   };
 }
 function state(c) {
-  const originalFile = path.join(c.backupDir, 'resume.original');
+  const originalFile = path.join(c.backupDir,c.spec.backup);
   const current = file(c.target);
   const hasBackup = fs.existsSync(c.backupDir);
   if (hasBackup && (fs.realpathSync(c.backupDir) !== c.backupDir || !fs.lstatSync(c.backupDir).isDirectory())) throw Error('UNSAFE_BACKUP');
   const original = hasBackup ? file(originalFile) : current;
-  const patched = render(original);
-  const helper = fs.readFileSync(path.join(__dirname, 'native_gate.cjs'));
+  const patched = render(original,c.component);
+  let helper = fs.readFileSync(path.join(__dirname,c.spec.helper));
+  if(c.component === 'pause') helper=Buffer.from(helper.toString().replace("require('./native_gate.cjs')","require('./awsops-native-gate.cjs')"));
   if (!current.equals(original) && !current.equals(patched)) throw Error('CANDIDATE_SOURCE_DRIFT');
   const hasHelper = fs.existsSync(c.helper);
   if (hasHelper && !file(c.helper).equals(helper)) throw Error('CANDIDATE_HELPER_DRIFT');
@@ -119,36 +139,35 @@ function atomic(fileName, data, mode) {
     throw error;
   }
 }
-function check(root) {
-  const s = state(candidate(root));
-  return {state: s.patchedNow ? 'PATCHED' : 'ORIGINAL', original_blob: pin.controller_blob,
-    patched_sha256: sha(s.patched), helper_sha256: sha(s.helper), deployed: false};
+function check(root, component='resume') {
+  const c=candidate(root,component), s=state(c);
+  return {state:s.patchedNow ? 'PATCHED' : 'ORIGINAL',original_blob:c.spec.blob,
+    patched_sha256:sha(s.patched),helper_sha256:sha(s.helper),deployed:false};
 }
-function change(root, action) {
-  const c = candidate(root);
+function change(root, action, component='resume') {
+  const c = candidate(root,component);
   const lock = fs.openSync(c.lock, 'wx', 0o600);
   try {
     const s = state(c);
     if (action === 'apply') {
       if (!s.hasBackup) {
         fs.mkdirSync(c.backupDir, {mode: 0o700});
-        fs.writeFileSync(path.join(c.backupDir, 'resume.original'), s.original, {mode: 0o600, flag: 'wx'});
+        fs.writeFileSync(path.join(c.backupDir,c.spec.backup),s.original,{mode:0o600,flag:'wx'});
       }
       if (!s.hasHelper) atomic(c.helper, s.helper, 0o644);
       if (!s.patchedNow) atomic(c.target, s.patched, fs.statSync(c.target).mode & 0o777);
     } else if (action === 'rollback') {
-      // Verify all bytes BEFORE modifying anything; never erase another change.
       if (s.patchedNow) atomic(c.target, s.original, fs.statSync(c.target).mode & 0o777);
       if (s.hasHelper) fs.unlinkSync(c.helper);
     } else throw Error('UNSUPPORTED_ACTION');
-    return check(root);
+    return check(root,component);
   } finally { fs.closeSync(lock); fs.unlinkSync(c.lock); }
 }
 if (require.main === module) {
   try {
-    const [action, root, ...extra] = process.argv.slice(2);
-    if (extra.length || !['check', 'apply', 'rollback'].includes(action)) throw Error('INVALID_ARGUMENTS');
-    console.log(JSON.stringify(action === 'check' ? check(root) : change(root, action)));
-  } catch { console.error('OFFLINE_NATIVE_REHEARSAL_REFUSED'); process.exitCode = 2; }
+    const [action,root,component='resume',...extra]=process.argv.slice(2);
+    if(extra.length || !['check','apply','rollback'].includes(action))throw Error('INVALID_ARGUMENTS');
+    console.log(JSON.stringify(action==='check' ? check(root,component) : change(root,action,component)));
+  } catch {console.error('OFFLINE_NATIVE_REHEARSAL_REFUSED');process.exitCode=2;}
 }
-module.exports = {pin, PRE, POST, PRE_MARKER, POST_MARKER, render, blob, sha, check, change};
+module.exports={pin,PRE,POST,PRE_MARKER,POST_MARKER,PAUSE,PAUSE_MARKER,render,blob,sha,check,change};
