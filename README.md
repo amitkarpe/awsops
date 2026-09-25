@@ -24,10 +24,11 @@ Canonical public view: `docs/current/AWS_RESOURCES.md`.
 Refresh it from an existing personal-LAB AWS profile:
 
 ```bash
-AWS_PROFILE=amit python scripts/aws_resources_report.py --alias personal-lab
+AWS_PROFILE=amit AWSOPS_EXPECTED_ACCOUNT=<private-account-id> \\
+  python scripts/aws_resources_report.py --alias personal-lab
 ```
 
-The collector uses fixed read/list/describe/tag/metric/pricing operations only.
+The collector STS-verifies the private expected controller account first, then uses fixed read/list/describe/tag/metric/pricing operations only.
 It emits logical classes and account aliases, never raw account IDs or provider
 resource identifiers. Cost values are explicitly labeled as actual, estimated,
 usage-based, direct-$0 or unknown.
