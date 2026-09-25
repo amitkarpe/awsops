@@ -43,3 +43,7 @@ AWSOPS_REQUIRE_NATIVE_FIXTURE=1 python -m unittest discover -s tests -p 'test_*.
 The explicit fixture step fetches two immutable upstream source files and
 verifies their whole Git blobs. Python 3.12 and Node 22 are used in CI.
 Offline tests without fixtures do not establish native integration acceptance.
+
+## Development compute
+
+See `docs/architecture/DEV_COMPUTE_MODEL.md` for the home-first model and the bounded future role of the `vagent` `t3.small` canary.
