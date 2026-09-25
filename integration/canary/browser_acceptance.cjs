@@ -178,19 +178,9 @@ async function run(root){
     stage='agent_combobox_click';
     if(!(await agentSelect.isEnabled()))throw Error('AGENT_COMBOBOX_DISABLED');
     await agentSelect.evaluate(element=>element.click());
-    stage='agent_search_probe';
+    stage='agent_search_wait';
     const search=page.getByPlaceholder('Search agents by name',{exact:true});
-    const searchVisible=await search.waitFor({state:'visible',timeout:2000}).then(()=>true).catch(()=>false);
-    if(!searchVisible){
-      stage='agent_search_reopen';
-      if(await agentSelect.getAttribute('aria-expanded')==='true'){
-        await agentSelect.press('Escape');
-        await page.waitForTimeout(250);
-      }
-      await agentSelect.click();
-      stage='agent_search_wait';
-      await search.waitFor({state:'visible',timeout:10000});
-    }
+    await search.waitFor({state:'visible',timeout:30000});
     stage='agent_search';
     await search.fill(name);
     const option=page.getByRole('option',{name,exact:true});
