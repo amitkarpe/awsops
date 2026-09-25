@@ -34,7 +34,7 @@ No target-resource mutation, live Approve, IAM/OIDC/network or PROD work.
   more immediate capacity concern. No resize or disk mutation is authorized.
 - The vagent 100-bucket demo fleet is represented from accepted repo evidence;
   a fresh live account sweep is still required before cleanup/cost decisions.
-- `aws-secops` remains reference/evidence material, not the primary product repo.
+- `aws-secops` remains reference/archive evidence material, not the primary product repo.
 
 ## Next
 
