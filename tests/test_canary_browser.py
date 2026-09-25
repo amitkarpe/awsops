@@ -70,6 +70,9 @@ class CanaryBrowserTests(unittest.TestCase):
         self.assertIn("AGENT_FORM_NOT_LOADED", source)
         self.assertIn("stage='agent_builder_open'", source)
         self.assertIn("stage='agent_combobox_open'", source)
+        self.assertIn("agent_builder_navigation", source)
+        self.assertIn("agent_builder_button_wait", source)
+        self.assertIn("agent_builder_form_wait", source)
 
     def test_exact_card_tool_scope_identity_and_reject_only_controls(self):
         self.invoke_contract("""
