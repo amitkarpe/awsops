@@ -2,6 +2,7 @@
 // Real native-browser Reject-only canary. Auth tokens never leave page.evaluate.
 const fs=require('node:fs');
 const path=require('node:path');
+const contract=require('./browser_contract.cjs');
 const BASE='http://127.0.0.1:4311';
 const PURPOSE='awsops-issue11-isolated-auth-canary';
 const TOOL='decide_s3_ssl_reject_only_mcp_awsops';
@@ -55,6 +56,7 @@ async function run(root){
   if(manifest.purpose!==PURPOSE||manifest.model!=='DETERMINISTIC_FIXTURE'||
      JSON.stringify(manifest.tools)!==JSON.stringify([TOOL]))throw Error('CANARY_MANIFEST_REQUIRED');
   const login=privateJson(path.join(root,'state/login.json'));
+  const candidate=contract.validateCandidate(privateJson(path.join(root,'state/candidate.json')));
   const python=process.env.AWSOPS_CANARY_PYTHON;
   if(typeof python!=='string'||!path.isAbsolute(python))throw Error('CANARY_PYTHON_REQUIRED');
   const pythonLink=fs.lstatSync(python), pythonTarget=fs.statSync(fs.realpathSync(python));
@@ -66,11 +68,32 @@ async function run(root){
   const {chromium}=require(path.join(root,'app/node_modules/playwright'));
   let browser,page,agentId,conversationId;
   let stage='launch';
+  const diagnostics=[];
+  const resumeRequests=[];
+  const diagnosticByRequest=new WeakMap();
+  const resumeStatusByRequest=new WeakMap();
   try{
     browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
     const context=await browser.newContext();
     await context.route('**/*',route=>localRoute(route.request().url())?route.continue():route.abort());
     page=await context.newPage();page.setDefaultTimeout(30000);
+    page.on('request',request=>{
+      const route=contract.routeClass(request.url());
+      const entry=contract.safeDiagnostic({stage,method:request.method(),url:request.url(),status:null,
+        headerNames:Object.keys(request.headers())});
+      contract.recordDiagnostic(diagnostics,entry);
+      diagnosticByRequest.set(request,entry);
+      if(request.method()==='POST'&&route==='agents_resume')resumeRequests.push(request);
+    });
+    page.on('response',response=>{
+      const status=response.status();
+      const diagnostic=diagnosticByRequest.get(response.request());
+      if(diagnostic){
+        diagnostic.status=status;
+        diagnostic.auth_state=status===401||status===403?'rejected':'response';
+      }
+      if(contract.routeClass(response.url())==='agents_resume')resumeStatusByRequest.set(response.request(),status);
+    });
     stage='login';
     await page.goto(BASE+'/login',{waitUntil:'domcontentloaded'});
     await page.getByLabel('Email',{exact:true}).fill(login.email);
@@ -119,16 +142,38 @@ async function run(root){
     conversationId=new URL(page.url()).pathname.replace('/c/','');
 
     stage='approval_card';
-    const card=page.getByTestId('tool-approval').first();
-    await card.waitFor({state:'visible',timeout:30000});
-    const buttons={
-      reject:await card.getByRole('button',{name:'Reject',exact:true}).count(),
-      approve:await card.getByRole('button',{name:'Approve',exact:true}).count(),
-      edit:await card.getByRole('button',{name:'Edit',exact:true}).count(),
-      respond:await card.getByRole('button',{name:'Respond',exact:true}).count(),
-    };
-    if(buttons.reject!==1||buttons.approve||buttons.edit||buttons.respond)throw Error('NOT_REJECT_ONLY');
+    const cards=page.getByTestId('tool-approval');
+    await cards.first().waitFor({state:'visible',timeout:30000});
+    if(await cards.count()!==1)throw Error('AMBIGUOUS_APPROVAL_CARD');
+    const card=cards.first();
+    const cardToolCallId=await card.getAttribute('data-tool-call-id');
+    if(typeof cardToolCallId!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(cardToolCallId))
+      throw Error('APPROVAL_CARD_ID_REQUIRED');
+    const toolCall=page.locator(`[data-testid="tool-call"][data-tool-call-id="${cardToolCallId}"]`);
+    const toolOutput=page.locator(`[data-tool-call-output-id="${cardToolCallId}"]`);
+    if(await toolCall.count()!==1||await toolOutput.count()!==1)throw Error('APPROVAL_TOOL_BINDING_MISSING');
+    const parameters=toolOutput.getByRole('button',{name:'Parameters',exact:true});
+    await parameters.waitFor({state:'visible'});await parameters.click();
+    const snapshot=await contract.waitForSettledSnapshot(async()=>{
+      const cardCount=await cards.count();
+      if(cardCount!==1)return {cardCount};
+      return {
+        cardCount,visible:await card.isVisible(),toolCallId:await card.getAttribute('data-tool-call-id'),
+        toolCallCount:await page.locator(`[data-testid="tool-call"][data-tool-call-id="${cardToolCallId}"]`).count(),
+        outputCount:await page.locator(`[data-tool-call-output-id="${cardToolCallId}"]`).count(),
+        toolText:await toolCall.innerText(),scopeText:await toolOutput.innerText(),
+        buttons:{
+          reject:await card.getByRole('button',{name:'Reject',exact:true}).count(),
+          approve:await card.getByRole('button',{name:'Approve',exact:true}).count(),
+          edit:await card.getByRole('button',{name:'Edit',exact:true}).count(),
+          respond:await card.getByRole('button',{name:'Respond',exact:true}).count(),
+          submit:await card.getByRole('button',{name:'Submit',exact:true}).count(),
+        },
+      };
+    },{pause:ms=>page.waitForTimeout(ms)});
+    const boundToolCallId=contract.assertApprovalSnapshot(snapshot,{toolName:LOGICAL_TOOL,candidate});
     const submit=card.getByRole('button',{name:'Submit',exact:true});
+    if(await submit.isDisabled())throw Error('REJECT_SUBMIT_NOT_READY');
     await card.getByRole('button',{name:'Reject',exact:true}).click();
     const reason=card.getByRole('textbox',{name:'Reject'});
     if(await reason.count())await reason.fill('isolated canary reject');
@@ -143,7 +188,7 @@ async function run(root){
     const body=request.postDataJSON();
     const choice=body?.decisions?.[0];
     if(body?.agent_id!==agentId||body?.conversationId!==conversationId||body?.endpoint!=='agents'||
-       choice?.decision!=='reject'||typeof choice?.tool_call_id!=='string'||!Number.isSafeInteger(body?.generationCreatedAt))
+       choice?.decision!=='reject'||choice?.tool_call_id!==boundToolCallId||!Number.isSafeInteger(body?.generationCreatedAt))
       throw Error('UNEXPECTED_REJECT_BODY');
 
     stage='binding';
@@ -162,16 +207,28 @@ async function run(root){
     const dispatchFile=path.join(root,'state/dispatch-attempts.jsonl');
     const dispatchAttempts=fs.existsSync(dispatchFile)?fs.readFileSync(dispatchFile,'utf8').split('\n').filter(Boolean).length:0;
     if(dispatchAttempts!==0)throw Error('DISPATCH_ATTEMPTED');
+    await page.waitForTimeout(300);
+    const submissions=resumeRequests.map(item=>({
+      method:item.method(),route:contract.routeClass(item.url()),status:resumeStatusByRequest.get(item)??null,
+      body:item.postDataJSON(),
+    }));
+    const submissionProof=contract.assertSingleRejectSubmission(submissions,{agentId,conversationId,toolCallId:boundToolCallId});
 
     stage='cleanup';
     const agentDelete=await api(page,'/api/agents/'+encodeURIComponent(agentId),'DELETE');
-    const convoDelete=await api(page,'/api/convos/'+encodeURIComponent(conversationId),'DELETE');
+    if(!agentDelete.ok)throw Error('AGENT_CLEANUP_FAILED');
+    const archive=contract.archiveRequest(conversationId);
+    const archived=await api(page,archive.path,archive.method,archive.body);
+    contract.assertArchived(archived,conversationId);
+    const archiveReadback=await api(page,'/api/convos/'+encodeURIComponent(conversationId));
+    contract.assertArchived(archiveReadback,conversationId);
     return {version:1,outcome:'REJECT_UI_PASS',normal_login:true,reject_only:true,resume_status:200,
-      dispatch_attempts:0,agent_cleanup:agentDelete.ok,conversation_cleanup:convoDelete.ok,
-      browser_auth_exported:false,provider_readback:'PENDING'};
+      resume_submissions:submissionProof.count,dispatch_attempts:0,agent_cleanup:true,conversation_archived:true,
+      browser_auth_exported:false,provider_readback:'PENDING',diagnostics};
   }catch{
     return {version:1,outcome:'REJECT_UI_BLOCKED',stage,browser_auth_exported:false,
-      agent_created:!!agentId,conversation_created:!!conversationId};
+      agent_created:!!agentId,conversation_created:!!conversationId,resume_submissions:resumeRequests.length,
+      diagnostics};
   }finally{
     login.password='';
     if(browser)await browser.close();
