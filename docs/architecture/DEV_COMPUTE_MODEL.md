@@ -118,20 +118,25 @@ Do not use it for:
 
 ## Repurpose strategy
 
-The current `vagent` host is an old Amazon Linux 2 experiment. Reuse must be deliberate.
+The current `vagent` host is an old Amazon Linux 2 experiment. Reuse must be deliberate, but **do not spend time doing forensic host preservation**.
 
-### Phase A — preserve first
+GitHub is the source of truth:
 
-Repository/read-only work:
+- `mytestlab123/AgentCore` contains the AgentCore architecture, OIDC/Gateway-policy and related platform work;
+- `mytestlab123/agentic-ai-cybersecurity-lab` contains the SecCop learning/demo code, browser helpers and runbooks;
+- if useful host-only state cannot be identified quickly, recreate it from repository code instead of preserving the machine.
 
-1. record the old SecCop purpose and accepted evidence;
-2. identify any files/configuration that are still authoritative;
-3. ensure important knowledge is in GitHub, not only on the host;
-4. decide whether an EBS/AMI snapshot is actually required.
+The live host inventory already shows no active application service, no Git/Node/Docker install and only base-system listeners. Therefore the preservation rule is:
 
-A snapshot is an AWS mutation/cost event and needs its own bounded approval.
+1. keep repository history;
+2. keep the existing public-safe AWS evidence already recorded;
+3. no default EBS/AMI snapshot;
+4. no filesystem-by-filesystem sync;
+5. rebuild rather than reverse-engineer old local state.
 
-### Phase B — choose one clean path
+A snapshot remains an AWS mutation/cost event and is justified only if a concrete irreplaceable artifact is later identified.
+
+### Choose one clean path
 
 Preferred order:
 
@@ -190,7 +195,7 @@ Move a workload only when all are true:
 1. local/home execution cannot prove the requirement;
 2. the workload fits comfortably inside `t3.small` memory/CPU;
 3. required AWS identity/network locality is documented;
-4. old SecCop evidence has been preserved;
+4. the authoritative SecCop/AgentCore state is present in GitHub or explicitly declared disposable;
 5. the canary has an explicit lifecycle/TTL;
 6. no public ingress, IAM expansion, secret migration, or target-resource mutation is implicitly introduced;
 7. the active Issue records the exact mutation boundary.
@@ -199,8 +204,8 @@ Move a workload only when all are true:
 
 1. **Home first:** keep new source development and tests off EC2.
 2. **Finish M3 on `amit`:** do not destabilize the accepted full runtime mid-milestone.
-3. **Prepare `vagent`:** preserve old SecCop evidence and define the exact lightweight canary workload.
-4. **Repurpose only after approval:** choose in-place lightweight canary or clean replacement.
+3. **Home workstation first:** use the Ubuntu 24.04 home system for normal Codex/development work; keep private hostnames/SSH aliases out of this public repo.
+4. **Prepare `vagent` only when needed:** define one exact lightweight canary workload; do not perform forensic sync of the old host.
 5. **Reassess `amit` after M3:** the largest savings comes from reducing its always-on duty cycle, not from moving ordinary coding between two EC2 hosts.
 
 ## Stop gates
