@@ -146,11 +146,12 @@ async function run(root){
     };
     writePrivate(path.join(root,'state/native.json'),native);
 
-    stage='agent_select';
-    await page.reload({waitUntil:'domcontentloaded'});
-    await page.waitForTimeout(750);
+    stage='agent_builder_open';
     const form=await openAgentBuilder(page);
-    await form.getByRole('combobox',{name:'Agent',exact:true}).click();
+    stage='agent_combobox_open';
+    const agentSelect=form.getByRole('combobox',{name:'Agent',exact:true});
+    await agentSelect.waitFor({state:'visible',timeout:10000});
+    await agentSelect.click();
     stage='agent_search';
     const search=page.locator('input[role="combobox"]').last();
     await search.waitFor({state:'visible',timeout:10000});
