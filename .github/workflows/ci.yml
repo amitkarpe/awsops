@@ -1,4 +1,3 @@
-# Disabled by runner-economy rollout; preserved for reversible reuse.
 name: CI
 
 on:
