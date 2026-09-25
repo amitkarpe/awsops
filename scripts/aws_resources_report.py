@@ -179,10 +179,11 @@ def host_row(session, *, alias: str, region: str, host_facts: dict) -> tuple[Led
     })
     monthly = current_price * 730 if current_price is not None else None
     created = datetime.fromisoformat(facts["launch_time"]).date() if facts.get("launch_time") else None
+    tags = tag_map(instance.get("Tags"))
     row = LedgerRow(
         "shared-runtime", alias, "EC2 retained demo host", 1, str(facts.get("state") or "present"),
         "LibreChat + Ops retained personal-LAB runtime", "EST", "RETAIN", "LIVE",
-        created=created, monthly_usd=monthly,
+        resource_name=tags.get("Name") or "(unnamed)", created=created, monthly_usd=monthly,
     )
     return row, facts
 
@@ -195,6 +196,7 @@ def load_known(path: Path) -> list[LedgerRow]:
         rows.append(LedgerRow(
             item["project"], item["account_alias"], item["resource_class"], int(item["count"]),
             item["state"], item["purpose"], item["cost_label"], item["decision"], item["source"],
+            resource_name=item.get("resource_name", "-"),
             created=parse_date(item.get("created")), first_seen=parse_date(item.get("first_seen")),
             monthly_usd=item.get("monthly_usd"),
         ))

@@ -32,7 +32,8 @@ class ResourceLedgerTests(unittest.TestCase):
     def test_render_is_kiss_and_uses_aliases(self):
         row = LedgerRow(
             "awsops", "amit", "EC2 retained demo host", 1, "running",
-            "LibreChat runtime", "EST", "RETAIN", "LIVE", created=date(2026, 9, 2),
+            "LibreChat runtime", "EST", "RETAIN", "LIVE",
+            resource_name="agentcore-issue19-librechat-poc-r01", created=date(2026, 9, 2),
         )
         text = render_markdown(
             [row],
@@ -58,6 +59,7 @@ class ResourceLedgerTests(unittest.TestCase):
         )
         self.assertIn("23d (created)", text)
         self.assertIn("**amit**", text)
+        self.assertIn("agentcore-issue19-librechat-poc-r01", text)
         self.assertNotIn("ResourceARN", text)
 
     def test_bad_enum_is_rejected(self):

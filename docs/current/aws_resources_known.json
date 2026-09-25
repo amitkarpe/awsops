@@ -24,6 +24,7 @@
     "source": "LIVE",
     "first_seen": "2026-08-31",
     "monthly_usd": 19.27,
-    "note": "live read 2026-09-25; TTL expired; no deletion authorized"
+    "note": "live read 2026-09-25; TTL expired; no deletion authorized",
+    "resource_name": "seccop-project1-old-ami-host-r01"
   }
 ]

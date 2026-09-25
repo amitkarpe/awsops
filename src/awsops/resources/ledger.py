@@ -47,12 +47,13 @@ class LedgerRow:
     cost_label: str
     decision: str
     source: str
+    resource_name: str = "-"
     created: date | None = None
     first_seen: date | None = None
     monthly_usd: float | None = None
 
     def __post_init__(self) -> None:
-        for name in ("project", "account_alias", "resource_class", "state", "purpose"):
+        for name in ("project", "account_alias", "resource_class", "state", "purpose", "resource_name"):
             object.__setattr__(self, name, _text(getattr(self, name)))
         if self.count < 1:
             raise ValueError("count must be positive")
@@ -131,12 +132,12 @@ def render_markdown(rows: Iterable[LedgerRow], *, verified_at: str, coverage: st
     lines += [
         "## 🔴 EC2 / always-on compute", "",
         "These are intentionally separated because always-on compute is usually the first cost lever to check.", "",
-        "| Account | Project | Compute | State | Age | Estimated monthly | Decision |",
-        "| --- | --- | --- | --- | --- | ---: | --- |",
+        "| Account | EC2 name | Project | Compute | State | Age | Estimated monthly | Decision |",
+        "| --- | --- | --- | --- | --- | --- | ---: | --- |",
     ]
     for row in ec2_rows:
         lines.append("| " + " | ".join((
-            f"**{row.account_alias}**", row.project, f"**{row.resource_class}**", row.state,
+            f"**{row.account_alias}**", f"**{row.resource_name}**", row.project, f"**{row.resource_class}**", row.state,
             row.age(as_of), f"**{row.cost()}**", f"**{row.decision}**",
         )) + " |")
 
@@ -144,11 +145,11 @@ def render_markdown(rows: Iterable[LedgerRow], *, verified_at: str, coverage: st
         "", "## Retained `amit` host right-sizing", "",
         f"**{sizing['recommendation']}** — {sizing['reason']}.", "",
         "## Full resource ledger", "",
-        "| Project | Account | Resource class | Qty | State | Age | Purpose | Cost | Decision | Evidence |",
-        "| --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- |",
+        "| Project | Account | Name | Resource class | Qty | State | Age | Purpose | Cost | Decision | Evidence |",
+        "| --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- |",
     ]
     for row in rows:
-        lines.append("| " + " | ".join((row.project, f"**{row.account_alias}**", row.resource_class, str(row.count), row.state,
+        lines.append("| " + " | ".join((row.project, f"**{row.account_alias}**", row.resource_name, row.resource_class, str(row.count), row.state,
                                          row.age(as_of), row.purpose, row.cost(), row.decision, row.source)) + " |")
     lines += ["", "TTL is a review date, never automatic deletion.", ""]
     return "\n".join(lines)
