@@ -87,6 +87,8 @@ class CanaryBrowserTests(unittest.TestCase):
         self.assertIn("AGENT_COMBOBOX_REQUIRED", source)
         self.assertIn("stage='agent_combobox_wait'", source)
         self.assertIn("stage='agent_combobox_click'", source)
+        self.assertIn("AGENT_COMBOBOX_DISABLED", source)
+        self.assertIn("agentSelect.evaluate(element=>element.click())", source)
         self.assertIn("timeout:30000", source)
         self.assertIn("agent_builder_navigation", source)
         self.assertIn("agent_builder_button_wait", source)
