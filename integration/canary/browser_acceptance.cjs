@@ -101,6 +101,14 @@ async function run(root){
     const accepted=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/auth/login'&&r.status()===200);
     await page.getByTestId('login-button').click();await accepted;
     await page.waitForURL(BASE+'/c/new');
+    const nativePath=path.join(root,'state/native.json');
+    if(fs.existsSync(nativePath)){
+      const stale=privateJson(nativePath);
+      if(stale?.version!==1||typeof stale.agent_id!=='string')throw Error('STALE_NATIVE_CONFIG_INVALID');
+      const retired=await api(page,'/api/agents/'+encodeURIComponent(stale.agent_id),'DELETE');
+      if(!retired.ok&&retired.status!==404)throw Error('STALE_AGENT_CLEANUP_FAILED');
+      fs.unlinkSync(nativePath);
+    }
     stage='tool_ready';
     let tools;
     for(let i=0;i<20;i++){
@@ -127,9 +135,13 @@ async function run(root){
     writePrivate(path.join(root,'state/native.json'),native);
 
     stage='agent_select';
+    await page.reload({waitUntil:'domcontentloaded'});
+    await page.waitForTimeout(750);
     const form=await openAgentBuilder(page);
     await form.getByRole('combobox',{name:'Agent',exact:true}).click();
-    await page.getByRole('option',{name}).click();
+    const option=page.getByRole('option',{name,exact:true});
+    await option.waitFor({state:'visible',timeout:10000});
+    await option.click();
     await form.getByLabel('Agent name').waitFor({state:'visible'});
     await form.getByRole('button',{name:'Select Agent'}).click();
 
@@ -226,9 +238,19 @@ async function run(root){
       resume_submissions:submissionProof.count,dispatch_attempts:0,agent_cleanup:true,conversation_archived:true,
       browser_auth_exported:false,provider_readback:'PENDING',diagnostics};
   }catch{
+    let agentCleanup=false,conversationCleanup=false;
+    if(page&&agentId){
+      try{const removed=await api(page,'/api/agents/'+encodeURIComponent(agentId),'DELETE');
+        agentCleanup=removed.ok||removed.status===404;}catch{}
+    }
+    if(page&&conversationId){
+      try{const archive=contract.archiveRequest(conversationId);
+        const archived=await api(page,archive.path,archive.method,archive.body);
+        conversationCleanup=contract.assertArchived(archived,conversationId)===true;}catch{}
+    }
     return {version:1,outcome:'REJECT_UI_BLOCKED',stage,browser_auth_exported:false,
       agent_created:!!agentId,conversation_created:!!conversationId,resume_submissions:resumeRequests.length,
-      diagnostics};
+      agent_cleanup:agentCleanup,conversation_archived:conversationCleanup,diagnostics};
   }finally{
     login.password='';
     if(browser)await browser.close();
