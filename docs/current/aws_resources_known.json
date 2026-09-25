@@ -11,5 +11,19 @@
     "source": "REPO-EVIDENCE",
     "first_seen": "2026-09-11",
     "note": "live revalidation pending; TTL is a review deadline"
+  },
+  {
+    "project": "Security Copilot",
+    "account_alias": "vagent",
+    "resource_class": "EC2 retained learning host",
+    "count": 1,
+    "state": "running",
+    "purpose": "Inspector-to-SSM old-package learning demo",
+    "cost_label": "EST",
+    "decision": "CLEANUP-CANDIDATE",
+    "source": "LIVE",
+    "first_seen": "2026-08-31",
+    "monthly_usd": 19.27,
+    "note": "live read 2026-09-25; TTL expired; no deletion authorized"
   }
 ]

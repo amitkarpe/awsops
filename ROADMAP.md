@@ -25,11 +25,13 @@ provider readback, supported Archive cleanup and retained-service protection.
 
 ## Operational hygiene - AWS resource ledger - IN PROGRESS (#14)
 
-- One canonical public Markdown ledger: `docs/current/AWS_RESOURCES.md`.
-- Read-only collector groups live tagged resources without raw provider IDs.
-- Cost basis is explicit: ACTUAL / EST / USAGE-BASED / DIRECT-$0 / UNKNOWN.
-- Current EC2 evidence recommends keeping `t3.medium`; `t3.small` is memory-tight.
-- Live multi-account inventory coverage is still evidence-scoped; no auto-cleanup.
+- Canonical public Markdown ledger: `docs/current/AWS_RESOURCES.md`.
+- Canonical account aliases are `amit` and `vagent`; raw account IDs stay private.
+- Account-first cost watch uses Cost Explorer actual MTD plus explicit EST / USAGE-BASED / DIRECT-$0 / UNKNOWN labels.
+- EC2 / always-on compute has a separate high-visibility table.
+- `amit` retained host remains `t3.medium`; root gp3 expanded online 20 -> 30 GiB and ext4 usage dropped 92% -> 60% with retained services active.
+- `vagent` live read confirms one running expired-TTL `t3.small` learning host plus 109 S3 buckets total; cleanup remains unapproved.
+- No auto-cleanup. Any deletion/termination is a separate exact mutation boundary.
 
 ## M4 - bounded remediation migration - NOT STARTED
 

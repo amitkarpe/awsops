@@ -94,23 +94,61 @@ def right_size_t3(host: dict[str, Any]) -> dict[str, Any]:
     return {"recommendation": recommendation, "reason": reason, "projected_small_headroom_gib": round(small_headroom, 2)}
 
 
-def render_markdown(rows: Iterable[LedgerRow], *, verified_at: str, coverage: str, sizing: dict[str, Any]) -> str:
+def render_markdown(rows: Iterable[LedgerRow], *, verified_at: str, coverage: str,
+                    sizing: dict[str, Any], cost_snapshot: dict[str, Any] | None = None) -> str:
     rows = list(rows)
     as_of = datetime.fromisoformat(verified_at.replace("Z", "+00:00")).date()
     lines = [
         "# AWS Resources", "",
-        "> KISS public ledger. Logical resource classes and account aliases only.", "",
+        "> KISS public ledger. **Account aliases are the primary key: `amit` and `vagent`.**",
+        "> Raw AWS account IDs and provider identifiers stay out of this public repository.", "",
         f"- Last verified: `{verified_at}`",
         f"- Represented resources: **{sum(row.count for row in rows)}**",
         f"- Coverage: {coverage}", "",
-        "## Retained host right-sizing", "",
+    ]
+    if cost_snapshot:
+        lines += [
+            "## 🔴 Cost watch — check this first", "",
+            "| Priority | Account | Resource / service | State | Cost evidence | Action |",
+            "| --- | --- | --- | --- | ---: | --- |",
+        ]
+        for item in cost_snapshot.get("priority", []):
+            lines.append("| " + " | ".join((
+                str(item["priority"]), f"**{_text(item['account'])}**", f"**{_text(item['name'])}**",
+                _text(item["state"]), f"**{_text(item['cost'])}**", _text(item["action"]),
+            )) + " |")
+        lines += ["", "## Account cost summary", "",
+                  "| Account | Period | Actual Cost Explorer | Notes |",
+                  "| --- | --- | ---: | --- |"]
+        for item in cost_snapshot.get("accounts", []):
+            lines.append("| " + " | ".join((
+                f"**{_text(item['account'])}**", _text(item["period"]),
+                f"**USD {float(item['actual_usd']):.2f}**", _text(item["note"]),
+            )) + " |")
+        lines += ["", "Cost Explorer is account/service billing evidence, not proof that every dollar belongs to this repository.", ""]
+
+    ec2_rows = [row for row in rows if "EC2" in row.resource_class]
+    lines += [
+        "## 🔴 EC2 / always-on compute", "",
+        "These are intentionally separated because always-on compute is usually the first cost lever to check.", "",
+        "| Account | Project | Compute | State | Age | Estimated monthly | Decision |",
+        "| --- | --- | --- | --- | --- | ---: | --- |",
+    ]
+    for row in ec2_rows:
+        lines.append("| " + " | ".join((
+            f"**{row.account_alias}**", row.project, f"**{row.resource_class}**", row.state,
+            row.age(as_of), f"**{row.cost()}**", f"**{row.decision}**",
+        )) + " |")
+
+    lines += [
+        "", "## Retained `amit` host right-sizing", "",
         f"**{sizing['recommendation']}** — {sizing['reason']}.", "",
-        "## Resource ledger", "",
+        "## Full resource ledger", "",
         "| Project | Account | Resource class | Qty | State | Age | Purpose | Cost | Decision | Evidence |",
         "| --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- |",
     ]
     for row in rows:
-        lines.append("| " + " | ".join((row.project, row.account_alias, row.resource_class, str(row.count), row.state,
+        lines.append("| " + " | ".join((row.project, f"**{row.account_alias}**", row.resource_class, str(row.count), row.state,
                                          row.age(as_of), row.purpose, row.cost(), row.decision, row.source)) + " |")
     lines += ["", "TTL is a review date, never automatic deletion.", ""]
     return "\n".join(lines)

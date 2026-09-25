@@ -25,11 +25,11 @@ Refresh it from an existing personal-LAB AWS profile:
 
 ```bash
 AWS_PROFILE=amit AWSOPS_EXPECTED_ACCOUNT=<private-account-id> \\
-  python scripts/aws_resources_report.py --alias personal-lab
+  python scripts/aws_resources_report.py --alias amit
 ```
 
 The collector STS-verifies the private expected controller account first, then uses fixed read/list/describe/tag/metric/pricing operations only.
-It emits logical classes and account aliases, never raw account IDs or provider
+It emits logical classes and canonical account aliases (`amit`, `vagent`), never raw account IDs or provider
 resource identifiers. Cost values are explicitly labeled as actual, estimated,
 usage-based, direct-$0 or unknown.
 
