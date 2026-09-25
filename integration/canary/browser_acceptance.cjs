@@ -166,7 +166,7 @@ async function run(root){
     await agentSelect.waitFor({state:'visible',timeout:10000});
     await agentSelect.click();
     stage='agent_search';
-    const search=page.locator('input[role="combobox"]').last();
+    const search=page.getByPlaceholder('Search agents by name',{exact:true});
     await search.waitFor({state:'visible',timeout:10000});
     await search.fill(name);
     stage='agent_option';
