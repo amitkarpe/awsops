@@ -59,7 +59,18 @@ async function openAgentBuilder(page,mark=()=>{},navigate=true){
     if(await button.getAttribute('aria-pressed')!=='true')await button.click();
   }
   mark('agent_builder_form_wait');
-  await form.waitFor({state:'visible'});
+  const ready=await form.waitFor({state:'visible',timeout:5000}).then(()=>true).catch(()=>false);
+  if(!ready){
+    mark('agent_builder_recover');
+    const button=page.getByRole('button',{name:'Agent Builder'});
+    if(await button.getAttribute('aria-pressed')==='true'){
+      await button.click();
+      await page.waitForTimeout(250);
+    }
+    await button.click();
+    mark('agent_builder_recover_wait');
+    await form.waitFor({state:'visible',timeout:10000});
+  }
   mark('agent_builder_ready');
   return form;
 }
