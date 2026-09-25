@@ -165,9 +165,16 @@ async function run(root){
     const agentSelect=form.getByRole('combobox',{name:'Agent',exact:true});
     await agentSelect.waitFor({state:'visible',timeout:10000});
     await agentSelect.click();
-    stage='agent_search';
+    stage='agent_search_probe';
     const search=page.getByPlaceholder('Search agents by name',{exact:true});
-    await search.waitFor({state:'visible',timeout:10000});
+    const searchVisible=await search.waitFor({state:'visible',timeout:2000}).then(()=>true).catch(()=>false);
+    if(!searchVisible){
+      stage='agent_search_reopen';
+      if(await agentSelect.getAttribute('aria-expanded')!=='true')await agentSelect.press('Enter');
+      stage='agent_search_wait';
+      await search.waitFor({state:'visible',timeout:10000});
+    }
+    stage='agent_search';
     await search.fill(name);
     stage='agent_option';
     const option=page.getByRole('option',{name,exact:true});
