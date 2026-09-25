@@ -34,7 +34,8 @@ const a=c.configure(r),b=c.configure(r);const fs=require('fs'),p=require('path')
 const cfg=JSON.parse(fs.readFileSync(p.join(r,'app/librechat.yaml'),'utf8'));
 if(!a.configured||!b.configured)process.exit(2);
 if(cfg.endpoints.agents.toolApproval.ask[0]!==c.TOOL||cfg.endpoints.agents.toolApproval.allow.length)process.exit(3);
-if(cfg.mcpServers.awsops.args[1]!==r||cfg.endpoints.custom[0].baseURL!=='http://127.0.0.1:4312/v1')process.exit(4);
+if(cfg.endpoints.allowedAddresses[0]!=='localhost:4312')process.exit(31);
+if(cfg.mcpServers.awsops.args[1]!==r||cfg.endpoints.custom[0].baseURL!=='http://localhost:4312/v1')process.exit(4);
 if(!fs.existsSync(p.join(r,'app/api/server/controllers/agents/awsops-native-gate.cjs')))process.exit(5);
 const pause=p.join(r,'app/api/server/controllers/agents/awsops-pause-gate.cjs');
 const pauseSource=fs.readFileSync(pause,'utf8');
