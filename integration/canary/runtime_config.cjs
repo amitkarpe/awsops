@@ -55,7 +55,7 @@ function configure(root,sourceRoot=path.resolve(__dirname,'../..')){
   const custom={
     name:MODEL_ENDPOINT,
     apiKey:'fixture-only',
-    baseURL:'http://127.0.0.1:4312/v1',
+    baseURL:'http://localhost:4312/v1',
     models:{default:[MODEL],fetch:false},
     titleConvo:false,
   };
@@ -63,8 +63,8 @@ function configure(root,sourceRoot=path.resolve(__dirname,'../..')){
   cfg.endpoints.custom=[custom];
 
   const addresses=cfg.endpoints.allowedAddresses??[];
-  if(!Array.isArray(addresses)||addresses.some(x=>x!=='127.0.0.1'))fail('ALLOWED_ADDRESS_DRIFT');
-  cfg.endpoints.allowedAddresses=['127.0.0.1'];
+  if(!Array.isArray(addresses)||addresses.some(x=>x!=='localhost:4312'))fail('ALLOWED_ADDRESS_DRIFT');
+  cfg.endpoints.allowedAddresses=['localhost:4312'];
 
   cfg.endpoints.agents??={};
   const hook=path.join(sourceRoot,'integration/canary/approval_hook.cjs');
