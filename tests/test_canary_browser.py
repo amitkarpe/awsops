@@ -65,6 +65,10 @@ class CanaryBrowserTests(unittest.TestCase):
         self.assertIn("STALE_AGENT_CLEANUP_FAILED", source)
         self.assertIn("agentCleanup=removed.ok||removed.status===404", source)
         self.assertIn("contract.archiveRequest(conversationId)", source)
+        self.assertIn("requiredPermission=2", source)
+        self.assertIn("AGENT_NOT_PERSISTED", source)
+        self.assertIn("input[role=\\\"combobox\\\"]", source)
+        self.assertIn("AGENT_FORM_NOT_LOADED", source)
 
     def test_exact_card_tool_scope_identity_and_reject_only_controls(self):
         self.invoke_contract("""
