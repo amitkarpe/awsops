@@ -212,7 +212,7 @@ def verify_controller(session, expected_account: str, region: str) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile")
-    parser.add_argument("--alias", default="personal-lab")
+    parser.add_argument("--alias", default="amit")
     parser.add_argument("--region", default=REGION)
     parser.add_argument("--expected-account", default=os.environ.get("AWSOPS_EXPECTED_ACCOUNT"),
                         help="private expected controller account; prefer AWSOPS_EXPECTED_ACCOUNT")
@@ -227,6 +227,7 @@ def main() -> int:
     verify_controller(session, args.expected_account, args.region)
     verified_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     rows = load_known(ROOT / "docs/current/aws_resources_known.json")
+    cost_snapshot = json.loads((ROOT / "docs/current/aws_cost_snapshot.json").read_text())
     rows.extend(tagged_rows(session, alias=args.alias, region=args.region, verified_at=verified_at))
     host_facts = json.loads((ROOT / "docs/current/aws_host_facts.json").read_text())
     host, host_facts = host_row(session, alias=args.alias, region=args.region, host_facts=host_facts)
@@ -236,8 +237,9 @@ def main() -> int:
     text = render_markdown(
         rows,
         verified_at=verified_at,
-        coverage="live personal-LAB project tags + explicit repo-evidence seeds; other accounts require independent refresh",
+        coverage="live amit account project tags + live vagent retained EC2 snapshot + explicit repo-evidence seeds",
         sizing=sizing,
+        cost_snapshot=cost_snapshot,
     )
     args.output.write_text(text)
     print(args.output)
