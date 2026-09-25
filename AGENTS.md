@@ -30,7 +30,7 @@ Do not introduce `pilot_v1`-style catch-all modules.
 
 - Follow KISS: one useful vertical slice at a time.
 - Prefer one owning roadmap Issue and 2-4 cohesive PRs, not micro-PRs.
-- Fix routine test/refactor/integration failures autonomously.
+- Fix routine implementation/refactor/integration failures autonomously; do not create or expand tests unless Testing Economy justifies it.
 - Keep `CONTEXT.md` current-only.
 - Treat this public repository, Issues, PRs, Actions logs, and evidence as public.
 - Never commit credentials, account IDs, private ARNs/endpoints, auth material, raw private findings, browser state, or session data.
@@ -48,8 +48,13 @@ Company/office/PROD, IAM/OIDC/network expansion, public exposure, destructive op
 ## Git workflow
 
 ```text
-Issue -> branch -> cohesive implementation/tests/docs -> PR -> CI/review
+Issue -> branch -> cohesive implementation/docs/required validation -> PR -> CI/review
       -> squash merge when accepted -> update CONTEXT/ROADMAP -> continue
 ```
 
 Use the existing milestone PR for fixes. Do not create replacement PRs unless the trust boundary or scope materially changes.
+
+## Portfolio Economy Defaults
+
+- Testing: default to **zero new tests**. Use the smallest existing validation that can prove the change. Add or modify tests only for a real uncovered regression, contract, security boundary, failure mode, or high-signal isolated logic. Once required checks pass and the changed behavior is proven, **stop**.
+- Runners: public repositories may use standard GitHub-hosted runners such as `ubuntu-latest`. Private repositories should avoid GitHub-hosted runners by default and reuse an existing approved CodeBuild/CodePipeline or CodeBuild-hosted Actions runner; do not create new CI infrastructure merely to replace a free public runner.
