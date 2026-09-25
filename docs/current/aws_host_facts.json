@@ -1,17 +1,26 @@
 {
-  "verified_at": "2026-09-25T11:30:00+08:00",
+  "verified_at": "2026-09-25T12:31:00+08:00",
   "mem_total_gib": 3.74,
   "mem_available_gib": 2.05,
-  "swap_total_gib": 0.0,
-  "root_used_pct": 92.0,
+  "swap_total_gib": 0,
+  "root_used_pct": 60,
   "cpu_14d_avg_pct": 1.63,
   "cpu_14d_max_pct": 77.89,
   "cpu_credit_balance_avg": 575.99,
-  "volume_gib": 20,
-  "volume_types": ["gp3"],
+  "volume_gib": 30,
+  "volume_types": [
+    "gp3"
+  ],
   "service_memory_mib": {
     "librechat": 623.5,
     "ops_service": 215.8,
     "mongodb": 148.6
+  },
+  "root_fs_size_gib": 28,
+  "disk_expansion": {
+    "from_gib": 20,
+    "to_gib": 30,
+    "filesystem": "ext4",
+    "result": "online grow completed; retained services remained active"
   }
 }
