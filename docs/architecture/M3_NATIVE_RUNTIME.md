@@ -119,14 +119,18 @@ safe or unsafe solely from one free-memory snapshot.
 Issue #11 permits a separate loopback canary on the same verified LAB host;
 no new EC2, ingress/DNS/IAM or existing-service changes. No canary process,
 listener, login, credential or native decision was created by this preflight.
-Creating its disposable normal login and local session-signing keys requires
-the explicit auth-provisioning gate. No secrets should be pasted into chat.
+The explicit auth-provisioning gate is satisfied: disposable normal login and
+canary-only local session-signing keys were created under Issue #11 authority,
+and normal UI login was proven without exporting browser auth state. No secrets
+should be pasted into chat.
 
-After that gate, continue in #11: capacity-limited clean pinned candidate,
-separate state, real tool/native policy registration, normal login, fresh
-read/prepare, native Reject, receipt/readback, supported chat cleanup, canary
-rollback and confirmation that existing services remain unaffected. No live
-Approve. Stop only canary processes; preserve sanitized acceptance/audit proof.
+Remaining live acceptance in #11 is: refresh the isolated canary to the current
+green PR #13 head, read the latest durable execution state before any retry,
+perform fresh read/prepare, native Reject, durable REJECTED receipt, zero
+dispatch, fresh unchanged provider readback, supported Archive cleanup, canary
+stop/rollback, and confirm existing services remain unaffected. Never blindly
+duplicate an SSM execution. No live Approve. Stop only canary processes;
+preserve sanitized acceptance/audit proof.
 
 ## Test interpretation
 
