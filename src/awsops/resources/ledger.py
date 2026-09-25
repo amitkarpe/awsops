@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
+import re
 from typing import Any, Iterable
 
 COST_LABELS = {"ACTUAL", "EST", "USAGE-BASED", "DIRECT-$0", "UNKNOWN"}
@@ -25,6 +26,13 @@ def _text(value: Any) -> str:
     text = " ".join(str(value).replace("|", "/").split())
     if not text:
         raise ValueError("ledger text cannot be empty")
+    lowered = text.lower()
+    if "arn:" in lowered:
+        raise ValueError("provider identifier is not allowed in public ledger")
+    if re.search(r"(?<!\\d)\\d{12}(?!\\d)", text):
+        raise ValueError("account identifier is not allowed in public ledger")
+    if re.search(r"\\b(?:i|sg|sgr|vol|subnet|vpc)-[0-9a-f]{8,17}\\b", text, re.I):
+        raise ValueError("provider identifier is not allowed in public ledger")
     return text
 
 
