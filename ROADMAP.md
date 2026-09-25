@@ -17,18 +17,25 @@ preparation/readback through the isolated SSM probe. Evidence is in
 - M3A (#7 / #8): private durable ledger and runtime-neutral decision adapter.
 - M3B (#9 / #10): private receipt pipe, pinned resume seam and offline rollback.
 - M3C (#11 / #12): trusted pause producer, fresh provider registration before
-  readiness, and bound post-Reject readback. Review/CI establish code acceptance.
+  readiness, and bound post-Reject readback. Repository code is accepted.
+- Draft PR #13 owns the isolated real normal-auth browser acceptance.
 
-The real isolated native canary is NOT accepted. Preflight only has run;
-normal isolated login/session provisioning remains an explicit gate. No old
-runtime/database/credential copying to bypass it. Continue in #11, not a new
-sequence of troubleshooting issues. Require authenticated native Reject,
-receipt, unchanged provider readback, cleanup and retained-service protection.
+Require authenticated native Reject, durable receipt, zero dispatch, unchanged
+provider readback, supported Archive cleanup and retained-service protection.
+
+## Operational hygiene - AWS resource ledger - IN PROGRESS (#14)
+
+- One canonical public Markdown ledger: `docs/current/AWS_RESOURCES.md`.
+- Read-only collector groups live tagged resources without raw provider IDs.
+- Cost basis is explicit: ACTUAL / EST / USAGE-BASED / DIRECT-$0 / UNKNOWN.
+- Current EC2 evidence recommends keeping `t3.medium`; `t3.small` is memory-tight.
+- Live multi-account inventory coverage is still evidence-scoped; no auto-cleanup.
 
 ## M4 - bounded remediation migration - NOT STARTED
 
 Only S3 BPA and restricted SSH on retained demo scope may be considered.
 Separate exact-canary authority is required before any live Approve or write.
+Every new/retained M4 AWS resource must appear in the resource ledger.
 
 ## M5 - parity and cutover - NOT STARTED
 
