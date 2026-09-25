@@ -128,6 +128,18 @@ async function run(root){
     if(!created.ok||typeof created.json?.id!=='string')throw Error('AGENT_CREATE_FAILED');
     agentId=created.json.id;
 
+    stage='agent_visibility';
+    let listedAgent=null;
+    for(let i=0;i<20;i++){
+      const listed=await api(page,'/api/agents?search='+encodeURIComponent(name)+'&limit=10&requiredPermission=2');
+      listedAgent=listed.ok&&Array.isArray(listed.json?.data)
+        ? listed.json.data.find(agent=>agent?.id===agentId&&agent?.name===name)
+        : null;
+      if(listedAgent)break;
+      await page.waitForTimeout(500);
+    }
+    if(!listedAgent)throw Error('AGENT_NOT_PERSISTED');
+
     const native={
       version:1,enabled:true,agent_id:agentId,python,
       source_root:path.join(root,'awsops'),database:path.join(root,'state/receipt.sqlite3'),
@@ -139,10 +151,23 @@ async function run(root){
     await page.waitForTimeout(750);
     const form=await openAgentBuilder(page);
     await form.getByRole('combobox',{name:'Agent',exact:true}).click();
+    stage='agent_search';
+    const search=page.locator('input[role="combobox"]').last();
+    await search.waitFor({state:'visible',timeout:10000});
+    await search.fill(name);
+    stage='agent_option';
     const option=page.getByRole('option',{name,exact:true});
     await option.waitFor({state:'visible',timeout:10000});
     await option.click();
-    await form.getByLabel('Agent name').waitFor({state:'visible'});
+    stage='agent_selected';
+    const agentName=form.getByLabel('Agent name');
+    await agentName.waitFor({state:'visible'});
+    let loaded=false;
+    for(let i=0;i<20;i++){
+      if(await agentName.inputValue()===name){loaded=true;break}
+      await page.waitForTimeout(250);
+    }
+    if(!loaded)throw Error('AGENT_FORM_NOT_LOADED');
     await form.getByRole('button',{name:'Select Agent'}).click();
 
     stage='send';
