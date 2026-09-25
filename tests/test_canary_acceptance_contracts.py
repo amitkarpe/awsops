@@ -42,6 +42,7 @@ if(!pauseSource.includes("require('./awsops-native-gate.cjs')")||pauseSource.inc
 const prior=c.deployedPauseHelper(Buffer.from(fs.readFileSync('./integration/librechat/pause_gate.cjs','utf8')
   .replace("const fs = require('node:fs');","const fs = require('node:fs');")));
 if(!Buffer.isBuffer(prior))process.exit(7);
+if(c.PREVIOUS_PAUSE_BLOB!=='853eeea8dc3e9c8ccc6dfc7c080ad868fbeadda8')process.exit(71);
 fs.writeFileSync(pause,'unexpected drift');let refused=false;try{{c.configure(r)}}catch{{refused=true}}
 if(!refused)process.exit(8);
 """
