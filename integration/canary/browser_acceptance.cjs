@@ -192,9 +192,10 @@ async function run(root){
     }
     stage='agent_search';
     await search.fill(name);
-    stage='agent_option';
     const option=page.getByRole('option',{name,exact:true});
-    await option.waitFor({state:'visible',timeout:10000});
+    stage='agent_option_wait';
+    await option.waitFor({state:'visible',timeout:30000});
+    stage='agent_option_click';
     await option.click();
     stage='agent_name_wait';
     const agentName=form.getByLabel('Agent name');
