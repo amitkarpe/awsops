@@ -176,7 +176,8 @@ async function run(root){
     stage='agent_combobox_wait';
     await agentSelect.waitFor({state:'visible',timeout:30000});
     stage='agent_combobox_click';
-    await agentSelect.click();
+    if(!(await agentSelect.isEnabled()))throw Error('AGENT_COMBOBOX_DISABLED');
+    await agentSelect.evaluate(element=>element.click());
     stage='agent_search_probe';
     const search=page.getByPlaceholder('Search agents by name',{exact:true});
     const searchVisible=await search.waitFor({state:'visible',timeout:2000}).then(()=>true).catch(()=>false);
