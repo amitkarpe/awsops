@@ -40,13 +40,12 @@ No target-resource mutation, live Approve, IAM/OIDC/network or PROD work.
 - Live `vagent` inventory confirms `seccop-project1-old-ami-host-r01` (`t3.small`) is SSM Online and almost idle (~0.13% 14-day CPU average), with ~1.59 GiB RAM available and ~10% root-disk use at the sampled point. It is Amazon Linux 2 with Python 3.7 and no Git/Node/Docker, so it is not a clean modern developer workstation. No cleanup or repurpose has been authorized.
 - `docs/architecture/DEV_COMPUTE_MODEL.md` defines the accepted design: home workstation for normal development, GitHub Actions for repeatable CI, `amit` `t3.medium` only for the current full LibreChat/Ops/MongoDB integration path, and `vagent` only as a future lightweight AWS canary after an explicit repurpose gate.
 - `docs/architecture/HOME_DEV_WORKFLOW.md` is the sanitized Codex/home-workstation bootstrap. GitHub is the source of truth for `AgentCore` and `agentic-ai-cybersecurity-lab`; do not spend time forensically synchronizing the old vagent filesystem unless a concrete irreplaceable artifact is proven.
-- `aws-secops` remains reference/archive evidence material, not the primary product repo.
+- `aws-secops` is now formally treated as **FROZEN / REFERENCE** for new product work. `docs/architecture/AWS_SECOPS_HARVEST.md` is the canonical harvest matrix for old PR #192/#177. New implementation belongs only in `awsops`; old repo remains readable evidence until M5 cutover/archive.
 
 ## Next
 
-1. Finish Issue #14 repository acceptance for the account-first cost view and
-   keep cleanup as a separate explicit mutation decision.
-2. Continue Issue #11 / PR #13 to the real isolated Reject -> receipt ->
-   provider readback -> Archive acceptance.
+1. Continue Issue #11 / PR #13 to the real isolated Reject -> receipt -> provider readback -> Archive acceptance, harvesting only the missing #192 browser/recovery patterns.
+2. Keep old aws-secops PR #177 deferred unless a concrete future awsops read-adapter milestone needs it.
+3. Finish Issue #14 operational-hygiene work independently; no cleanup mutation is implied.
 
 Do not create another roadmap or mistake code/CI acceptance for live completion.
