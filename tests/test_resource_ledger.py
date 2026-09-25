@@ -31,7 +31,7 @@ class ResourceLedgerTests(unittest.TestCase):
 
     def test_render_is_kiss_and_uses_aliases(self):
         row = LedgerRow(
-            "awsops", "personal-lab", "EC2 retained demo host", 1, "running",
+            "awsops", "amit", "EC2 retained demo host", 1, "running",
             "LibreChat runtime", "EST", "RETAIN", "LIVE", created=date(2026, 9, 2),
         )
         text = render_markdown(
@@ -39,14 +39,30 @@ class ResourceLedgerTests(unittest.TestCase):
             verified_at="2026-09-25T03:30:00+00:00",
             coverage="test",
             sizing={"recommendation": "KEEP-t3.medium", "reason": "test"},
+            cost_snapshot={
+                "priority": [{
+                    "priority": "HIGH",
+                    "account": "amit",
+                    "name": "EC2 Compute",
+                    "state": "running",
+                    "cost": "USD 10 MTD",
+                    "action": "KEEP"
+                }],
+                "accounts": [{
+                    "account": "amit",
+                    "period": "test",
+                    "actual_usd": 10.0,
+                    "note": "test"
+                }]
+            },
         )
         self.assertIn("23d (created)", text)
-        self.assertIn("personal-lab", text)
+        self.assertIn("**amit**", text)
         self.assertNotIn("ResourceARN", text)
 
     def test_bad_enum_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "invalid ledger enum"):
-            LedgerRow("awsops", "personal-lab", "EC2 host", 1, "running", "demo", "BAD", "RETAIN", "LIVE")
+            LedgerRow("awsops", "amit", "EC2 host", 1, "running", "demo", "BAD", "RETAIN", "LIVE")
 
 
 if __name__ == "__main__":
