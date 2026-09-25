@@ -1,0 +1,15 @@
+[
+  {
+    "project": "aws-secops",
+    "account_alias": "vagent",
+    "resource_class": "S3 bounded demo fleet",
+    "count": 100,
+    "state": "retained (repo evidence)",
+    "purpose": "bounded S3 Block Public Access scale demo",
+    "cost_label": "USAGE-BASED",
+    "decision": "REVIEW",
+    "source": "REPO-EVIDENCE",
+    "first_seen": "2026-09-11",
+    "note": "live revalidation pending; TTL is a review deadline"
+  }
+]
