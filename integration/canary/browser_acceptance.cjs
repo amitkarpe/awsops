@@ -206,19 +206,16 @@ async function run(root){
     await option.waitFor({state:'visible',timeout:30000});
     stage='agent_option_click';
     await option.click();
-    stage='agent_name_wait';
-    const agentName=form.getByLabel('Agent name');
-    await agentName.waitFor({state:'visible'});
-    stage='agent_name_load';
-    let loaded=false;
-    for(let i=0;i<80;i++){
-      if(await agentName.inputValue()===name){loaded=true;break}
+    stage='agent_select_wait';
+    const selectAgent=form.getByRole('button',{name:'Select Agent',exact:true});
+    await selectAgent.waitFor({state:'visible',timeout:30000});
+    let selectReady=false;
+    for(let i=0;i<120;i++){
+      if(!(await selectAgent.isDisabled())){selectReady=true;break}
       await page.waitForTimeout(250);
     }
-    if(!loaded)throw Error('AGENT_FORM_NOT_LOADED');
+    if(!selectReady)throw Error('AGENT_SELECTION_NOT_READY');
     stage='agent_select_submit';
-    const selectAgent=form.getByRole('button',{name:'Select Agent',exact:true});
-    await selectAgent.waitFor({state:'visible'});
     await selectAgent.click();
 
     stage='send';
