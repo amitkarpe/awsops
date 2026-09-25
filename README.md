@@ -46,4 +46,4 @@ Offline tests without fixtures do not establish native integration acceptance.
 
 ## Development compute
 
-See `docs/architecture/DEV_COMPUTE_MODEL.md` for the home-first model and the bounded future role of the `vagent` `t3.small` canary.
+See `docs/architecture/DEV_COMPUTE_MODEL.md` for the compute decision and `docs/architecture/HOME_DEV_WORKFLOW.md` for the sanitized local/Codex bootstrap. GitHub is the source of truth; the old `vagent` filesystem is disposable unless proven otherwise.
