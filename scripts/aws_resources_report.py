@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timedelta, timezone
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -200,17 +201,30 @@ def load_known(path: Path) -> list[LedgerRow]:
     return rows
 
 
+def verify_controller(session, expected_account: str, region: str) -> None:
+    if not (expected_account.isascii() and expected_account.isdigit() and len(expected_account) == 12):
+        raise RuntimeError("expected account must be a private 12-digit runtime value")
+    actual = str(session.client("sts", region_name=region).get_caller_identity().get("Account", ""))
+    if actual != expected_account:
+        raise RuntimeError("controller account mismatch")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile")
     parser.add_argument("--alias", default="personal-lab")
     parser.add_argument("--region", default=REGION)
+    parser.add_argument("--expected-account", default=os.environ.get("AWSOPS_EXPECTED_ACCOUNT"),
+                        help="private expected controller account; prefer AWSOPS_EXPECTED_ACCOUNT")
     parser.add_argument("--output", type=Path, default=ROOT / "docs/current/AWS_RESOURCES.md")
     args = parser.parse_args()
     if args.region != REGION:
         raise SystemExit("only ap-southeast-1 is supported by this ledger")
+    if not args.expected_account:
+        raise SystemExit("set AWSOPS_EXPECTED_ACCOUNT privately before live discovery")
     import boto3
     session = boto3.Session(profile_name=args.profile, region_name=args.region)
+    verify_controller(session, args.expected_account, args.region)
     verified_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     rows = load_known(ROOT / "docs/current/aws_resources_known.json")
     rows.extend(tagged_rows(session, alias=args.alias, region=args.region, verified_at=verified_at))
