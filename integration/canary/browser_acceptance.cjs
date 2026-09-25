@@ -181,7 +181,11 @@ async function run(root){
     const searchVisible=await search.waitFor({state:'visible',timeout:2000}).then(()=>true).catch(()=>false);
     if(!searchVisible){
       stage='agent_search_reopen';
-      if(await agentSelect.getAttribute('aria-expanded')!=='true')await agentSelect.press('Enter');
+      if(await agentSelect.getAttribute('aria-expanded')==='true'){
+        await agentSelect.press('Escape');
+        await page.waitForTimeout(250);
+      }
+      await agentSelect.click();
       stage='agent_search_wait';
       await search.waitFor({state:'visible',timeout:10000});
     }
