@@ -61,6 +61,10 @@ class CanaryBrowserTests(unittest.TestCase):
         self.assertIn('contract.assertArchived(archiveReadback,conversationId)', source)
         self.assertNotIn("api(page,'/api/convos/'+encodeURIComponent(conversationId),'DELETE')", source)
         self.assertIn('diagnostics};', source)
+        self.assertIn("page.reload({waitUntil:'domcontentloaded'})", source)
+        self.assertIn("STALE_AGENT_CLEANUP_FAILED", source)
+        self.assertIn("agentCleanup=removed.ok||removed.status===404", source)
+        self.assertIn("contract.archiveRequest(conversationId)", source)
 
     def test_exact_card_tool_scope_identity_and_reject_only_controls(self):
         self.invoke_contract("""
