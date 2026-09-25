@@ -12,7 +12,7 @@ const MODEL_ENDPOINT='awsops_canary_fixture';
 const MODEL='awsops-canary-fixed';
 // Previous deployed helper from accepted M3C main. Deployment renames the native helper,
 // so the deployed pause helper has a distinct blob from the repository source file.
-const PREVIOUS_PAUSE_BLOB='d1fcdb0cbfd2d951ae3a37ea1f391a1b5c2f7adb';
+const PREVIOUS_PAUSE_BLOB='853eeea8dc3e9c8ccc6dfc7c080ad868fbeadda8';
 function deployedPauseHelper(data){
   const marker="require('./native_gate.cjs')";
   const source=data.toString('utf8');
