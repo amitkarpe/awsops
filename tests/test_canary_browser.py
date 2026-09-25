@@ -69,6 +69,8 @@ class CanaryBrowserTests(unittest.TestCase):
         self.assertIn("AGENT_NOT_PERSISTED", source)
         self.assertIn('input[role="combobox"]', source)
         self.assertIn("AGENT_FORM_NOT_LOADED", source)
+        self.assertIn("stage='agent_builder_open'", source)
+        self.assertIn("stage='agent_combobox_open'", source)
 
     def test_exact_card_tool_scope_identity_and_reject_only_controls(self):
         self.invoke_contract("""
