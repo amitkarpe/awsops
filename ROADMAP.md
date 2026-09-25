@@ -41,7 +41,14 @@ Only S3 BPA and restricted SSH on retained demo scope may be considered.
 Separate exact-canary authority is required before any live Approve or write.
 Every new/retained M4 AWS resource must appear in the resource ledger.
 
+## Old repository freeze / harvest - ACTIVE
+
+- `aws-secops` is frozen for **new product development**.
+- Harvest matrix: `docs/architecture/AWS_SECOPS_HARVEST.md`.
+- PR #192 is a high-value browser/E2E reference for M3 only; do not continue product development there.
+- PR #177 is deferred reference material; do not port merely for parity.
+- Old repository history/evidence remains readable until M5.
+
 ## M5 - parity and cutover - NOT STARTED
 
-Parity/deferred list, deployment/runbook and explicit cutover. Preserve source
-history and evidence; no destructive old-repository cleanup.
+Parity/deferred list, deployment/runbook and explicit cutover. Close/supersede remaining old active PRs after their useful patterns are harvested. Preserve source history/evidence. Archive `aws-secops` only after explicit M5 cutover acceptance.
