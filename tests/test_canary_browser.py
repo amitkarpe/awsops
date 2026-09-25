@@ -70,6 +70,8 @@ class CanaryBrowserTests(unittest.TestCase):
         self.assertIn("stage='agent_search_probe'", source)
         self.assertIn("stage='agent_search_reopen'", source)
         self.assertIn("stage='agent_search_wait'", source)
+        self.assertIn("stage='agent_option_wait'", source)
+        self.assertIn("stage='agent_option_click'", source)
         self.assertIn("getAttribute('aria-expanded')", source)
         self.assertIn("agentSelect.press('Escape')", source)
         self.assertIn("await agentSelect.click()", source)
