@@ -13,9 +13,9 @@
 
 | Priority | Account | Resource / service | State | Cost evidence | Action |
 | --- | --- | --- | --- | ---: | --- |
-| 🔴 **HIGH** | **amit** | **EC2 Compute / retained `t3.medium`** | running | **USD 28.94 MTD actual**; ~**USD 38.54/mo** compute list-price | **KEEP `t3.medium`** |
+| 🔴 **HIGH** | **amit** | **EC2 `agentcore-issue19-librechat-poc-r01` / `t3.medium`** | running | **USD 28.94 MTD actual**; ~**USD 38.54/mo** compute list-price | **KEEP `t3.medium`** |
 | 🔴 **HIGH** | **amit** | **Amazon Lightsail** | 1 running + 1 stopped legacy instance | **USD 7.62 MTD actual** | **REVIEW** old 2017/2018 resources |
-| 🟠 **REVIEW** | **vagent** | **EC2 `t3.small` learning host** | running; old demo TTL expired | Cost Explorer reports **USD 0.00 MTD**; list-price/public-IPv4 exposure still exists | **CLEANUP-CANDIDATE**; no deletion authorized |
+| 🟠 **REVIEW** | **vagent** | **EC2 `seccop-project1-old-ami-host-r01` / `t3.small`** | running; old demo TTL expired | Cost Explorer reports **USD 0.00 MTD**; list-price/public-IPv4 exposure still exists | **CLEANUP-CANDIDATE**; no deletion authorized |
 
 ## Account cost summary
 
@@ -46,10 +46,10 @@
 
 Always-on compute is intentionally separated because it is the first cost lever to check.
 
-| Account | Project | Compute | State | Age | Estimated monthly | Decision |
-| --- | --- | --- | --- | --- | ---: | --- |
-| **amit** | shared-runtime | **EC2 retained demo host — `t3.medium`** | running | 23d | **~USD 38.54 compute** | **RETAIN** |
-| **vagent** | Security Copilot | **EC2 retained learning host — `t3.small`** | running | 25d | **~USD 19.27 compute** | **CLEANUP-CANDIDATE** |
+| Account | EC2 name | Project | Compute | State | Age | Estimated monthly | Decision |
+| --- | --- | --- | --- | --- | --- | ---: | --- |
+| **amit** | **`agentcore-issue19-librechat-poc-r01`** | shared-runtime | **`t3.medium`** | running | 23d | **~USD 38.54 compute** | **RETAIN** |
+| **vagent** | **`seccop-project1-old-ami-host-r01`** | Security Copilot | **`t3.small`** | running | 25d | **~USD 19.27 compute** | **CLEANUP-CANDIDATE** |
 
 ## `amit` retained host
 
@@ -75,28 +75,28 @@ Approximate incremental gp3 cost: **~USD 0.96/month**.
 
 ## Full resource ledger
 
-| Project | Account | Resource class | Qty | State | Age | Purpose | Cost | Decision | Evidence |
-| --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- |
-| shared-runtime | **amit** | EC2 retained demo host | 1 | running | 23d | LibreChat + Ops retained personal-LAB runtime | EST ~USD 38.54/mo compute | RETAIN | LIVE |
-| aws-secops | **amit** | AWS Config rule | 2 | present | UNKNOWN | issue-88-config-evidence | USAGE-BASED | REVIEW | LIVE |
-| aws-secops | **amit** | AgentCore Gateway | 1 | present | 16d | governed-harmless-tool | USAGE-BASED | CLEANUP-CANDIDATE | LIVE |
-| aws-secops | **amit** | AgentCore Harness | 3 | present | UNKNOWN | compliance-agent-v1 | USAGE-BASED | RETAIN | LIVE |
-| aws-secops | **amit** | AgentCore Policy engine | 1 | present | 16d | dev-only-gateway-policy | USAGE-BASED | CLEANUP-CANDIDATE | LIVE |
-| aws-secops | **amit** | AgentCore Runtime | 2 | present | UNKNOWN | compliance-agent-v1 | USAGE-BASED | RETAIN | LIVE |
-| aws-secops | **amit** | AgentCore workload identity | 1 | present | UNKNOWN | compliance-agent-v1 | USAGE-BASED | RETAIN | LIVE |
-| aws-secops | **amit** | CloudFormation stack | 1 | present | UNKNOWN | compliance-agent-v1 | DIRECT-$0 | RETAIN | LIVE |
-| aws-secops | **amit** | CloudWatch log group | 1 | present | 16d | governed-tool-evidence | USAGE-BASED | CLEANUP-CANDIDATE | LIVE |
-| aws-secops | **amit** | CloudWatch log group | 1 | present | 16d | pilot-exact-sg-remediation | USAGE-BASED | RETAIN | LIVE |
-| aws-secops | **amit** | CodeBuild project | 1 | present | 7d | issue-100-four-account-executor | USAGE-BASED | RETAIN | LIVE |
-| aws-secops | **amit** | Lambda function | 1 | present | 16d | governed-harmless-tool | USAGE-BASED | CLEANUP-CANDIDATE | LIVE |
-| aws-secops | **amit** | Lambda function | 1 | present | 16d | pilot-exact-sg-remediation | USAGE-BASED | RETAIN | LIVE |
-| aws-secops | **amit** | Lambda function | 1 | present | 16d | pilot-provider-read | USAGE-BASED | RETAIN | LIVE |
-| aws-secops | **amit** | S3 bucket | 1 | present | UNKNOWN | issue-88-config-delivery | USAGE-BASED | REVIEW | LIVE |
-| aws-secops | **amit** | S3 bucket | 1 | present | 15d | versioning-exception-demo | USAGE-BASED | RETAIN | LIVE |
-| aws-secops | **amit** | Security Group | 1 | present | 16d | pilot-compliance-demo | DIRECT-$0 | RETAIN | LIVE |
-| aws-secops | **amit** | Security Group rule | 1 | present | 15d | authenticated-ui-https | DIRECT-$0 | RETAIN | LIVE |
-| Security Copilot | **vagent** | EC2 retained learning host | 1 | running | 25d | Inspector-to-SSM old-package learning demo | EST ~USD 19.27/mo compute | CLEANUP-CANDIDATE | LIVE |
-| aws-secops | **vagent** | S3 bounded demo fleet | 100 | retained | 14d first-seen | bounded S3 Block Public Access scale demo | USAGE-BASED | REVIEW | REPO-EVIDENCE |
+| Project | Account | Name | Resource class | Qty | State | Age | Purpose | Cost | Decision | Evidence |
+| --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- |
+| shared-runtime | **amit** | `agentcore-issue19-librechat-poc-r01` | EC2 retained demo host | 1 | running | 23d | LibreChat + Ops retained personal-LAB runtime | EST ~USD 38.54/mo compute | RETAIN | LIVE |
+| aws-secops | **amit** | - | AWS Config rule | 2 | present | UNKNOWN | issue-88-config-evidence | USAGE-BASED | REVIEW | LIVE |
+| aws-secops | **amit** | - | AgentCore Gateway | 1 | present | 16d | governed-harmless-tool | USAGE-BASED | CLEANUP-CANDIDATE | LIVE |
+| aws-secops | **amit** | - | AgentCore Harness | 3 | present | UNKNOWN | compliance-agent-v1 | USAGE-BASED | RETAIN | LIVE |
+| aws-secops | **amit** | - | AgentCore Policy engine | 1 | present | 16d | dev-only-gateway-policy | USAGE-BASED | CLEANUP-CANDIDATE | LIVE |
+| aws-secops | **amit** | - | AgentCore Runtime | 2 | present | UNKNOWN | compliance-agent-v1 | USAGE-BASED | RETAIN | LIVE |
+| aws-secops | **amit** | - | AgentCore workload identity | 1 | present | UNKNOWN | compliance-agent-v1 | USAGE-BASED | RETAIN | LIVE |
+| aws-secops | **amit** | - | CloudFormation stack | 1 | present | UNKNOWN | compliance-agent-v1 | DIRECT-$0 | RETAIN | LIVE |
+| aws-secops | **amit** | - | CloudWatch log group | 1 | present | 16d | governed-tool-evidence | USAGE-BASED | CLEANUP-CANDIDATE | LIVE |
+| aws-secops | **amit** | - | CloudWatch log group | 1 | present | 16d | pilot-exact-sg-remediation | USAGE-BASED | RETAIN | LIVE |
+| aws-secops | **amit** | - | CodeBuild project | 1 | present | 7d | issue-100-four-account-executor | USAGE-BASED | RETAIN | LIVE |
+| aws-secops | **amit** | - | Lambda function | 1 | present | 16d | governed-harmless-tool | USAGE-BASED | CLEANUP-CANDIDATE | LIVE |
+| aws-secops | **amit** | - | Lambda function | 1 | present | 16d | pilot-exact-sg-remediation | USAGE-BASED | RETAIN | LIVE |
+| aws-secops | **amit** | - | Lambda function | 1 | present | 16d | pilot-provider-read | USAGE-BASED | RETAIN | LIVE |
+| aws-secops | **amit** | - | S3 bucket | 1 | present | UNKNOWN | issue-88-config-delivery | USAGE-BASED | REVIEW | LIVE |
+| aws-secops | **amit** | - | S3 bucket | 1 | present | 15d | versioning-exception-demo | USAGE-BASED | RETAIN | LIVE |
+| aws-secops | **amit** | - | Security Group | 1 | present | 16d | pilot-compliance-demo | DIRECT-$0 | RETAIN | LIVE |
+| aws-secops | **amit** | - | Security Group rule | 1 | present | 15d | authenticated-ui-https | DIRECT-$0 | RETAIN | LIVE |
+| Security Copilot | **vagent** | `seccop-project1-old-ami-host-r01` | EC2 retained learning host | 1 | running | 25d | Inspector-to-SSM old-package learning demo | EST ~USD 19.27/mo compute | CLEANUP-CANDIDATE | LIVE |
+| aws-secops | **vagent** | - | S3 bounded demo fleet | 100 | retained | 14d first-seen | bounded S3 Block Public Access scale demo | USAGE-BASED | REVIEW | REPO-EVIDENCE |
 
 ## Cost labels
 
