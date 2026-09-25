@@ -66,7 +66,7 @@ class CanaryBrowserTests(unittest.TestCase):
         self.assertIn("contract.archiveRequest(conversationId)", source)
         self.assertIn("requiredPermission=2", source)
         self.assertIn("AGENT_NOT_PERSISTED", source)
-        self.assertIn('input[role="combobox"]', source)
+        self.assertIn("getByPlaceholder('Search agents by name',{exact:true})", source)
         self.assertIn("AGENT_FORM_NOT_LOADED", source)
         self.assertIn("stage='agent_builder_open'", source)
         self.assertIn("stage='agent_combobox_open'", source)
