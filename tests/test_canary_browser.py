@@ -73,6 +73,9 @@ class CanaryBrowserTests(unittest.TestCase):
         self.assertIn("agent_builder_navigation", source)
         self.assertIn("agent_builder_button_wait", source)
         self.assertIn("agent_builder_form_wait", source)
+        self.assertIn("agent_builder_current_page", source)
+        self.assertIn("AGENT_BUILDER_PAGE_REQUIRED", source)
+        self.assertIn("openAgentBuilder(page,value=>{stage=value},false)", source)
 
     def test_exact_card_tool_scope_identity_and_reject_only_controls(self):
         self.invoke_contract("""
