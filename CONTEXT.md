@@ -2,40 +2,50 @@
 
 Repository: `amitkarpe/awsops`
 Status: ACTIVE
-Updated: 2026-09-24
+Updated: 2026-09-25
 
 ## Authority
 
 Roadmap #1 owns migration. G implements, validates and reviews directly.
-M2 live reads and M3A/M3B repository integration are accepted. Issue #11 owns
-M3C trusted pause registration and the isolated native canary; PR #12 records
-its current code/review/merge state. No Codex handoff is required.
+M2 live reads and M3A/M3B/M3C repository integration are accepted. Issue #11
+and draft PR #13 own the remaining isolated normal-auth native Reject canary.
+No Codex handoff is required.
 
-Amit approved an isolated canary on the same verified personal-LAB host, with
-separate state and no changes to existing services. New native login/secret
-provisioning is an explicit remaining gate; never copy old browser/auth data.
+Issue #14 owns operational hygiene: the public-safe AWS resource/cost ledger,
+account-level cost visibility and retained-host capacity evidence. Amit explicitly
+authorized one bounded LAB mutation: grow the `amit` retained host root gp3 volume
+from 20 to 30 GiB and extend its existing ext4 root filesystem online. That
+change completed successfully. Instance type remains `t3.medium`; cleanup remains
+unauthorized.
+
 No target-resource mutation, live Approve, IAM/OIDC/network or PROD work.
 
 ## Current truth
 
 - M2 live evidence remains `docs/evidence/M2_LAB_READ.json`.
 - M3A/M3B supply the private ledger, receipt pipe and pinned resume adapter.
-- M3C connects the pinned pause producer to a fresh provider-backed preparation
-  before native readiness. Failed registration/replaced generations cannot
-  publish a card. Only Reject is offered; no executor exists.
-- Bound post-Reject readback can reopen durable evidence without reconstructing
-  a job or replaying its decision. Readback output is not a new ledger event.
-- Producer/controller rehearsal uses pinned upstream code, genuine local
-  service/ledger logic and explicit provider/native dependency doubles. It is
-  not proof of live native authentication, Redis/Mongo or browser behavior.
-- Preflight found the retained services active and no isolated canary. No
-  canary process/listener/login was created. The retained patched source is
-  not the clean upstream pin; it must not be altered or silently reused.
-- M3 live acceptance is PENDING; Issue #11 remains open after repository merge.
-- `aws-secops` stays reference/archive material; neither repo nor runtime changed.
+- M3C connects the pinned pause producer to fresh provider-backed preparation
+  before native readiness. Only Reject is offered; no executor exists.
+- Draft PR #13 owns the isolated browser/runtime acceptance and must protect the
+  retained services and normal authentication boundary.
+- `docs/current/AWS_RESOURCES.md` is the canonical KISS resource/cost view and
+  uses canonical account aliases `amit` and `vagent`.
+- Cost Explorer readback for 2026-09-01..25 reports `amit` at USD 54.24 MTD;
+  its largest service cost is EC2 Compute at USD 28.94 MTD, followed by
+  Lightsail at USD 7.62 MTD. `vagent` reports USD 0.00 MTD in its account view.
+- Retained host right-sizing stays **`t3.medium`**. The root gp3 volume was grown
+  online from 20 to 30 GiB; ext4 root filesystem grew from ~18.3 to 28 GiB and
+  usage dropped from 92% to 60%. SSM stayed Online and both retained services
+  remained active. No instance stop/restart or type change occurred.
+- Live `vagent` inventory confirms `seccop-project1-old-ami-host-r01` (`t3.small`) is SSM Online and almost idle (~0.13% 14-day CPU average), with ~1.59 GiB RAM available and ~10% root-disk use at the sampled point. It is Amazon Linux 2 with Python 3.7 and no Git/Node/Docker, so it is not a clean modern developer workstation. No cleanup or repurpose has been authorized.
+- `docs/architecture/DEV_COMPUTE_MODEL.md` defines the accepted design: home workstation for normal development, GitHub Actions for repeatable CI, `amit` `t3.medium` only for the current full LibreChat/Ops/MongoDB integration path, and `vagent` only as a future lightweight AWS canary after an explicit repurpose gate.
+- `docs/architecture/HOME_DEV_WORKFLOW.md` is the sanitized Codex/home-workstation bootstrap. GitHub is the source of truth for `AgentCore` and `agentic-ai-cybersecurity-lab`; do not spend time forensically synchronizing the old vagent filesystem unless a concrete irreplaceable artifact is proven.
+- `aws-secops` is now formally treated as **FROZEN / REFERENCE** for new product work and remains **reference/archive** evidence until M5. `docs/architecture/AWS_SECOPS_HARVEST.md` is the canonical harvest matrix for old PR #192/#177. New implementation belongs only in `awsops`; old repo remains readable evidence until M5 cutover/archive.
 
 ## Next
 
-Complete the isolated canary's normal authentication/bootstrap boundary under
-#11, then real Reject -> durable receipt -> provider readback -> cleanup.
+1. Continue Issue #11 / PR #13 to the real isolated Reject -> receipt -> provider readback -> Archive acceptance, harvesting only the missing #192 browser/recovery patterns.
+2. Keep old aws-secops PR #177 deferred unless a concrete future awsops read-adapter milestone needs it.
+3. Finish Issue #14 operational-hygiene work independently; no cleanup mutation is implied.
+
 Do not create another roadmap or mistake code/CI acceptance for live completion.
