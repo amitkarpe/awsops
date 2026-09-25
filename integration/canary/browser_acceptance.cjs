@@ -39,9 +39,15 @@ async function api(page,urlPath,method='GET',body){
     return {ok:response.ok,status:response.status,json};
   },{urlPath,method,body});
 }
-async function openAgentBuilder(page,mark=()=>{}){
-  mark('agent_builder_navigation');
-  await page.goto(BASE+'/c/new',{waitUntil:'domcontentloaded'});
+async function openAgentBuilder(page,mark=()=>{},navigate=true){
+  if(navigate){
+    mark('agent_builder_navigation');
+    await page.goto(BASE+'/c/new',{waitUntil:'domcontentloaded'});
+  }else{
+    mark('agent_builder_current_page');
+    const url=new URL(page.url());
+    if(url.origin!==BASE||url.pathname!=='/c/new')throw Error('AGENT_BUILDER_PAGE_REQUIRED');
+  }
   const form=page.getByRole('form',{name:'Agent configuration form'});
   mark('agent_builder_form_probe');
   const visible=await form.waitFor({state:'visible',timeout:1500}).then(()=>true).catch(()=>false);
@@ -154,7 +160,7 @@ async function run(root){
     writePrivate(path.join(root,'state/native.json'),native);
 
     stage='agent_builder_open';
-    const form=await openAgentBuilder(page,value=>{stage=value});
+    const form=await openAgentBuilder(page,value=>{stage=value},false);
     stage='agent_combobox_open';
     const agentSelect=form.getByRole('combobox',{name:'Agent',exact:true});
     await agentSelect.waitFor({state:'visible',timeout:10000});
