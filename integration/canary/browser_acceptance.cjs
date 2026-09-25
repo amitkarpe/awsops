@@ -39,16 +39,23 @@ async function api(page,urlPath,method='GET',body){
     return {ok:response.ok,status:response.status,json};
   },{urlPath,method,body});
 }
-async function openAgentBuilder(page){
+async function openAgentBuilder(page,mark=()=>{}){
+  mark('agent_builder_navigation');
   await page.goto(BASE+'/c/new',{waitUntil:'domcontentloaded'});
   const form=page.getByRole('form',{name:'Agent configuration form'});
+  mark('agent_builder_form_probe');
   const visible=await form.waitFor({state:'visible',timeout:1500}).then(()=>true).catch(()=>false);
   if(!visible){
+    mark('agent_builder_button_wait');
     const button=page.getByRole('button',{name:'Agent Builder'});
     await button.waitFor({state:'visible'});
+    mark('agent_builder_button_click');
     if(await button.getAttribute('aria-pressed')!=='true')await button.click();
   }
-  await form.waitFor({state:'visible'});return form;
+  mark('agent_builder_form_wait');
+  await form.waitFor({state:'visible'});
+  mark('agent_builder_ready');
+  return form;
 }
 async function run(root){
   if(!path.isAbsolute(root)||fs.realpathSync(root)!==root)throw Error('CANARY_ROOT_REQUIRED');
@@ -147,7 +154,7 @@ async function run(root){
     writePrivate(path.join(root,'state/native.json'),native);
 
     stage='agent_builder_open';
-    const form=await openAgentBuilder(page);
+    const form=await openAgentBuilder(page,value=>{stage=value});
     stage='agent_combobox_open';
     const agentSelect=form.getByRole('combobox',{name:'Agent',exact:true});
     await agentSelect.waitFor({state:'visible',timeout:10000});
