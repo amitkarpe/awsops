@@ -53,24 +53,15 @@ async function openAgentBuilder(page,mark=()=>{},navigate=true){
   const visible=await form.waitFor({state:'visible',timeout:1500}).then(()=>true).catch(()=>false);
   if(!visible){
     mark('agent_builder_button_wait');
-    const button=page.getByRole('button',{name:'Agent Builder'});
-    await button.waitFor({state:'visible'});
+    const button=page.getByRole('button',{name:'Agent Builder',exact:true});
+    if(await button.count()!==1)throw Error('AGENT_BUILDER_TRIGGER_REQUIRED');
+    await button.waitFor({state:'visible',timeout:15000});
+    if(!(await button.isEnabled()))throw Error('AGENT_BUILDER_TRIGGER_DISABLED');
     mark('agent_builder_button_click');
-    if(await button.getAttribute('aria-pressed')!=='true')await button.click();
+    if(await button.getAttribute('aria-pressed')!=='true')await button.evaluate(element=>element.click());
   }
   mark('agent_builder_form_wait');
-  const ready=await form.waitFor({state:'visible',timeout:5000}).then(()=>true).catch(()=>false);
-  if(!ready){
-    mark('agent_builder_recover');
-    const button=page.getByRole('button',{name:'Agent Builder'});
-    if(await button.getAttribute('aria-pressed')==='true'){
-      await button.click();
-      await page.waitForTimeout(250);
-    }
-    await button.click();
-    mark('agent_builder_recover_wait');
-    await form.waitFor({state:'visible',timeout:10000});
-  }
+  await form.waitFor({state:'visible',timeout:30000});
   mark('agent_builder_ready');
   return form;
 }
