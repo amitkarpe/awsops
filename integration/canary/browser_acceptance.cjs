@@ -163,17 +163,8 @@ async function run(root){
 
     stage='agent_builder_open';
     const form=await openAgentBuilder(page,value=>{stage=value},false);
-    stage='agent_combobox_semantic_probe';
-    const semanticAgentSelect=form.getByRole('combobox',{name:'Agent',exact:true});
-    const semanticVisible=await semanticAgentSelect.waitFor({state:'visible',timeout:3000}).then(()=>true).catch(()=>false);
-    let agentSelect=semanticAgentSelect;
-    if(!semanticVisible){
-      stage='agent_combobox_text_fallback';
-      const fallback=form.locator('button[role="combobox"]').filter({hasText:'Create New Agent'});
-      if(await fallback.count()!==1)throw Error('AGENT_COMBOBOX_REQUIRED');
-      agentSelect=fallback;
-    }
     stage='agent_combobox_wait';
+    const agentSelect=form.getByRole('combobox',{name:'Agent',exact:true});
     await agentSelect.waitFor({state:'visible',timeout:30000});
     stage='agent_combobox_click';
     if(!(await agentSelect.isEnabled()))throw Error('AGENT_COMBOBOX_DISABLED');
