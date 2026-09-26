@@ -16,6 +16,163 @@ or authorize an activation.
 | OLD / reference | `ops.astromedicomp.org`, `sec.astromedicomp.org` | Preserve as a recoverable reference. |
 | NEW / `awsops` | `ops2.astromedicomp.org`, `sec2.astromedicomp.org` | Proposed names; DNS and routing are unverified. |
 
+## Issue #33 diagnosis: DNS first
+
+The Issue #33 report says Chrome returned `ERR_NAME_NOT_RESOLVED` for both NEW
+names while OLD `ops` and `sec` still worked. This places the reported failure
+at name resolution, before TLS, the proxy, an application upstream, or browser
+behavior. It does **not** establish whether the NEW records are absent, in the
+wrong zone, not delegated, or affected by a resolver cache. No authoritative
+DNS query or provider read was performed for this repository change, so the
+exact DNS defect remains unverified.
+
+Current `awsops` files document the NEW names as proposed only. Issue #11 / PR
+#13 documents an isolated normal-auth browser canary, not persistent `ops2` or
+`sec2` services. The repository contains no durable NEW hostname-to-service,
+service-unit, health-path, or loopback-upstream mapping. That is not proof that
+no live process exists; resolve live existence with the read-only inventory
+checks below before preparing any activation.
+
+The frozen `aws-secops` reference documents an older edge pattern in
+[`docs/implementation/NAMED_UI_DEPLOYMENT.md`](https://github.com/amitkarpe/aws-secops/blob/main/docs/implementation/NAMED_UI_DEPLOYMENT.md)
+and [`scripts/subdomain-dns.sh`](https://github.com/amitkarpe/aws-secops/blob/main/scripts/subdomain-dns.sh):
+Route 53 commands, an Nginx proxy on a retained personal-LAB host, and two
+CNAMEs directed at the preserved legacy A record. Its architecture document
+maps `sec.astromedicomp.org` to LibreChat and `ops.astromedicomp.org` to a
+redirect/legacy entry. The historical deployment records loopback ports 3333
+and 3340 and says both applications share the same stores. Those details are
+reference evidence only, not a current live readback or the NEW mapping. In
+particular, copying its aliases/upstreams would route back to OLD and its shared
+stores violate this document's OLD/NEW isolation rule.
+
+The reference DNS script uses AWS Route 53 CLI with a caller-supplied hosted
+zone ID and the profile alias `amit`; it proposes CNAMEs with TTL 60 and stops
+on conflicting records. That proves a historical tooling pattern, not current
+zone ownership, delegation, account authority, target, or TTL. `awsops` has no
+authoritative DNS provider/config path or zone ID recorded. Verify ownership
+read-only using the operator's approved identity; do not copy an account ID or
+zone ID into this public runbook.
+
+## Dependency chain and proposed NEW activation map
+
+Resolve and review the chain in this order. A later layer cannot compensate
+for a failed earlier one.
+
+| Layer | OLD / reference — currently reported working | NEW / `awsops` — required plan and unresolved values |
+| --- | --- | --- |
+| DNS | Existing `ops` and `sec` names resolve per the Issue #33 report. Exact record types, targets, and TTLs were not read. | Need one record for `ops2.astromedicomp.org` and one for `sec2.astromedicomp.org`. Record type (`CNAME` or provider-supported alias), exact target, TTL, zone, and ownership are `VERIFY-BEFORE-ACTIVATION`. Do not blindly reuse the reference script's legacy-A target. |
+| Public proxy and TLS | Reference docs describe Nginx and an existing TLS path; current vhost/certificate state was not inspected. | Proposed separate `ops2` and `sec2` vhosts on a verified approved edge. The `ops2` operator/Ops and `sec2` LibreChat/Sec roles follow the OLD names but are not yet verified for NEW. TLS SANs, listeners, renewal method, source policy, vhost paths, and proxy targets are `VERIFY-BEFORE-ACTIVATION`. |
+| Loopback upstream | Historical reference lists LibreChat on loopback 3333 and operator backend on 3340, with shared stores. | Each NEW vhost must route to its own verified NEW loopback service. NEW ports and upstream protocol/paths are `VERIFY-BEFORE-ACTIVATION`; do not reuse canary ports or assume the historical shared-store ports. |
+| Service/runtime | The `awsops` resource ledger reports retained LibreChat/Ops/MongoDB services on the `amit` runtime, but does not assign them to the requested NEW public hostnames. | No persistent `ops2/sec2` service mapping is in repository evidence. Exact units, users, checkout/config/data roots, MongoDB identities, auth/session state, and dependencies are `VERIFY-BEFORE-ACTIVATION`. The Issue #11 canary is not proof of these services. |
+| Health | OLD URLs are user-reported working; current health endpoints and responses were not queried. | Verify DNS, TLS/SNI and host routing, service revision, documented readiness path, normal auth, database connectivity, and OLD unchanged. NEW health paths and expected status/content are `VERIFY-BEFORE-ACTIVATION`. |
+
+### Read-only resolution checks
+
+Run these only later through the approved operator channel. Keep full output
+private; record only sanitized record types/TTL/targets, service names/states,
+port roles, and pass/fail in the public Issue. Do not run them as part of this
+documentation-only mission.
+
+1. Compare recursive answers and delegation for all four names:
+
+   ```sh
+   for host in ops.astromedicomp.org sec.astromedicomp.org ops2.astromedicomp.org sec2.astromedicomp.org; do
+     for type in CNAME A AAAA; do dig +noall +answer "$host" "$type"; done
+   done
+   dig +noall +answer astromedicomp.org NS
+   ```
+
+   If OLD answers but NEW is empty, check the authoritative zone and delegation
+   before concluding the records are absent. The Chrome symptom alone cannot
+   distinguish an absent record from a wrong authority or resolver state.
+
+2. After verifying the approved account/profile and exact public hosted zone,
+   use Route 53 read-only calls to inspect only the four names:
+
+   ```sh
+   aws route53 list-hosted-zones-by-name --dns-name astromedicomp.org --profile "$VERIFIED_PROFILE" --output json
+   aws route53 list-resource-record-sets --hosted-zone-id "$VERIFIED_ZONE_ID" --profile "$VERIFIED_PROFILE" \
+     --query "ResourceRecordSets[?Name=='ops.astromedicomp.org.' || Name=='sec.astromedicomp.org.' || Name=='ops2.astromedicomp.org.' || Name=='sec2.astromedicomp.org.'].[Name,Type,TTL,AliasTarget.DNSName,ResourceRecords[0].Value]" --output table
+   ```
+
+   The reference profile alias is only a hint. Reverify the caller identity and
+   zone ownership; if another provider/zone owns delegation, use its read-only
+   record inventory instead. The output determines the exact new record type,
+   target, and TTL; this runbook does not prescribe them.
+
+3. On the verified host, inventory proxy and runtime without changing them:
+
+   ```sh
+   sudo nginx -T
+   sudo systemctl list-units --type=service --all --no-legend
+   sudo systemctl list-unit-files --type=service --no-legend
+   sudo ss -ltnp
+   ```
+
+   Inspect the Nginx `server_name`, `listen`, TLS certificate references, and
+   `proxy_pass`/upstream mapping for OLD and any NEW names. Match unit names,
+   process owners, listener sockets, and checkout/config roots. Nginx dumps and
+   service metadata can contain private values; keep raw output private and
+   publish only sanitized mapping facts. Do not assume `nginx`, `aws-secops-*`,
+   or any unit name is the current awsops NEW service name.
+
+4. For every candidate NEW upstream discovered above, use its verified private
+   loopback port and application-documented health path for a read-only local
+   probe, for example:
+
+   ```sh
+   curl --fail --silent --show-error --max-time 5 \
+     "http://127.0.0.1:${VERIFIED_NEW_PORT}/${VERIFIED_HEALTH_PATH}"
+   ```
+
+   Resolve the port and path from the actual service/config and application
+   documentation first. Do not probe a guessed port or treat an open socket as
+   health. Validate HTTPS hostname/TLS and normal auth only during a separately
+   approved acceptance window.
+
+   In that separately approved window, check SNI/certificate verification and
+   the documented HTTPS health path for each NEW hostname:
+
+   ```sh
+   openssl s_client -connect "${VERIFIED_EDGE}:443" -servername ops2.astromedicomp.org -verify_return_error </dev/null
+   openssl s_client -connect "${VERIFIED_EDGE}:443" -servername sec2.astromedicomp.org -verify_return_error </dev/null
+   curl --fail --silent --show-error --max-time 10 \
+     "https://ops2.astromedicomp.org/${VERIFIED_OPS_HEALTH_PATH}"
+   curl --fail --silent --show-error --max-time 10 \
+     "https://sec2.astromedicomp.org/${VERIFIED_SEC_HEALTH_PATH}"
+   ```
+
+   `VERIFIED_EDGE` and both verified health paths must come from the reviewed
+   activation map. These checks are not part of the current repository-only
+   mission.
+
+### Proposed change set after values are verified
+
+The smallest likely activation is two NEW-only DNS records, two NEW-only TLS
+vhosts on the verified edge, and distinct NEW loopback app upstream(s) backed by
+isolated service configuration/state. The record target should be the approved
+edge that actually owns those vhosts, not automatically the OLD application
+origin. Whether the existing Nginx edge can safely serve the new vhosts depends
+on host identity, capacity, current config and isolation checks above. Do not
+create a new edge or assign a port unless the separate approval names it.
+
+The OLD/NEW separation checklist below remains mandatory. In particular,
+verify distinct checkout/config roots, MongoDB database and writable storage,
+auth/session keys, browser profiles, and evidence directories before assigning
+any NEW upstream. A shared host or proxy may be acceptable only if each request
+routes to isolated NEW app state and additive configuration leaves OLD behavior
+unchanged.
+
+### NEW-only rollback
+
+If an approved NEW activation fails, disable/revert only the exact NEW DNS
+records and NEW vhost fragments introduced by that change, then stop only the
+identified NEW app units that were started for the window. Keep OLD DNS, vhosts,
+certificates, services, stores, and state at their recorded baseline. Preserve
+NEW state, logs, and evidence for recovery; do not delete resources. If config
+is shared with OLD or the rollback cannot be scoped precisely to NEW, do not
+activate until that collision is resolved.
+
 The old `vagent` learning host is not synonymous with the OLD/reference demo.
 The retained `amit` host is documented as hosting the full LibreChat/Ops/
 MongoDB integration runtime; that fact does not identify which demo owns each
