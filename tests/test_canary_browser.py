@@ -74,7 +74,7 @@ class CanaryBrowserTests(unittest.TestCase):
         self.assertIn("stage='agent_option_wait'", source)
         self.assertIn("stage='agent_option_click'", source)
         self.assertNotIn("agentSelect.press('Escape')", source)
-        self.assertIn("agentSelect.click({force:true})", source)
+        self.assertIn("await agentSelect.click()", source)
         self.assertIn("stage='agent_select_wait'", source)
         self.assertIn("AGENT_SELECTION_NOT_READY", source)
         self.assertIn("stage='agent_select_submit'", source)
