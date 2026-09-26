@@ -83,7 +83,7 @@ async function run(root){
   process.env.PLAYWRIGHT_BROWSERS_PATH=path.join(root,'state/browser');
   const {chromium}=require(path.join(root,'app/node_modules/playwright'));
   let browser,page,agentId,conversationId,agentName;
-  const option_state={count:0,visible:false,enabled:false,box:false,center_hit:false,search_visible:false,form_visible:false,click_completed:false};
+  const option_state={count:0,visible:false,enabled:false,box:false,center_hit:false,search_visible:false,form_visible:false,select_completed:false};
   let stage='launch';
   const diagnostics=[];
   const resumeRequests=[];
@@ -168,7 +168,7 @@ async function run(root){
     for(let attempt=0;attempt<3;attempt++){
       try{
         Object.assign(option_state,{count:0,visible:false,enabled:false,box:false,center_hit:false,
-          search_visible:false,form_visible:false,click_completed:false});
+          search_visible:false,form_visible:false,select_completed:false});
         stage='agent_builder_open';
         const form=await openAgentBuilder(page,value=>{stage=value},attempt>0);
         stage='agent_builder_root';
@@ -187,23 +187,18 @@ async function run(root){
         stage='agent_combobox_click';
         if(!(await agentSelect.isEnabled()))throw Error('AGENT_COMBOBOX_DISABLED');
         await agentSelect.click();
+        stage='agent_search_wait';
+        const search=page.getByPlaceholder('Search agents by name',{exact:true});
+        await search.waitFor({state:'visible',timeout:30000});
+        stage='agent_search';
+        await search.fill(name);
         const option=page.getByRole('option',{name,exact:true});
-        stage='agent_option_probe';
-        const directVisible=await option.waitFor({state:'visible',timeout:3000}).then(()=>true).catch(()=>false);
-        if(!directVisible){
-          stage='agent_search_wait';
-          const search=page.getByPlaceholder('Search agents by name',{exact:true});
-          await search.waitFor({state:'visible',timeout:30000});
-          stage='agent_search';
-          await search.fill(name);
-          stage='agent_option_wait';
-          await option.waitFor({state:'visible',timeout:30000});
-        }
-        stage='agent_option_click';
+        stage='agent_option_wait';
+        await option.waitFor({state:'visible',timeout:30000});
         option_state.count=await option.count();
         option_state.visible=await option.isVisible().catch(()=>false);
         option_state.enabled=await option.isEnabled().catch(()=>false);
-        option_state.search_visible=await page.getByPlaceholder('Search agents by name',{exact:true}).isVisible().catch(()=>false);
+        option_state.search_visible=await search.isVisible().catch(()=>false);
         option_state.form_visible=await form.isVisible().catch(()=>false);
         option_state.box=await option.boundingBox().then(box=>!!(box&&box.width>0&&box.height>0)).catch(()=>false);
         option_state.center_hit=await option.evaluate(element=>{
@@ -212,8 +207,9 @@ async function run(root){
           const hit=document.elementFromPoint(rect.left+rect.width/2,rect.top+rect.height/2);
           return !!(hit&&(hit===element||element.contains(hit)));
         }).catch(()=>false);
-        await option.click();
-        option_state.click_completed=true;
+        stage='agent_option_enter';
+        await search.press('Enter');
+        option_state.select_completed=true;
         stage='agent_select_submit';
         const selectAgent=form.getByRole('button',{name:'Select Agent',exact:true});
         await selectAgent.click();
