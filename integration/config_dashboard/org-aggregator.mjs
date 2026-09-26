@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
@@ -10,9 +9,6 @@ export const CONTROLS = Object.freeze([
   "restricted-ssh",
 ]);
 const STATES = new Set(["COMPLIANT", "NON_COMPLIANT", "INSUFFICIENT_DATA", "NOT_APPLICABLE"]);
-const keyFor = (...parts) =>
-  createHash("sha256").update(JSON.stringify(parts)).digest("hex").slice(0, 24);
-
 const CONTROL_METADATA = new Map([
   ["s3-bucket-level-public-access-prohibited", {
     sourceIdentifier: "S3_BUCKET_LEVEL_PUBLIC_ACCESS_PROHIBITED",
