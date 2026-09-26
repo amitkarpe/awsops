@@ -329,7 +329,7 @@ def _dns_status(records: list[dict[str, Any]], name: str, target: str) -> str:
     matching = [row for row in records if _record_name(row) == name]
     if not matching:
         return "ABSENT"
-    if name in OLD_HOSTS:
+    if name in OLD_HOSTS | {OLD_CONFIG_HOST}:
         return "PRESENT"
     exact = len(matching) == 1 and matching[0].get("Type") == "CNAME" \
         and matching[0].get("TTL") == DNS_TTL_SECONDS \
