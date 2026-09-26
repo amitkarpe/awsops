@@ -15,13 +15,13 @@ import sys
 from typing import Any, Callable
 
 from integration.edge.awsops_edge import (
-    DNS_TTL_SECONDS, OLD_HOSTS, OPS_HOST, SEC_HOST, TLS_IDENTITY,
-    _dns_name, _record_name,
+    CONFIG_HOST, DNS_TTL_SECONDS, HOST_TLS_IDENTITIES, OLD_CONFIG_HOST,
+    OLD_HOSTS, OPS_HOST, SEC_HOST, TLS_IDENTITY, _dns_name, _record_name,
 )
 
 
 ZONE_NAME = "astromedicomp.org."
-PUBLIC_NAMES = OLD_HOSTS | {OPS_HOST, SEC_HOST}
+PUBLIC_NAMES = OLD_HOSTS | {OLD_CONFIG_HOST, OPS_HOST, CONFIG_HOST, SEC_HOST}
 TOOLS_PATH = "/usr/sbin:/usr/bin:/sbin:/bin"
 MAX_COMMAND_BYTES = 2_000_000
 SHOW_PROPERTIES = (
@@ -78,19 +78,29 @@ def validate_inputs(raw: Any) -> dict[str, Any]:
     if target in PUBLIC_NAMES:
         raise PreflightError("DNS target must be a separate retained-host name")
     units = raw["units"]
-    if not isinstance(units, dict) or set(units) != {"old_ops", "old_sec", "new_ops", "new_sec"}:
-        raise PreflightError("unit mapping must name OLD and NEW roles explicitly")
+    if not isinstance(units, dict):
+        raise PreflightError("unit mapping must be explicit")
+    legacy_units = {"old_ops", "old_sec", "new_ops", "new_sec"}
+    dashboard_units = {"old_ops", "old_config", "old_sec", "new_config", "new_sec"}
+    if set(units) == legacy_units:
+        dashboard_mode = False
+    elif set(units) == dashboard_units:
+        dashboard_mode = True
+    else:
+        raise PreflightError("unit mapping must match the legacy or config2 dashboard roles")
     units = {key: _optional_unit(value) for key, value in units.items()}
     named_units = [value for value in units.values() if value]
     if len(named_units) != len(set(named_units)):
         raise PreflightError("OLD and NEW unit names must be distinct")
     ports = raw["candidate_ports"]
-    if not isinstance(ports, dict) or set(ports) != {"ops", "sec"}:
-        raise PreflightError("candidate_ports must have ops and sec slots")
+    expected_ports = {"config", "sec"} if dashboard_mode else {"ops", "sec"}
+    if not isinstance(ports, dict) or set(ports) != expected_ports:
+        raise PreflightError(f"candidate_ports must have {sorted(expected_ports)} slots")
     for role, value in ports.items():
         if value is not None and (isinstance(value, bool) or not isinstance(value, int) or not 1024 <= value <= 65535):
             raise PreflightError(f"invalid {role} candidate port")
-    if ports["ops"] is not None and ports["ops"] == ports["sec"]:
+    selected_ports = [value for value in ports.values() if value is not None]
+    if len(selected_ports) != len(set(selected_ports)):
         raise PreflightError("candidate ports must be distinct")
     role = raw["dns01_role_name"]
     if role is not None and (not isinstance(role, str) or not re.fullmatch(r"[A-Za-z0-9_+=,.@-]{1,64}", role)):
@@ -104,6 +114,7 @@ def validate_inputs(raw: Any) -> dict[str, Any]:
         "nginx_config_file": _optional_path(raw["nginx_config_file"]),
         "certbot_config_dir": _optional_path(raw["certbot_config_dir"]),
         "dns01_role_name": role,
+        "dashboard_mode": dashboard_mode,
     }
 
 
@@ -301,8 +312,8 @@ def _listeners(response: CommandResult) -> tuple[set[int], dict[int, set[int]]] 
 
 
 def _separation(units: dict[str, dict[str, str]]) -> str:
-    old = [units.get(role, {}) for role in ("old_ops", "old_sec")]
-    new = [units.get(role, {}) for role in ("new_ops", "new_sec")]
+    old = [row for role, row in units.items() if role.startswith("old_")]
+    new = [row for role, row in units.items() if role.startswith("new_")]
     if not all(row.get("WorkingDirectory") and row.get("StateDirectory") for row in old + new):
         return "UNKNOWN"
     for field in ("WorkingDirectory", "StateDirectory"):
@@ -400,32 +411,51 @@ def collect(config: dict[str, Any], output_dir: Path, aws: Any, host: Any | None
             for port in values["candidate_ports"].values()
         )
     )
-    new_dns = {key: dns[key] for key in (OPS_HOST.rstrip("."), SEC_HOST.rstrip("."))}
+    dashboard_mode = values["dashboard_mode"]
+    new_names = (OPS_HOST, CONFIG_HOST, SEC_HOST) if dashboard_mode else (OPS_HOST, SEC_HOST)
+    new_dns = {name.rstrip("."): dns[name.rstrip(".")] for name in new_names}
     dns_collision = "CONFLICT" in new_dns.values()
     separation = _separation(unit_rows)
-    old_hosts = {name.rstrip(".") for name in OLD_HOSTS}
+    old_host_names = set(OLD_HOSTS) | ({OLD_CONFIG_HOST} if dashboard_mode else set())
+    old_hosts = {name.rstrip(".") for name in old_host_names}
+    new_hosts = {name.rstrip(".") for name in new_names}
     old_vhosts = "UNKNOWN" if vhosts is None else ("PRESENT" if old_hosts <= vhosts else "INCOMPLETE")
-    new_vhosts = "UNKNOWN" if vhosts is None else ("PRESENT" if {OPS_HOST.rstrip("."), SEC_HOST.rstrip(".")} <= vhosts else "INCOMPLETE")
+    new_vhosts = "UNKNOWN" if vhosts is None else ("PRESENT" if new_hosts <= vhosts else "INCOMPLETE")
     allowed_states = {"active", "inactive", "failed", "activating", "deactivating", "reloading"}
     unit_states = {}
     for role in values["units"]:
         state = unit_rows.get(role, {}).get("ActiveState", "").lower()
         unit_states[role] = state.upper() if state in allowed_states else "UNKNOWN"
-    ops_pid = unit_rows.get("new_ops", {}).get("MainPID", "")
-    ops_listening = bool(
-        sockets is not None and ops_pid.isdigit() and int(ops_pid) > 0
-        and any(int(ops_pid) in pids for pids in sockets[1].values())
+    backend_role = "new_config" if dashboard_mode else "new_ops"
+    backend_pid = unit_rows.get(backend_role, {}).get("MainPID", "")
+    backend_listening = bool(
+        sockets is not None and backend_pid.isdigit() and int(backend_pid) > 0
+        and any(int(backend_pid) in pids for pids in sockets[1].values())
     )
-    ops_backend = "YES" if unit_states["new_ops"] == "ACTIVE" and ops_listening else (
-        "NO" if values["units"]["new_ops"] and unit_states["new_ops"] == "INACTIVE" else "UNKNOWN"
+    backend = "YES" if unit_states.get(backend_role) == "ACTIVE" and backend_listening else (
+        "NO" if values["units"].get(backend_role) and unit_states.get(backend_role) == "INACTIVE" else "UNKNOWN"
     )
     cert_blocks = re.split(r"(?m)^\s*Certificate Name:\s*", certs.stdout) if certs.code == 0 else []
-    matched_cert = any(
-        block.startswith(TLS_IDENTITY + "\n")
-        and OPS_HOST.rstrip(".") in block and SEC_HOST.rstrip(".") in block
-        for block in cert_blocks[1:]
-    )
-    tls = "CERT_PRESENT" if matched_cert else "UNKNOWN"
+    if dashboard_mode:
+        domain_by_role = {
+            "ops": OPS_HOST.rstrip("."), "config": CONFIG_HOST.rstrip("."), "sec": SEC_HOST.rstrip("."),
+        }
+        cert_status = {}
+        for role_name, identity_name in HOST_TLS_IDENTITIES.items():
+            present = any(
+                block.startswith(identity_name + "\n") and domain_by_role[role_name] in block
+                for block in cert_blocks[1:]
+            )
+            cert_status[role_name] = "CERT_PRESENT" if present else "UNKNOWN"
+        tls = "CERT_PRESENT" if all(value == "CERT_PRESENT" for value in cert_status.values()) else "UNKNOWN"
+    else:
+        matched_cert = any(
+            block.startswith(TLS_IDENTITY + "\n")
+            and OPS_HOST.rstrip(".") in block and SEC_HOST.rstrip(".") in block
+            for block in cert_blocks[1:]
+        )
+        cert_status = {"shared": "CERT_PRESENT" if matched_cert else "UNKNOWN"}
+        tls = cert_status["shared"]
     plugin = "PRESENT" if plugins.code == 0 and "dns-route53" in plugins.stdout.lower() else "UNKNOWN"
     iam = "DOCUMENTS_CAPTURED_REVIEW_REQUIRED" if isinstance(policies, dict) and policies.get("documents") else "UNKNOWN"
     collision = "CONFLICT" if dns_collision or separation == "SHARED" or candidate_occupied else (
@@ -448,11 +478,13 @@ def collect(config: dict[str, Any], output_dir: Path, aws: Any, host: Any | None
         reasons.append("TLS_DNS01_UNVERIFIED")
     else:
         reasons.append("DNS01_EFFECTIVE_COVERAGE_UNVERIFIED")
-    if ops_backend != "YES": reasons.append("OPS2_BACKEND_UNVERIFIED")
+    if backend != "YES":
+        reasons.append("CONFIG2_BACKEND_UNVERIFIED" if dashboard_mode else "OPS2_BACKEND_UNVERIFIED")
     if collision != "CLEAR": reasons.append("COLLISION_UNRESOLVED")
     activation_ready = not reasons
     summary = {
-        "schema_version": 1,
+        "schema_version": 2 if dashboard_mode else 1,
+        "mode": "CONFIG2_DASHBOARD" if dashboard_mode else "LEGACY_TWO_HOST",
         "status": "READY" if activation_ready else "NOT_READY",
         "activation_ready": activation_ready,
         "dns": {"owner_zone_verified": zone_verified, "target_a_verified": target_a, "records": dns},
@@ -465,8 +497,11 @@ def collect(config: dict[str, Any], output_dir: Path, aws: Any, host: Any | None
             "candidate_free_at_snapshot": candidate_free,
         },
         "separation": {"runtime_state": separation, "auth_session": "UNKNOWN", "browser_evidence": "UNKNOWN"},
-        "tls_dns01": {"certificate": tls, "plugin": plugin, "policy_documents": iam, "effective_coverage": "UNKNOWN"},
-        "ops2_backend": ops_backend,
+        "tls_dns01": {
+            "certificate": tls, "certificates": cert_status, "plugin": plugin,
+            "policy_documents": iam, "effective_coverage": "UNKNOWN",
+        },
+        ("config2_backend" if dashboard_mode else "ops2_backend"): backend,
         "collision": collision,
         "reasons": sorted(set(reasons)),
     }
