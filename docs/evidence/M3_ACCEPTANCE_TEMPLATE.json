@@ -1,0 +1,16 @@
+{
+  "version": "m3-reject-acceptance-v1",
+  "control": "s3_ssl",
+  "account_alias": "lab-dev",
+  "pr_head": "<40-hex-pr-head>",
+  "scope_hash": "<64-hex-scope-hash>",
+  "receipt_hash": "<64-hex-rejected-receipt-hash>",
+  "normal_auth": true,
+  "native_decision": "REJECTED",
+  "dispatch_attempts": 0,
+  "provider_readback": "UNCHANGED",
+  "conversation_archived": true,
+  "canary_stopped": true,
+  "retained_services_unchanged": true,
+  "sanitized": true
+}
