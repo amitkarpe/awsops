@@ -34,3 +34,27 @@ Runtime inputs stay private:
 - `AWS_REGION` — defaults to `ap-southeast-1`.
 
 No remediation, re-arm, generic AWS tool or Issue #11 flow is included here.
+
+
+## LibreChat registration contract
+
+Use MCP server key `awsops_compliance_agent` so LibreChat exposes exactly:
+
+`ask_compliance_agent_mcp_awsops_compliance_agent`
+
+The MCP process is:
+
+```text
+python3 -m integration.compliance_agent.mcp_server
+```
+
+Private runtime environment must supply the existing approved Harness ARN and,
+when not using the default, the config2 loopback URL. Do not place either
+private value in Git.
+
+Agent registration source:
+https://github.com/amitkarpe/awsops/blob/g/issue-39-g-implementation/integration/compliance_agent/librechat-agent.json
+
+X must validate the effective LibreChat tool name after installation before the
+agent record is enabled. If the installed name differs, stop and reconcile the
+server key/spec rather than widening the agent tool list.
