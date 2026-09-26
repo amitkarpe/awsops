@@ -66,6 +66,8 @@ class CanaryBrowserTests(unittest.TestCase):
         self.assertIn("contract.archiveRequest(conversationId)", source)
         self.assertIn("requiredPermission=2", source)
         self.assertIn("AGENT_NOT_PERSISTED", source)
+        self.assertIn("const MCP_READY_ATTEMPTS=120", source)
+        self.assertIn("for(let i=0;i<MCP_READY_ATTEMPTS;i++)", source)
         self.assertIn("getByPlaceholder('Search agents by name',{exact:true})", source)
         self.assertNotIn("stage='agent_search_reopen'", source)
         self.assertIn("stage='agent_option_probe'", source)
