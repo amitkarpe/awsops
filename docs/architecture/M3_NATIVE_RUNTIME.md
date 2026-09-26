@@ -89,17 +89,19 @@ packet; a third ledger event or automatic native UI publication is not claimed.
 ## Immutable source and offline rollback
 
 Upstream repository ID 600596928 now resolves to `LibreChat-AI/LibreChat`.
-The commit pin is unchanged: `eaef87fa2684025627e25d649a56f4f2a63417a7`.
-`upstream.json` pins full producer and resume Git blobs. CI explicitly fetches
-both and refuses drift; no full upstream checkout/history is committed here.
+The current canary source pin is `cdfe54c3498818b21b33fb609fee02f2742b37ea`
+in `integration/canary/upstream.json`, which records the producer and resume
+Git blobs. `scripts/fetch_native_fixture.py` fetches and verifies those pinned
+sources; CI refuses drift. No full upstream checkout/history is committed here.
 
-`rehearse_patch.cjs` uses marked OFFLINE candidates only. The optional component
-is `resume` (default) or `pause`. It preserves exact originals and verifies
-source/helper bytes on check/reapply/rollback. Producer and resume use the same
-edit lock but separate backups; multi-file atomic installation is NOT claimed.
-Both components must verify before any future canary startup. A partial copy,
-missing helper, lock residue or drift is reconciliation-required, not permission
-for broad cleanup. Rollback does not delete the decision ledger.
+`integration/librechat/rehearse_patch.cjs` uses marked OFFLINE candidates only.
+The optional component is `resume` (default) or `pause`. It preserves exact
+originals and verifies source/helper bytes on check/reapply/rollback. Producer
+and resume use the same edit lock but separate backups; multi-file atomic
+installation is NOT claimed. Both components must verify before any future
+canary startup. A partial copy, missing helper, lock residue or drift is
+reconciliation-required, not permission for broad cleanup. Rollback does not
+delete the decision ledger.
 
 The resume failure path still uses generation-fenced terminalization, conditional
 checkpoint cleanup and independent slot release; timeout reports reconciliation.
