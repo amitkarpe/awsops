@@ -10,6 +10,7 @@ const LOGICAL_TOOL='decide_s3_ssl_reject_only';
 const SERVER_TOOL='sys__server__sys_mcp_awsops';
 const PROVIDER='awsops_canary_fixture';
 const MODEL='awsops-canary-fixed';
+const MCP_READY_ATTEMPTS=120;
 
 function privateJson(file){
   const st=fs.lstatSync(file);
@@ -126,7 +127,7 @@ async function run(root){
     }
     stage='tool_ready';
     let tools;
-    for(let i=0;i<20;i++){
+    for(let i=0;i<MCP_READY_ATTEMPTS;i++){
       const r=await api(page,'/api/mcp/tools');
       if(r.ok && r.json?.servers?.awsops?.tools?.some(t=>t.pluginKey===TOOL)){tools=r.json;break}
       await page.waitForTimeout(500);
