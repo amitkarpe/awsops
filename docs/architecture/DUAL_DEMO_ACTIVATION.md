@@ -91,12 +91,16 @@ documentation-only mission.
 
    ```sh
    aws route53 list-hosted-zones-by-name --dns-name astromedicomp.org --profile "$VERIFIED_PROFILE" --output json
+   umask 077
    aws route53 list-resource-record-sets --hosted-zone-id "$VERIFIED_ZONE_ID" --profile "$VERIFIED_PROFILE" \
      --output json > "$PRIVATE_ROUTE53_RECORDS_JSON"
    TARGET_FQDN="${VERIFIED_DNS_TARGET%.}."
    jq --arg target "$TARGET_FQDN" \
      '{ResourceRecordSets:[.ResourceRecordSets[] | select(.Name==$target or .Name=="ops.astromedicomp.org." or .Name=="sec.astromedicomp.org." or .Name=="ops2.astromedicomp.org." or .Name=="sec2.astromedicomp.org.")]}' \
      "$PRIVATE_ROUTE53_RECORDS_JSON" > "$PRIVATE_ROUTE53_PLANNER_JSON"
+   jq -e --arg target "$TARGET_FQDN" \
+     '[.ResourceRecordSets[] | select(.Name==$target and .Type=="A")] | length == 1' \
+     "$PRIVATE_ROUTE53_PLANNER_JSON" > /dev/null
    ```
 
    The reference profile alias is only a hint. Reverify the caller identity and
