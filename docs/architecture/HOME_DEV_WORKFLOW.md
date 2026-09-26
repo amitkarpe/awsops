@@ -35,6 +35,9 @@ network, or live-service changes; those require their own active authority.
 If the proposed aliases are not configured, validate through the currently
 approved endpoint and leave DNS unchanged.
 
+See [Dual-demo activation and recovery contract](DUAL_DEMO_ACTIVATION.md) for
+the proposed separation, collision preflight, and independent recovery gate.
+
 ## Startup checklist
 
 1. Read the active Issue and confirm its target environment, account/Region,
