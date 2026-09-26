@@ -13,7 +13,12 @@ Use the observed source toolchain first: Node.js 24.x and npm 11.x.
 npm ci
 npm run build
 npm run lint
+npm run prepare:runtime
 ```
+
+`prepare:runtime` makes the generated static dashboard readable by the
+non-root config2 service even when the deployment shell uses a restrictive
+umask. Run it after every production build and before restarting config2.
 
 No new unit-test suite is required for the Issue #39 recovery slice.
 

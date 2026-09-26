@@ -57,11 +57,24 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
   service on loopback `127.0.0.1:4313`; diagnostics are `READY`, non-partial,
   and contain exactly four aliases by two controls. Its public API projection
   contains no account IDs, resource IDs, ARNs, or raw Config findings.
-- NEW `ops2` redirects to the Basic-auth-protected
-  `config2.astromedicomp.org`; NEW `sec2` exposes exactly one read-only AWS Ops
+- NEW `config2.astromedicomp.org` is the canonical dashboard entry point.
+  Existing `ops2` DNS and redirect remain compatibility-only and must not gain
+  more product behavior. NEW `sec2` exposes exactly one read-only AWS Ops
   Compliance Agent tool for Status, Explain, and no-change Plan. A merged-main
   restart and protocol smoke passed on 2026-09-27. The dashboard and agent have
   no remediation, re-arm, Approve, Reject, or generic AWS action.
+- The failed owner rehearsal exposed restrictive generated-asset permissions:
+  config2 APIs were healthy, but the non-root service could not read `dist` and
+  returned a JSON error for `/`. The live NEW assets were corrected to readable
+  file/traversal modes; authenticated public `/` now returns dashboard HTML,
+  its JavaScript asset returns 200, and the exact 4 x 2 API remains READY and
+  public-safe. Production builds must run `npm run prepare:runtime` before the
+  config2 service starts or restarts.
+- The isolated NEW sec2 database and service bindings remain intact with one
+  existing user and one read-only Compliance Agent record. The expected owner
+  identity is not present in that NEW database, so owner login cannot be
+  repaired without separately authorized account provisioning or credential
+  mutation. No account, password, hash, secret, or database state was changed.
 - OLD `ops/config/sec` remained active and unchanged through the merged-main
   recovery. Independent public checks returned TLS verification 0 and expected
   statuses: OLD sec 200, OLD ops 308 to config, OLD config 401; NEW sec2 200,
@@ -95,6 +108,8 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
 ## Dual-demo operation
 
 - Start/recover config2 with `sudo systemctl start awsops-config2-app.service`.
+  After every dashboard build, run `npm run prepare:runtime` from its release
+  directory before starting or restarting the non-root service.
   Confirm `systemctl is-active` and that only loopback owns port 4313, then read
   `/api/health`, `/api/diagnostics`, and
   `/api/controls?environment=ALL&refresh=1`. Require `READY`, `partial=false`,
@@ -105,8 +120,10 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
   changed. The isolated sec2 db/model/app recovery procedure remains in the
   [Issue #33 PR #35 handoff](https://github.com/amitkarpe/awsops/pull/35#issuecomment-5845669640).
 - Health: run `sudo nginx -t`, check config2 loopback health and sec2 loopback
-  `/login`, then verify public TLS for `ops2 -> config2`, config2's expected 401
-  without credentials, and sec2 `/login`. Immediately recheck OLD ops/config/sec.
+  `/login`, then verify config2 public TLS, its expected 401 without credentials,
+  authenticated dashboard HTML/assets, and sec2 `/login`. Immediately recheck
+  OLD ops/config/sec. Ops2 may be read back as compatibility routing but is not
+  the canonical NEW journey.
 - Stop only NEW sec2, when separately safe to do so:
   `sudo systemctl stop awsops-sec2-app awsops-sec2-model awsops-sec2-db`.
   Stop config2 separately with
@@ -118,9 +135,10 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
 
 ## Next
 
-1. Amit completes the remaining owner-authenticated Issue #39 rehearsal:
-   `ops2 -> config2` finding view, then sec2 AWS Ops Compliance Agent Status,
-   Explain, and no-change Plan. Use `docs/current/DEMO_DAY.md`.
+1. The remaining Issue #39 gate is explicit approval to provision or reset the
+   NEW sec2 owner account, followed by the owner-authenticated rehearsal:
+   config2 finding view, then sec2 AWS Ops Compliance Agent Status, Explain,
+   and no-change Plan. Use `docs/current/DEMO_DAY.md`.
 2. Issue #11 / PR #13 native Reject acceptance is explicitly DEFERRED by Amit and is non-blocking. Do not resume unless Amit re-prioritizes it.
 3. Keep old aws-secops PR #177 deferred unless a concrete future awsops read-adapter milestone needs it; Issue #14 remains independent and implies no cleanup mutation.
 
