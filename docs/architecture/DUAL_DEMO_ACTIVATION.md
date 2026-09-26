@@ -92,13 +92,28 @@ documentation-only mission.
    ```sh
    aws route53 list-hosted-zones-by-name --dns-name astromedicomp.org --profile "$VERIFIED_PROFILE" --output json
    aws route53 list-resource-record-sets --hosted-zone-id "$VERIFIED_ZONE_ID" --profile "$VERIFIED_PROFILE" \
-     --query "ResourceRecordSets[?Name=='ops.astromedicomp.org.' || Name=='sec.astromedicomp.org.' || Name=='ops2.astromedicomp.org.' || Name=='sec2.astromedicomp.org.'].[Name,Type,TTL,AliasTarget.DNSName,ResourceRecords[0].Value]" --output table
+     --output json > "$PRIVATE_ROUTE53_RECORDS_JSON"
+   TARGET_FQDN="${VERIFIED_DNS_TARGET%.}."
+   jq --arg target "$TARGET_FQDN" \
+     '{ResourceRecordSets:[.ResourceRecordSets[] | select(.Name==$target or .Name=="ops.astromedicomp.org." or .Name=="sec.astromedicomp.org." or .Name=="ops2.astromedicomp.org." or .Name=="sec2.astromedicomp.org.")]}' \
+     "$PRIVATE_ROUTE53_RECORDS_JSON" > "$PRIVATE_ROUTE53_PLANNER_JSON"
    ```
 
    The reference profile alias is only a hint. Reverify the caller identity and
    zone ownership; if another provider/zone owns delegation, use its read-only
-   record inventory instead. The output determines the exact new record type,
-   target, and TTL; this runbook does not prescribe them.
+   record inventory instead. Resolve `VERIFIED_DNS_TARGET` from the reviewed
+   OLD/edge mapping before building `PRIVATE_ROUTE53_PLANNER_JSON`. That private
+   planner input must contain the target's existing A record plus the four public
+   names; otherwise `plan-dns` fails closed. Feed that file to the offline planner:
+
+   ```sh
+   python3 integration/edge/awsops_edge.py plan-dns \
+     --config "$AWSOPS_EDGE_CONFIG" \
+     --record-sets "$PRIVATE_ROUTE53_PLANNER_JSON"
+   ```
+
+   The verified record inventory determines the exact target and whether the
+   planned CNAMEs are safe; do not infer those values from the historical repo.
 
 3. On the verified host, inventory proxy and runtime without changing them:
 
