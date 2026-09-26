@@ -19,7 +19,9 @@ from 20 to 30 GiB and extend its existing ext4 root filesystem online. That
 change completed successfully. Instance type remains `t3.medium`; cleanup remains
 unauthorized.
 
-No target-resource mutation, live Approve, IAM/OIDC/network or PROD work.
+Issue #33 separately authorizes exact personal-LAB NEW `sec2/ops2` DNS, TLS,
+Nginx and service activation. It does not authorize OLD `sec/ops` mutation,
+deletion, broad IAM, new compute/network resources, live Approve or PROD work.
 
 ## Current truth
 
@@ -44,11 +46,46 @@ No target-resource mutation, live Approve, IAM/OIDC/network or PROD work.
 - `aws-secops` is now formally treated as **FROZEN / REFERENCE** for new product work and remains **reference/archive** evidence until M5. `docs/architecture/AWS_SECOPS_HARVEST.md` is the canonical harvest matrix for old PR #192/#177. New implementation belongs only in `awsops`; old repo remains readable evidence until M5 cutover/archive.
 - Issue #29 M1-M3 are accepted: Home DEV is the normal development path, OLD demo names remain `ops.astromedicomp.org` / `sec.astromedicomp.org`, and NEW names are `ops2.astromedicomp.org` / `sec2.astromedicomp.org`.
 - Issue #33 M1 is merged in PR #34. `integration/edge/awsops_edge.py` now provides an offline NEW-only Route53 planner and additive Nginx renderer. It has no apply/reload/service path; OLD routes remain untouched.
-- Issue #33 is now FAST DEPLOY / Option A. Amit explicitly authorized the personal-LAB NEW public activation path using the existing retained host + proven Route53/Nginx pattern for `ops2/sec2`, while preserving OLD `ops/sec`. No more generic hardening work: finish only the minimum live facts, deploy NEW additive services/vhosts/DNS/TLS, verify all demos, then freeze the accepted demo. No deletion, no new EC2, no IAM widening unless a concrete blocker is separately approved.
+- Issue #33 Option A public reachability is live on the retained host. NEW `sec2`
+  has isolated transient db/model/app units on loopback 27111/4312/4311,
+  respectively; `/login` returns HTTP 200 with TLS verification 0. NEW `ops2`
+  is an additive static read-only Nginx landing, with `/` and `/health` returning
+  HTTP 200/TLS 0. There is no NEW operator backend or mutation UI. Both NEW
+  CNAMEs use the verified retained target; OLD `sec/ops` DNS, vhosts and units
+  were untouched. Immediate OLD public checks returned sec HTTP 200/TLS 0 and
+  ops HTTP 308/TLS 0. Authenticated sec2 login/application smoke is still
+  **pending**, so M4 is not fully accepted.
+- Separate NEW Certbot Route53 certificates have exact `sec2` and `ops2` SANs
+  and expire 2026-12-25 UTC. The existing Certbot timer is enabled; actual
+  unattended renewal has not yet been observed. Check it with
+  `systemctl list-timers certbot.timer` and `sudo certbot certificates`; renewal
+  uses the same scoped Route53 DNS-01 method. Two retained-role inline
+  policies allow only UPSERT of each exact ACME TXT name in the verified zone,
+  with required read/list/GetChange actions; no DELETE is granted. Both TXT
+  records remain. No resource or evidence was deleted.
+
+## Dual-demo operation
+
+- Start/recover NEW sec2: verify the isolated NEW root, free ports, certificates
+  and `nginx -t`, then replay the exact `systemd-run` db -> model -> app sequence
+  in the [Issue #33 PR #35 handoff](https://github.com/amitkarpe/awsops/pull/35#issuecomment-5845669640).
+  These are transient units, not boot-enabled services. NEW ops2 is served by
+  Nginx alone and has no backend unit.
+- Health: `systemctl is-active awsops-sec2-db awsops-sec2-model awsops-sec2-app`,
+  `curl -fsS http://127.0.0.1:4311/login`, `sudo nginx -t`, and public HTTPS
+  checks from an independent operator client for OLD sec/ops and NEW sec2
+  `/login` plus ops2 `/health`. Require TLS verification 0 for each public name.
+- Stop only NEW sec2, when separately safe to do so:
+  `sudo systemctl stop awsops-sec2-app awsops-sec2-model awsops-sec2-db`.
+  Preserve NEW state, certificates, TXT evidence and both demo generations;
+  do not stop OLD services or delete resources. Home DEV remains the normal
+  development path; AWS remains short Demo/UAT.
 
 ## Next
 
-1. Fast-track Issue #33 Option A: finish the active X preflight work, then deploy the NEW additive `ops2/sec2` path immediately using the existing retained host/Route53/Nginx pattern and verify OLD+NEW demos. Do not spend another milestone on generic hardening.
+1. Complete the private authenticated sec2 login/application smoke and record
+   its result on Issue #33. Review PR #35 separately; do not confuse its
+   read-only collector CI with live acceptance. Preserve OLD and NEW demos.
 2. Continue Issue #11 / PR #13 to the real isolated Reject -> receipt -> provider readback -> Archive acceptance.
 3. Keep old aws-secops PR #177 deferred unless a concrete future awsops read-adapter milestone needs it; Issue #14 remains independent and implies no cleanup mutation.
 
