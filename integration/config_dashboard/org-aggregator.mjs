@@ -1,39 +1,88 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 const exec = promisify(execFile);
 export const ACCOUNT_ALIASES = Object.freeze(["lab-dev", "lab-poc", "lab-qa", "lab-sec"]);
 export const REGION = "ap-southeast-1";
-export const AGGREGATOR = "aws-secops-issue88-org";
+export const CONTROLS = Object.freeze([
+  "s3-bucket-level-public-access-prohibited",
+  "restricted-ssh",
+]);
 const STATES = new Set(["COMPLIANT", "NON_COMPLIANT", "INSUFFICIENT_DATA", "NOT_APPLICABLE"]);
-const keyFor = (...parts) => createHash("sha256").update(JSON.stringify(parts)).digest("hex").slice(0, 24);
+const keyFor = (...parts) =>
+  createHash("sha256").update(JSON.stringify(parts)).digest("hex").slice(0, 24);
 
-export function parseTargets(raw = process.env.SECOPS_MULTI_ACCOUNT_TARGETS_JSON || "") {
+const CONTROL_METADATA = new Map([
+  ["s3-bucket-level-public-access-prohibited", {
+    sourceIdentifier: "S3_BUCKET_LEVEL_PUBLIC_ACCESS_PROHIBITED",
+    category: "S3",
+  }],
+  ["restricted-ssh", {
+    sourceIdentifier: "INCOMING_SSH_DISABLED",
+    category: "Security Groups",
+  }],
+]);
+
+function requiredText(name, value) {
+  if (typeof value !== "string" || !value.trim()) throw Error(`${name} is required`);
+  return value.trim();
+}
+
+export function parseTargets(raw = process.env.AWSOPS_CONFIG_TARGETS_JSON || "") {
   let rows;
-  try { rows = JSON.parse(raw); } catch { throw Error("four-account runtime mapping unavailable"); }
+  try {
+    rows = JSON.parse(raw);
+  } catch {
+    throw Error("four-account runtime mapping unavailable");
+  }
   if (!Array.isArray(rows) || rows.length !== ACCOUNT_ALIASES.length)
     throw Error("exactly four runtime targets are required");
+
   const result = new Map();
-  rows.forEach((row, index) => {
-    if (!row || Object.keys(row).sort().join(",") !== "account_id,alias" ||
-        row.alias !== ACCOUNT_ALIASES[index] || !/^\d{12}$/.test(row.account_id) ||
-        result.has(row.alias))
+  for (const row of rows) {
+    if (
+      !row ||
+      Object.keys(row).sort().join(",") !== "account_id,alias" ||
+      !ACCOUNT_ALIASES.includes(row.alias) ||
+      !/^\d{12}$/.test(row.account_id) ||
+      result.has(row.alias)
+    )
       throw Error("invalid four-account runtime mapping");
     result.set(row.alias, row.account_id);
-  });
-  if (new Set(result.values()).size !== ACCOUNT_ALIASES.length)
-    throw Error("four-account targets must be distinct");
+  }
+  if (
+    result.size !== ACCOUNT_ALIASES.length ||
+    ACCOUNT_ALIASES.some((alias) => !result.has(alias)) ||
+    new Set(result.values()).size !== ACCOUNT_ALIASES.length
+  )
+    throw Error("four-account targets must be exact and distinct");
   return result;
+}
+
+export function aggregatorName(value = process.env.AWSOPS_CONFIG_AGGREGATOR_NAME || "") {
+  const name = requiredText("AWSOPS_CONFIG_AGGREGATOR_NAME", value);
+  if (!/^[A-Za-z0-9_-]{1,256}$/.test(name)) throw Error("invalid Config aggregator name");
+  return name;
 }
 
 export async function awsJson(args) {
   const env = { ...process.env };
   for (const name of Object.keys(env))
-    if (name.startsWith("AWS_ENDPOINT_URL") ||
-        ["AWS_PROFILE", "AWS_DEFAULT_PROFILE", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
-         "AWS_SESSION_TOKEN", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN"].includes(name))
+    if (
+      name.startsWith("AWS_ENDPOINT_URL") ||
+      [
+        "AWS_PROFILE",
+        "AWS_DEFAULT_PROFILE",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_SESSION_TOKEN",
+        "AWS_WEB_IDENTITY_TOKEN_FILE",
+        "AWS_ROLE_ARN",
+      ].includes(name)
+    )
       delete env[name];
+
   Object.assign(env, {
     AWS_REGION: REGION,
     AWS_DEFAULT_REGION: REGION,
@@ -41,55 +90,79 @@ export async function awsJson(args) {
     AWS_IGNORE_CONFIGURED_ENDPOINT_URLS: "true",
     AWS_MAX_ATTEMPTS: "2",
   });
-  const { stdout } = await exec("aws", [
-    ...args, "--region", REGION, "--output", "json", "--no-cli-pager",
-    "--cli-connect-timeout", "5", "--cli-read-timeout", "30",
-  ], { env, timeout: 45000, maxBuffer: 16 * 1024 * 1024 });
+
+  const { stdout } = await exec(
+    "aws",
+    [
+      ...args,
+      "--region",
+      REGION,
+      "--output",
+      "json",
+      "--no-cli-pager",
+      "--cli-connect-timeout",
+      "5",
+      "--cli-read-timeout",
+      "30",
+    ],
+    { env, timeout: 45000, maxBuffer: 8 * 1024 * 1024 },
+  );
   const value = JSON.parse(stdout || "{}");
   if (!value || typeof value !== "object") throw Error("invalid AWS Config response");
   return value;
 }
 
-const CONTROL_METADATA = new Map([
-  ["s3-bucket-level-public-access-prohibited", {
-    sourceIdentifier: "S3_BUCKET_LEVEL_PUBLIC_ACCESS_PROHIBITED",
-    resourceTypes: ["AWS::S3::Bucket"],
-  }],
-  ["restricted-ssh", {
-    sourceIdentifier: "INCOMING_SSH_DISABLED",
-    resourceTypes: ["AWS::EC2::SecurityGroup"],
-  }],
-]);
-
 function baseRuleName(rawName) {
-  if (CONTROL_METADATA.has(rawName)) return rawName;
-  for (const name of CONTROL_METADATA.keys())
+  if (CONTROLS.includes(rawName)) return rawName;
+  for (const name of CONTROLS)
     if (rawName.startsWith(`OrgConfigRule-${name}-`)) return name;
   return null;
+}
+
+function publicRule(alias, name, status, contributor) {
+  const meta = CONTROL_METADATA.get(name);
+  return {
+    accountAlias: alias,
+    ConfigRuleName: name,
+    category: meta.category,
+    status,
+    count:
+      status === "COMPLIANT"
+        ? 0
+        : status === "NON_COMPLIANT" && Number.isInteger(contributor?.CappedCount)
+          ? contributor.CappedCount
+          : null,
+    capped: status === "NON_COMPLIANT" && contributor?.CapExceeded === true,
+    warning: false,
+  };
 }
 
 export function createOrgAggregatorProvider({
   run = awsJson,
   targets = parseTargets(),
+  aggregator = aggregatorName(),
   now = Date.now,
 } = {}) {
   if (!(targets instanceof Map) || targets.size !== ACCOUNT_ALIASES.length)
     throw Error("four-account runtime mapping unavailable");
+
   const reverse = new Map([...targets].map(([alias, accountId]) => [accountId, alias]));
   let cache = null;
-  const bindings = new Map();
 
   async function load(refresh = false) {
     if (cache && now() - cache.at < (refresh ? 2000 : 30000)) return cache.value;
-    const compliance = await run([
-      "configservice", "describe-aggregate-compliance-by-config-rules",
-      "--configuration-aggregator-name", AGGREGATOR,
-    ]);
-    const rows = compliance.AggregateComplianceByConfigRules;
-    if (!Array.isArray(rows) || rows.length > 500) throw Error("unexpected aggregate compliance response");
-    const accounts = new Map(ACCOUNT_ALIASES.map((alias) => [alias, []]));
-    bindings.clear();
 
+    const response = await run([
+      "configservice",
+      "describe-aggregate-compliance-by-config-rules",
+      "--configuration-aggregator-name",
+      aggregator,
+    ]);
+    const rows = response.AggregateComplianceByConfigRules;
+    if (!Array.isArray(rows) || rows.length > 500)
+      throw Error("unexpected aggregate compliance response");
+
+    const byAlias = new Map(ACCOUNT_ALIASES.map((alias) => [alias, new Map()]));
     for (const row of rows) {
       const alias = reverse.get(row?.AccountId);
       const rawName = row?.ConfigRuleName;
@@ -98,33 +171,28 @@ export function createOrgAggregatorProvider({
       if (!name) continue;
       const status = row?.Compliance?.ComplianceType;
       if (!STATES.has(status)) throw Error("unexpected aggregate compliance state");
-      const meta = CONTROL_METADATA.get(name);
-      const id = keyFor(alias, REGION, rawName);
-      const contributor = row?.Compliance?.ComplianceContributorCount || {};
-      bindings.set(`${alias}:${id}`, { alias, accountId: targets.get(alias), rawName, tokens: new Map() });
-      accounts.get(alias).push({
-        id,
-        accountAlias: alias,
-        ConfigRuleName: name,
-        ConfigRuleId: id,
-        Description: "Organization AWS Config rule observed through the read-only aggregator.",
-        ConfigRuleState: "ACTIVE",
-        Source: { Owner: "AWS", SourceIdentifier: meta.sourceIdentifier, SourceDetails: [] },
-        Scope: { ComplianceResourceTypes: meta.resourceTypes },
-        EvaluationModes: [{ Mode: "DETECTIVE" }],
-        InputParameters: JSON.stringify("Hidden in alias-only view"),
-        trigger: "Organization rule",
-        status,
-        count: status === "COMPLIANT" ? 0 :
-          status === "NON_COMPLIANT" && Number.isInteger(contributor.CappedCount) ? contributor.CappedCount : null,
-        capped: status === "NON_COMPLIANT" && contributor.CapExceeded === true,
-        health: {},
-        warning: false,
-      });
+      const account = byAlias.get(alias);
+      if (account.has(name)) throw Error("duplicate account/control evidence");
+      account.set(name, publicRule(alias, name, status, row?.Compliance?.ComplianceContributorCount));
     }
 
     const fetchedAt = new Date(now()).toISOString();
-    const value = { accounts, fetchedAt };
+    const accounts = ACCOUNT_ALIASES.map((alias) => {
+      const controlMap = byAlias.get(alias);
+      const complete =
+        controlMap.size === CONTROLS.length &&
+        CONTROLS.every((control) => controlMap.has(control));
+      return {
+        alias,
+        available: complete,
+        fetchedAt: complete ? fetchedAt : null,
+        ruleCount: complete ? CONTROLS.length : null,
+        rules: complete ? CONTROLS.map((control) => controlMap.get(control)) : [],
+        ...(complete ? {} : { message: "Exact two-control Config evidence is incomplete." }),
+      };
+    });
+
+    const value = { fetchedAt, accounts };
     cache = { at: now(), value };
     return value;
   }
@@ -132,96 +200,40 @@ export function createOrgAggregatorProvider({
   return {
     environments: ACCOUNT_ALIASES,
     allAccounts: true,
+
     async list(selection = "ALL", refresh = false) {
       if (selection !== "ALL" && !ACCOUNT_ALIASES.includes(selection))
         throw Error("Unknown account selection");
+
       const source = await load(refresh);
-      const aliases = selection === "ALL" ? ACCOUNT_ALIASES : [selection];
-      const accountRows = aliases.map((alias) => {
-        const rules = source.accounts.get(alias) || [];
-        return {
-          alias,
-          available: rules.length > 0,
-          fetchedAt: rules.length ? source.fetchedAt : null,
-          ruleCount: rules.length || null,
-          rules,
-        };
-      });
-      const available = accountRows.filter((x) => x.available);
+      const selected =
+        selection === "ALL"
+          ? source.accounts
+          : source.accounts.filter((account) => account.alias === selection);
+      const available = selected.filter((account) => account.available);
+
       return {
         environment: selection,
         region: REGION,
         available: available.length > 0,
-        partial: available.length !== aliases.length,
+        partial: available.length !== selected.length,
         availableAccounts: available.length,
-        totalAccounts: aliases.length,
-        fetchedAt: available.length ? source.fetchedAt : null,
-        accounts: accountRows.map(({ alias, available, fetchedAt, ruleCount }) => ({
-          alias, available, fetchedAt, ruleCount,
-          ...(available ? {} : { message: "No current aggregate Config evidence for this account." }),
+        totalAccounts: selected.length,
+        fetchedAt:
+          available.length === selected.length && available.length
+            ? available.map((account) => account.fetchedAt).sort()[0]
+            : available.length
+              ? available.map((account) => account.fetchedAt).sort()[0]
+              : null,
+        accounts: selected.map(({ alias, available, fetchedAt, ruleCount, message }) => ({
+          alias,
+          available,
+          fetchedAt,
+          ruleCount,
+          ...(message ? { message } : {}),
         })),
-        rules: available.flatMap((x) => x.rules),
+        rules: available.flatMap((account) => account.rules),
         recorders: [],
-      };
-    },
-    async details(alias, id, token) {
-      if (!ACCOUNT_ALIASES.includes(alias)) throw Error("Choose one account for details");
-      await load(false);
-      const binding = bindings.get(`${alias}:${id}`);
-      if (!binding) throw Error("Load this account inventory first");
-      if (token && !binding.tokens.has(token)) throw Error("Page token does not match this account/control");
-      const rawToken = token ? binding.tokens.get(token) : undefined;
-      const args = [
-        "configservice", "get-aggregate-compliance-details-by-config-rule",
-        "--configuration-aggregator-name", AGGREGATOR,
-        "--config-rule-name", binding.rawName,
-        "--account-id", binding.accountId,
-        "--aws-region", REGION,
-        "--compliance-type", "NON_COMPLIANT",
-        "--limit", "100",
-      ];
-      if (rawToken) args.push("--next-token", rawToken);
-      let page;
-      try {
-        page = await run(args);
-      } catch (error) {
-        const message = String(error?.stderr || error?.message || "");
-        if (message.includes("AccessDenied"))
-          return {
-            accountAlias: alias,
-            controlId: id,
-            nextToken: undefined,
-            resources: [],
-            unavailable: true,
-            message: "Affected resource detail is unavailable under the current read-only host role.",
-          };
-        throw error;
-      }
-      if (!Array.isArray(page.AggregateEvaluationResults))
-        throw Error("unexpected aggregate detail response");
-      let nextToken;
-      if (page.NextToken) {
-        nextToken = randomUUID();
-        binding.tokens.set(nextToken, page.NextToken);
-      }
-      return {
-        accountAlias: alias,
-        controlId: id,
-        nextToken,
-        resources: page.AggregateEvaluationResults.map((item) => {
-          const qualifier = item?.EvaluationResultIdentifier?.EvaluationResultQualifier || {};
-          const resourceAlias = "RESOURCE_" + keyFor(alias, qualifier.ResourceType, qualifier.ResourceId);
-          return {
-            ComplianceType: item.ComplianceType,
-            ResourceType: qualifier.ResourceType,
-            ResourceId: resourceAlias,
-            EvaluationMode: qualifier.EvaluationMode,
-            OrderingTimestamp: item?.EvaluationResultIdentifier?.OrderingTimestamp,
-            ConfigRuleInvokedTime: item.ConfigRuleInvokedTime,
-            ResultRecordedTime: item.ResultRecordedTime,
-            Annotation: item.Annotation ? "Provider annotation available; identifier content hidden." : undefined,
-          };
-        }),
       };
     },
   };
