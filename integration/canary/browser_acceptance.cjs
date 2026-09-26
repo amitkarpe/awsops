@@ -83,6 +83,7 @@ async function run(root){
   process.env.PLAYWRIGHT_BROWSERS_PATH=path.join(root,'state/browser');
   const {chromium}=require(path.join(root,'app/node_modules/playwright'));
   let browser,page,agentId,conversationId,agentName;
+  const option_state={count:0,visible:false,enabled:false,box:false,center_hit:false,search_visible:false,form_visible:false,click_completed:false};
   let stage='launch';
   const diagnostics=[];
   const resumeRequests=[];
@@ -194,7 +195,20 @@ async function run(root){
       await option.waitFor({state:'visible',timeout:30000});
     }
     stage='agent_option_click';
+    option_state.count=await option.count();
+    option_state.visible=await option.isVisible().catch(()=>false);
+    option_state.enabled=await option.isEnabled().catch(()=>false);
+    option_state.search_visible=await page.getByPlaceholder('Search agents by name',{exact:true}).isVisible().catch(()=>false);
+    option_state.form_visible=await form.isVisible().catch(()=>false);
+    option_state.box=await option.boundingBox().then(box=>!!(box&&box.width>0&&box.height>0)).catch(()=>false);
+    option_state.center_hit=await option.evaluate(element=>{
+      const rect=element.getBoundingClientRect();
+      if(!rect.width||!rect.height)return false;
+      const hit=document.elementFromPoint(rect.left+rect.width/2,rect.top+rect.height/2);
+      return !!(hit&&(hit===element||element.contains(hit)));
+    }).catch(()=>false);
     await option.click();
+    option_state.click_completed=true;
     stage='agent_select_submit';
     const selectAgent=form.getByRole('button',{name:'Select Agent',exact:true});
     await selectAgent.click();
@@ -323,7 +337,7 @@ async function run(root){
     }
     return {version:1,outcome:'REJECT_UI_BLOCKED',stage,browser_auth_exported:false,
       agent_created:!!agentId,conversation_created:!!conversationId,resume_submissions:resumeRequests.length,
-      agent_cleanup:agentCleanup,conversation_archived:conversationCleanup,ui_state,diagnostics};
+      agent_cleanup:agentCleanup,conversation_archived:conversationCleanup,ui_state,option_state,diagnostics};
   }finally{
     login.password='';
     if(browser)await browser.close();
