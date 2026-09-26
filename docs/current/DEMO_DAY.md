@@ -4,19 +4,19 @@ Home DEV is the normal development path. Use the retained AWS host for short Dem
 
 ## 30-second precheck
 
-Open each HTTPS URL in a fresh browser tab and confirm there is no certificate warning. `sec` and `sec2` should show LibreChat login; `ops2` should show the **awsops ops2** read-only status page. `ops` redirects to the protected OLD config endpoint and requires its existing access method. The OLD and NEW logins are separate; have the pre-existing private account for each at hand. Do not put credentials in this checklist or a screen recording.
+Open each HTTPS URL in a fresh browser tab and confirm there is no certificate warning. `ops` redirects to the protected OLD config endpoint; `ops2` redirects to the protected NEW config2 dashboard. `sec` and `sec2` show their separate LibreChat logins. Have the existing private access for each generation ready. Do not put credentials in this checklist or a screen recording.
 
 | Demo | Click sequence | Say/show | Expected result |
 | --- | --- | --- | --- |
 | OLD sec: <https://sec.astromedicomp.org/> | Open the URL; sign in with the existing OLD account; open **Chat History**, **Agent Builder**, and **Prompts**. | “This is the preserved reference LibreChat demo.” | **Welcome back** login, authenticated `/c/new` chat composer, and all three sidebar controls were browser-verified. Do not create a new account or submit a chat for this walkthrough. |
 | OLD ops: <https://ops.astromedicomp.org/> | Open the URL using the existing OLD access method. | “The reference operator/config endpoint is protected.” | Redirect to the protected config endpoint; unauthenticated HTTP 401 is expected. No public click-through ops GUI was observed. |
-| NEW sec2: <https://sec2.astromedicomp.org/login> | Sign in with the existing **NEW-only** account; open **Chat History**, **Agent Builder**, **Prompts**, then **New chat** from the sidebar. | “This is the separate awsops LibreChat demo. The normal login and navigation work.” | Authenticated `/c/new` and all four sidebar controls were exercised in a real browser. Do not submit a chat, approval, or Reject canary during this walkthrough. |
-| NEW ops2: <https://ops2.astromedicomp.org/> | Read the status page; click **Open sec2 login**. | “This is intentionally a read-only landing, not an operator mutation UI.” | **awsops ops2** page, then the sec2 login screen. |
+| NEW config dashboard: <https://ops2.astromedicomp.org/> | Follow the redirect to config2; authenticate with the existing NEW dashboard access; select one finding and observe its status and freshness. | “This is the isolated read-only four-environment Config view. It reports S3 Block Public Access and restricted SSH evidence.” | Protected config2 dashboard with current, non-partial evidence. No action or remediation control is available. |
+| NEW Compliance Agent: <https://sec2.astromedicomp.org/login> | Sign in with the existing NEW-only account; select **AWS Ops Compliance Agent**; ask **Status**, **Explain what needs attention**, then **Give me a remediation plan without making changes**. | “The dashboard and agent use the same evidence. The agent explains and plans but cannot change AWS.” | Three evidence-grounded answers. The tool reports `mutation=false`; do not run Issue #11, Approve, Reject, re-arm, or remediation. |
 
 ## If NEW is transiently down
 
-Use the NEW-only start/health/recovery sequence in [CONTEXT.md](../../CONTEXT.md#dual-demo-operation), which points to the accepted Issue #33 PR #35 handoff. The sec2 db, model, and app units are transient; check their status and the NEW loopback `/login` before recovery. Do not stop or edit OLD services. The ops2 page is served by Nginx without an app unit.
+Use the NEW-only [start, health, restart, and recovery sequence](../../CONTEXT.md#dual-demo-operation). Config2 is the persistent `awsops-config2-app` service on loopback port 4313. Check its diagnostics before restarting anything. Restart only the affected NEW config2 or sec2 component; do not stop or edit OLD services.
 
 ## Two-minute final check
 
-Reopen all four tabs. Confirm authenticated OLD `sec` New chat, protected `ops` redirect, authenticated NEW `sec2` New chat, and `ops2` status/link. From an independent client, confirm HTTPS succeeds without certificate errors; `sec`, `sec2 /login`, and `ops2 /health` should return HTTP 200, while `ops` should redirect to its protected endpoint. The Issue #11 native Reject flow is deferred and is not a Demo Day gate. Record only sanitized pass/fail notes.
+Reopen OLD `sec` and `ops`, then NEW `ops2/config2` and `sec2`. Confirm valid TLS, OLD `ops -> config`, NEW `ops2 -> config2`, expected authentication challenges on both dashboards, and both LibreChat login pages. Confirm config2 diagnostics are READY and the NEW agent has exactly one read-only tool. Issue #11 and governed S3/SSH remediation/re-arm remain deferred and are not Demo Day capabilities. Record only sanitized pass/fail notes.
