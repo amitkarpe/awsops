@@ -54,8 +54,10 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
   HTTP 200/TLS 0. There is no NEW operator backend or mutation UI. Both NEW
   CNAMEs use the verified retained target; OLD `sec/ops` DNS, vhosts and units
   were untouched. Immediate OLD public checks returned sec HTTP 200/TLS 0 and
-  ops HTTP 308/TLS 0. Authenticated sec2 login/application smoke is still
-  **pending**, so M4 is not fully accepted.
+  ops HTTP 308/TLS 0, then HTTP 401/TLS 0 after its redirect. Private normal
+  sec2 login returned HTTP 200 with a user object; its in-memory bearer accessed
+  protected `/api/user` and `/api/models` at HTTP 200. M4 public and private
+  HTTP acceptance is complete; browser GUI navigation was not exercised.
 - Separate NEW Certbot Route53 certificates have exact `sec2` and `ops2` SANs
   and expire 2026-12-25 UTC. The existing Certbot timer is enabled; actual
   unattended renewal has not yet been observed. Check it with
@@ -84,9 +86,10 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
 
 ## Next
 
-1. Complete the private authenticated sec2 login/application smoke and record
-   its result on Issue #33. Review PR #35 separately; do not confuse its
-   read-only collector CI with live acceptance. Preserve OLD and NEW demos.
+1. Preserve the accepted OLD and NEW demos and periodically check public health
+   plus Certbot renewal. PR #35 is merged; its read-only collector CI and the
+   separate live M4 evidence are both recorded on Issue #33. A future browser
+   GUI walkthrough may add evidence but is not needed for the HTTP acceptance.
 2. Continue Issue #11 / PR #13 to the real isolated Reject -> receipt -> provider readback -> Archive acceptance.
 3. Keep old aws-secops PR #177 deferred unless a concrete future awsops read-adapter milestone needs it; Issue #14 remains independent and implies no cleanup mutation.
 
