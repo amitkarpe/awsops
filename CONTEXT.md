@@ -70,11 +70,16 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
   its JavaScript asset returns 200, and the exact 4 x 2 API remains READY and
   public-safe. Production builds must run `npm run prepare:runtime` before the
   config2 service starts or restarts.
-- The isolated NEW sec2 database and service bindings remain intact with one
-  existing user and one read-only Compliance Agent record. The expected owner
-  identity is not present in that NEW database, so owner login cannot be
-  repaired without separately authorized account provisioning or credential
-  mutation. No account, password, hash, secret, or database state was changed.
+- Issue #39 owner access is now accepted. The NEW sec2 owner identity was
+  provisioned in the preserved NEW database using the standing LAB credential
+  authority; the pre-existing NEW user and database state were preserved.
+  Owner login passed through the public sec2 path. The AWS Ops Compliance Agent
+  remained exactly one read-only MCP tool with zero actions, and the required
+  owner-session prompts (Status, Explain, and no-change Plan) passed 3/3 with
+  evidence-grounded output and no mutation claim. The live repair also corrected
+  the NEW sec2 model allowlist, restored service-user execute access to the NEW
+  MCP virtual environment, and recovered only the transient NEW sec2 app unit.
+  No OLD auth/state or agent model/tool record was changed.
 - OLD `ops/config/sec` remained active and unchanged through the merged-main
   recovery. Independent public checks returned TLS verification 0 and expected
   statuses: OLD sec 200, OLD ops 308 to config, OLD config 401; NEW sec2 200,
@@ -135,10 +140,9 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
 
 ## Next
 
-1. The remaining Issue #39 gate is explicit approval to provision or reset the
-   NEW sec2 owner account, followed by the owner-authenticated rehearsal:
-   config2 finding view, then sec2 AWS Ops Compliance Agent Status, Explain,
-   and no-change Plan. Use `docs/current/DEMO_DAY.md`.
+1. Issue #39 is accepted: config2 dashboard, sec2 owner access, the read-only
+   AWS Ops Compliance Agent owner journey, recovery, and OLD regression all
+   passed. Use `docs/current/DEMO_DAY.md` for the current demo path.
 2. Issue #11 / PR #13 native Reject acceptance is explicitly DEFERRED by Amit and is non-blocking. Do not resume unless Amit re-prioritizes it.
 3. Keep old aws-secops PR #177 deferred unless a concrete future awsops read-adapter milestone needs it; Issue #14 remains independent and implies no cleanup mutation.
 
