@@ -1,0 +1,18 @@
+{
+  "aws_profile": null,
+  "hosted_zone_id": null,
+  "dns_target_fqdn": null,
+  "units": {
+    "old_ops": null,
+    "old_sec": null,
+    "new_ops": null,
+    "new_sec": null
+  },
+  "candidate_ports": {
+    "ops": null,
+    "sec": null
+  },
+  "nginx_config_file": null,
+  "certbot_config_dir": null,
+  "dns01_role_name": null
+}
