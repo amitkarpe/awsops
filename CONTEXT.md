@@ -44,11 +44,11 @@ No target-resource mutation, live Approve, IAM/OIDC/network or PROD work.
 - `aws-secops` is now formally treated as **FROZEN / REFERENCE** for new product work and remains **reference/archive** evidence until M5. `docs/architecture/AWS_SECOPS_HARVEST.md` is the canonical harvest matrix for old PR #192/#177. New implementation belongs only in `awsops`; old repo remains readable evidence until M5 cutover/archive.
 - Issue #29 M1-M3 are accepted: Home DEV is the normal development path, OLD demo names remain `ops.astromedicomp.org` / `sec.astromedicomp.org`, and NEW names are `ops2.astromedicomp.org` / `sec2.astromedicomp.org`.
 - Issue #33 M1 is merged in PR #34. `integration/edge/awsops_edge.py` now provides an offline NEW-only Route53 planner and additive Nginx renderer. It has no apply/reload/service path; OLD routes remain untouched.
-- Issue #33 now owns a five-milestone roadmap: M1 edge package merged; M2 read-only preflight collector is active on Bridge2; M3 builds the repo-only activation/recovery bundle; M4 is the separately approved live/public activation gate; M5 productizes Home DEV + AWS cold-standby operations. OLD `ops/sec` stay untouched and deletion remains prohibited.
+- Issue #33 is now FAST DEPLOY / Option A. Amit explicitly authorized the personal-LAB NEW public activation path using the existing retained host + proven Route53/Nginx pattern for `ops2/sec2`, while preserving OLD `ops/sec`. No more generic hardening work: finish only the minimum live facts, deploy NEW additive services/vhosts/DNS/TLS, verify all demos, then freeze the accepted demo. No deletion, no new EC2, no IAM widening unless a concrete blocker is separately approved.
 
 ## Next
 
-1. Continue Issue #33 through the M1-M5 roadmap via X/Bridge2, one cohesive repository milestone at a time; current work is M2 and M4 remains a hard live/public gate.
+1. Fast-track Issue #33 Option A: finish the active X preflight work, then deploy the NEW additive `ops2/sec2` path immediately using the existing retained host/Route53/Nginx pattern and verify OLD+NEW demos. Do not spend another milestone on generic hardening.
 2. Continue Issue #11 / PR #13 to the real isolated Reject -> receipt -> provider readback -> Archive acceptance.
 3. Keep old aws-secops PR #177 deferred unless a concrete future awsops read-adapter milestone needs it; Issue #14 remains independent and implies no cleanup mutation.
 
