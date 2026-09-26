@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc --noEmit && vite build",
+    "prepare:runtime": "chmod -R a+rX dist",
     "start": "node server.mjs",
     "lint": "eslint ."
   },
