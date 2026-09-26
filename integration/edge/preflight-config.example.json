@@ -4,12 +4,13 @@
   "dns_target_fqdn": null,
   "units": {
     "old_ops": null,
+    "old_config": null,
     "old_sec": null,
-    "new_ops": null,
+    "new_config": null,
     "new_sec": null
   },
   "candidate_ports": {
-    "ops": null,
+    "config": null,
     "sec": null
   },
   "nginx_config_file": null,
