@@ -1,13 +1,92 @@
-# Home Development Workflow
+# Home DEV and AWS Demo Runbook
 
-Status: READY FOR LOCAL USE  
-Owner: Issue #14 / roadmap #1
+Status: OPERATING MODEL
+Owner: Issue #29 / roadmap #1; home workstation baseline from Issue #14
 
 ## Purpose
 
-Use the user's **Ubuntu 24.04 x86-64 home workstation** as the default zero-cloud-cost development machine.
+Use the home workstation for normal development and keep AWS for short,
+approved demo/UAT runs. AWS is not the normal development box.
 
 Do not commit its hostname, SSH alias, IP address, local username, private paths, SSH config, keys, or other workstation identifiers to this public repository.
+
+## Operating cycle
+
+```text
+Home DEV -> GitHub branch/PR/CI -> approved AWS demo start
+          -> short final acceptance -> stop the AWS demo
+```
+
+| Stage | Responsibility |
+| --- | --- |
+| Home DEV | Edit, build, run local tests and browser checks, and prepare a reviewable branch. Do not keep a cloud stack running for ordinary coding. |
+| GitHub PR/CI | Review the exact commit, required checks, and public-safe evidence. Start a demo only from the reviewed commit with required checks green and an active Issue that names the target and allowed actions. CI success alone is not live acceptance. |
+| AWS demo/UAT | Host only the integration or user acceptance that needs the AWS-hosted app or provider identity. Use the approved host/transport and a short timebox; capture sanitized results, then stop the demo services started for that run. |
+
+## Demo names
+
+| Role | URLs | Status |
+| --- | --- | --- |
+| Old/reference demo | `ops.astromedicomp.org` and `sec.astromedicomp.org` | Preserve as a recoverable reference environment. |
+| New awsops demo | `ops2.astromedicomp.org` and `sec2.astromedicomp.org` | Proposed/reserved names. This runbook does not imply DNS exists or authorize DNS changes. |
+
+Keep both environments recoverable. This Issue authorizes no DNS, cloud, IAM,
+network, or live-service changes; those require their own active authority.
+If the proposed aliases are not configured, validate through the currently
+approved endpoint and leave DNS unchanged.
+
+## Startup checklist
+
+1. Read the active Issue and confirm its target environment, account/Region,
+   allowed actions, timebox, operator, and stop/rollback procedure. If any are
+   missing or conflict with observed state, do not start.
+2. Verify the exact Git commit to be exercised. The PR is reviewed and all
+   required CI checks are green for that commit. Do not deploy dirty or
+   unreviewed local changes.
+3. Through the approved operator transport, read the current service/host
+   state and record a sanitized baseline. Confirm both demo environments and
+   their data/evidence are preserved; check capacity and the selected
+   environment's source/config revision.
+4. Start only the selected environment's required demo services using its
+   approved procedure. Keep its intended exposure and authentication boundary;
+   do not change DNS or widen network access as an ad hoc fix.
+5. Check application readiness, dependency health, normal authentication, and
+   the expected demo URL before UAT. A running host alone is not a healthy app.
+6. Run only the Issue's short acceptance steps. Record the exact commit,
+   outcome, sanitized evidence, and any failed stage. Do not claim acceptance
+   from CI or a smoke check alone.
+
+## Shutdown checklist
+
+1. Preserve the acceptance result, logs needed to explain failures, and any
+   audit/receipt state. Redact credentials, cookies, tokens, private resource
+   identifiers, and raw findings before sharing evidence.
+2. Stop only the demo services started for this run, using the approved
+   environment-specific procedure. Do not stop unrelated retained services.
+3. Verify those services are stopped and any services that were not part of
+   the run remain in their recorded baseline state. Record the final sanitized
+   status.
+4. If the run changed app configuration, restore only its exact known-good
+   configuration/revision using the documented rollback. Verify the restored
+   health state; if rollback is partial or ambiguous, stop and report it.
+5. Leave both environments, DNS, hosts, disks, addresses, databases, and audit
+   evidence in place. Delete nothing; do not add cleanup or snapshot actions.
+
+## Health and rollback
+
+- Check the intended name resolves as expected, HTTPS/TLS is valid, the app
+  responds on its documented readiness path, normal login works, and required
+  dependencies are healthy. Use only endpoints and checks defined by the
+  active Issue; do not infer readiness from an open port or running instance.
+  Do not treat an unconfigured proposed alias as permission to add DNS.
+- Keep the old/reference and new awsops demo paths separate. A failure in one
+  is not authority to alter the other.
+- On failure, capture the failing stage and sanitized state, stop only the
+  services started for that demo, and restore its exact previous app/config
+  revision if needed. Preserve databases, ledgers, audit evidence, and both
+  demo environments for recovery and demonstration. Delete no resources.
+- If the affected service, baseline, or rollback target is unclear, leave
+  unrelated state untouched and escalate through the owning Issue.
 
 ## Source-of-truth repositories
 
@@ -17,7 +96,9 @@ Work from GitHub rather than preserving old EC2 filesystem state:
 - `mytestlab123/AgentCore`
 - `mytestlab123/agentic-ai-cybersecurity-lab`
 
-The old `vagent` host is considered reproducible/disposable unless a specific irreplaceable artifact is proven.
+Do not confuse the old `vagent` host with the old/reference demo URL
+environment. The host's historical rebuild/disposal assessment does not
+authorize deleting or repurposing either demo environment.
 
 ## Local workflow
 
