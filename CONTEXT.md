@@ -66,12 +66,15 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
   to complete normal browser login at `/c/new`; Chat History, Agent Builder,
   Prompts, and New chat controls were clicked. NEW `ops2` showed its read-only
   status page and its link opened `sec2` login. OLD `sec` showed LibreChat's
-  Welcome back login and its theme/registration navigation worked. OLD `ops`
-  redirected to a protected config endpoint with unauthenticated HTTP 401;
-  it is not a public click-through GUI. No OLD credential was available in this
-  session, so authenticated OLD sec navigation remains an operator Demo Day
-  check. No OLD service or state was changed. The concise sequence is
-  `docs/current/DEMO_DAY.md`; Issue #11 Reject remains deferred.
+  Welcome back login and its theme/registration navigation worked. A final
+  Issue #29 browser check used the pre-existing private OLD account to reach
+  `/c/new` with a chat composer and click Chat History, Agent Builder, and
+  Prompts. OLD `ops` redirected to a protected config endpoint with
+  unauthenticated HTTP 401; it is not a public click-through GUI. Post-login
+  checks returned expected HTTP status and TLS verification 0 for all four
+  public names. No OLD account, credential, service, DNS, vhost, or config was
+  changed. M4 browser navigation is accepted; `docs/current/DEMO_DAY.md` is
+  the concise sequence. Issue #11 Reject remains deferred.
 - Separate NEW Certbot Route53 certificates have exact `sec2` and `ops2` SANs
   and expire 2026-12-25 UTC. The existing Certbot timer is enabled; actual
   unattended renewal has not yet been observed. Check it with
@@ -100,7 +103,7 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
 
 ## Next
 
-1. Issue #29 M4 is nearly complete. PR #37 merged the Demo Day checklist and real browser evidence. NEW sec2 authenticated browser navigation, NEW ops2 read-only UI, OLD sec login UI, and OLD ops protected-endpoint behavior are verified. The only remaining Demo Day check is authenticated OLD sec chat navigation using the pre-existing private OLD account. Do not create/reset OLD credentials without explicit authority.
+1. Issue #29 M4 Demo Day browser navigation is accepted. Use `docs/current/DEMO_DAY.md` for OLD and NEW rehearsals, and recheck all four public endpoints before each session. Keep both demo generations recoverable.
 2. Issue #11 / PR #13 native Reject acceptance is explicitly DEFERRED by Amit and is non-blocking. Do not resume unless Amit re-prioritizes it.
 3. Keep old aws-secops PR #177 deferred unless a concrete future awsops read-adapter milestone needs it; Issue #14 remains independent and implies no cleanup mutation.
 
