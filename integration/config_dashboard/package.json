@@ -1,15 +1,11 @@
 {
-  "name": "seccop-refine-config-console",
+  "name": "awsops-config-dashboard",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "tsc --noEmit && vite build",
     "start": "node server.mjs",
-    "test": "node --test test/*.test.mjs",
-    "lint": "eslint .",
-    "test:browser": "node test/browser.mjs",
-    "proof:live": "node test/live-proof.mjs",
-    "proof:http": "node test/live-http-proof.mjs"
+    "lint": "eslint ."
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
