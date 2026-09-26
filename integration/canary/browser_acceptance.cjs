@@ -82,7 +82,7 @@ async function run(root){
     throw Error('CANARY_PYTHON_REQUIRED');
   process.env.PLAYWRIGHT_BROWSERS_PATH=path.join(root,'state/browser');
   const {chromium}=require(path.join(root,'app/node_modules/playwright'));
-  let browser,page,agentId,conversationId;
+  let browser,page,agentId,conversationId,agentName;
   let stage='launch';
   const diagnostics=[];
   const resumeRequests=[];
@@ -135,7 +135,8 @@ async function run(root){
     if(!tools)throw Error('MCP_TOOL_NOT_READY');
 
     stage='agent_create';
-    const name='AWS Ops Reject Canary '+Date.now();
+    agentName='AWS Ops Reject Canary '+Date.now();
+    const name=agentName;
     const created=await api(page,'/api/agents','POST',{
       name,description:'Disposable Reject-only native acceptance agent.',
       instructions:'Call the provided S3 TLS decision tool exactly once. Never request or perform remediation.',
@@ -292,6 +293,25 @@ async function run(root){
       browser_auth_exported:false,provider_readback:'PENDING',diagnostics};
   }catch{
     let agentCleanup=false,conversationCleanup=false;
+    const ui_state={select_agent_count:0,select_agent_visible:false,select_agent_enabled:false,
+      agent_name_count:0,agent_name_matches:false,agent_combobox_count:0,agent_combobox_matches:false};
+    if(page){
+      try{
+        const failedForm=page.getByRole('form',{name:'Agent configuration form'});
+        const failedSelect=failedForm.getByRole('button',{name:'Select Agent',exact:true});
+        const failedName=failedForm.getByLabel('Agent name');
+        const failedCombo=failedForm.getByRole('combobox',{name:'Agent',exact:true});
+        ui_state.select_agent_count=await failedSelect.count();
+        ui_state.select_agent_visible=await failedSelect.isVisible().catch(()=>false);
+        ui_state.select_agent_enabled=await failedSelect.isEnabled().catch(()=>false);
+        ui_state.agent_name_count=await failedName.count();
+        ui_state.agent_name_matches=typeof agentName==='string'
+          ?await failedName.inputValue().then(value=>value===agentName).catch(()=>false):false;
+        ui_state.agent_combobox_count=await failedCombo.count();
+        ui_state.agent_combobox_matches=typeof agentName==='string'
+          ?await failedCombo.innerText().then(value=>value.includes(agentName)).catch(()=>false):false;
+      }catch{}
+    }
     if(page&&agentId){
       try{const removed=await api(page,'/api/agents/'+encodeURIComponent(agentId),'DELETE');
         agentCleanup=removed.ok||removed.status===404;}catch{}
@@ -303,7 +323,7 @@ async function run(root){
     }
     return {version:1,outcome:'REJECT_UI_BLOCKED',stage,browser_auth_exported:false,
       agent_created:!!agentId,conversation_created:!!conversationId,resume_submissions:resumeRequests.length,
-      agent_cleanup:agentCleanup,conversation_archived:conversationCleanup,diagnostics};
+      agent_cleanup:agentCleanup,conversation_archived:conversationCleanup,ui_state,diagnostics};
   }finally{
     login.password='';
     if(browser)await browser.close();
