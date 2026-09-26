@@ -68,6 +68,8 @@ class CanaryBrowserTests(unittest.TestCase):
         self.assertIn("AGENT_NOT_PERSISTED", source)
         self.assertIn("getByPlaceholder('Search agents by name',{exact:true})", source)
         self.assertNotIn("stage='agent_search_reopen'", source)
+        self.assertIn("stage='agent_option_probe'", source)
+        self.assertIn("const directVisible=await option.waitFor({state:'visible',timeout:3000})", source)
         self.assertIn("stage='agent_search_wait'", source)
         self.assertIn("stage='agent_option_wait'", source)
         self.assertIn("stage='agent_option_click'", source)
