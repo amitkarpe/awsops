@@ -164,54 +164,68 @@ async function run(root){
     };
     writePrivate(path.join(root,'state/native.json'),native);
 
-    stage='agent_builder_open';
-    const form=await openAgentBuilder(page,value=>{stage=value},false);
-    stage='agent_builder_root';
-    const backToBuilder=form.getByRole('button',{name:'Back to builder',exact:true});
-    const agentSelect=form.getByRole('combobox',{name:'Agent',exact:true});
-    let builderRootReady=false;
-    for(let i=0;i<120;i++){
-      if(await agentSelect.isVisible().catch(()=>false)){builderRootReady=true;break}
-      if(await backToBuilder.isVisible().catch(()=>false)){
-        if(!(await backToBuilder.isEnabled()))throw Error('AGENT_BUILDER_BACK_DISABLED');
-        await backToBuilder.click();
+    let agentSelected=false;
+    for(let attempt=0;attempt<3;attempt++){
+      try{
+        Object.assign(option_state,{count:0,visible:false,enabled:false,box:false,center_hit:false,
+          search_visible:false,form_visible:false,click_completed:false});
+        stage='agent_builder_open';
+        const form=await openAgentBuilder(page,value=>{stage=value},attempt>0);
+        stage='agent_builder_root';
+        const backToBuilder=form.getByRole('button',{name:'Back to builder',exact:true});
+        const agentSelect=form.getByRole('combobox',{name:'Agent',exact:true});
+        let builderRootReady=false;
+        for(let i=0;i<120;i++){
+          if(await agentSelect.isVisible().catch(()=>false)){builderRootReady=true;break}
+          if(await backToBuilder.isVisible().catch(()=>false)){
+            if(!(await backToBuilder.isEnabled()))throw Error('AGENT_BUILDER_BACK_DISABLED');
+            await backToBuilder.click();
+          }
+          await page.waitForTimeout(250);
+        }
+        if(!builderRootReady)throw Error('AGENT_BUILDER_ROOT_REQUIRED');
+        stage='agent_combobox_click';
+        if(!(await agentSelect.isEnabled()))throw Error('AGENT_COMBOBOX_DISABLED');
+        await agentSelect.click();
+        const option=page.getByRole('option',{name,exact:true});
+        stage='agent_option_probe';
+        const directVisible=await option.waitFor({state:'visible',timeout:3000}).then(()=>true).catch(()=>false);
+        if(!directVisible){
+          stage='agent_search_wait';
+          const search=page.getByPlaceholder('Search agents by name',{exact:true});
+          await search.waitFor({state:'visible',timeout:30000});
+          stage='agent_search';
+          await search.fill(name);
+          stage='agent_option_wait';
+          await option.waitFor({state:'visible',timeout:30000});
+        }
+        stage='agent_option_click';
+        option_state.count=await option.count();
+        option_state.visible=await option.isVisible().catch(()=>false);
+        option_state.enabled=await option.isEnabled().catch(()=>false);
+        option_state.search_visible=await page.getByPlaceholder('Search agents by name',{exact:true}).isVisible().catch(()=>false);
+        option_state.form_visible=await form.isVisible().catch(()=>false);
+        option_state.box=await option.boundingBox().then(box=>!!(box&&box.width>0&&box.height>0)).catch(()=>false);
+        option_state.center_hit=await option.evaluate(element=>{
+          const rect=element.getBoundingClientRect();
+          if(!rect.width||!rect.height)return false;
+          const hit=document.elementFromPoint(rect.left+rect.width/2,rect.top+rect.height/2);
+          return !!(hit&&(hit===element||element.contains(hit)));
+        }).catch(()=>false);
+        await option.click();
+        option_state.click_completed=true;
+        stage='agent_select_submit';
+        const selectAgent=form.getByRole('button',{name:'Select Agent',exact:true});
+        await selectAgent.click();
+        agentSelected=true;
+        break;
+      }catch(error){
+        if(attempt===2)throw error;
+        stage='agent_selection_retry';
+        await page.waitForTimeout(250);
       }
-      await page.waitForTimeout(250);
     }
-    if(!builderRootReady)throw Error('AGENT_BUILDER_ROOT_REQUIRED');
-    stage='agent_combobox_click';
-    if(!(await agentSelect.isEnabled()))throw Error('AGENT_COMBOBOX_DISABLED');
-    await agentSelect.click();
-    const option=page.getByRole('option',{name,exact:true});
-    stage='agent_option_probe';
-    const directVisible=await option.waitFor({state:'visible',timeout:3000}).then(()=>true).catch(()=>false);
-    if(!directVisible){
-      stage='agent_search_wait';
-      const search=page.getByPlaceholder('Search agents by name',{exact:true});
-      await search.waitFor({state:'visible',timeout:30000});
-      stage='agent_search';
-      await search.fill(name);
-      stage='agent_option_wait';
-      await option.waitFor({state:'visible',timeout:30000});
-    }
-    stage='agent_option_click';
-    option_state.count=await option.count();
-    option_state.visible=await option.isVisible().catch(()=>false);
-    option_state.enabled=await option.isEnabled().catch(()=>false);
-    option_state.search_visible=await page.getByPlaceholder('Search agents by name',{exact:true}).isVisible().catch(()=>false);
-    option_state.form_visible=await form.isVisible().catch(()=>false);
-    option_state.box=await option.boundingBox().then(box=>!!(box&&box.width>0&&box.height>0)).catch(()=>false);
-    option_state.center_hit=await option.evaluate(element=>{
-      const rect=element.getBoundingClientRect();
-      if(!rect.width||!rect.height)return false;
-      const hit=document.elementFromPoint(rect.left+rect.width/2,rect.top+rect.height/2);
-      return !!(hit&&(hit===element||element.contains(hit)));
-    }).catch(()=>false);
-    await option.click();
-    option_state.click_completed=true;
-    stage='agent_select_submit';
-    const selectAgent=form.getByRole('button',{name:'Select Agent',exact:true});
-    await selectAgent.click();
+    if(!agentSelected)throw Error('AGENT_SELECTION_UI_BLOCKED');
 
     stage='send';
     const input=page.getByRole('textbox',{name:'Message input'});
