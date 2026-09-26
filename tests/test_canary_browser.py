@@ -118,7 +118,11 @@ class CanaryBrowserTests(unittest.TestCase):
         self.assertIn("timeout:30000", source)
         self.assertIn("agent_builder_current_page", source)
         self.assertIn("AGENT_BUILDER_PAGE_REQUIRED", source)
-        self.assertIn("openAgentBuilder(page,value=>{stage=value},false)", source)
+        self.assertIn("for(let attempt=0;attempt<3;attempt++)", source)
+        self.assertIn("openAgentBuilder(page,value=>{stage=value},attempt>0)", source)
+        self.assertIn("stage='agent_selection_retry'", source)
+        self.assertIn("if(attempt===2)throw error", source)
+        self.assertIn("AGENT_SELECTION_UI_BLOCKED", source)
 
     def test_exact_card_tool_scope_identity_and_reject_only_controls(self):
         self.invoke_contract("""
