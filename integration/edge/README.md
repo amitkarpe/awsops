@@ -30,9 +30,11 @@ shared TLS identity and optional ops backend remain unchanged for compatibility.
 
 DNS planning is CREATE-only, refuses conflicts, and preserves matching records.
 Supply a complete current record inventory including config2 and the retained
-A-record target. The existing v1 preflight collector has not yet been adapted
-for the dashboard service/per-host TLS contract; its filtered four-name output
-is insufficient for config2 deployment. Do not treat it as dashboard readiness.
+A-record target. The preflight collector accepts the legacy two-host schema and the current
+`config2` dashboard schema. In dashboard mode it inventories OLD `ops/config/sec`,
+NEW `ops2/config2/sec2`, the NEW config2 service/port, and separate NEW certificate
+identities. Its output is still inventory evidence only: authentication, browser
+journey, provider completeness and owner acceptance remain separate proof.
 
 A rendered file contains all configured NEW vhosts. Review and replace only
 matching NEW blocks; do not install duplicate server names beside existing
