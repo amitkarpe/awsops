@@ -2,14 +2,15 @@
 
 Repository: `amitkarpe/awsops`
 Status: ACTIVE
-Updated: 2026-09-25
+Updated: 2026-09-26
 
 ## Authority
 
-Roadmap #1 owns migration. G implements, validates and reviews directly.
-M2 live reads and M3A/M3B/M3C repository integration are accepted. Issue #11
-and draft PR #13 own the remaining isolated normal-auth native Reject canary.
-No Codex handoff is required.
+Roadmap #1 owns migration. G owns roadmap/review/merge and may delegate bounded
+repository implementation to X through Bridge2. M2 live reads and M3A/M3B/M3C
+repository integration are accepted. Issue #11 and draft PR #13 own the remaining
+isolated normal-auth native Reject canary. Issue #29 owns the Home DEV -> AWS
+Demo operating model; Issue #33 owns additive NEW `ops2/sec2` activation work.
 
 Issue #14 owns operational hygiene: the public-safe AWS resource/cost ledger,
 account-level cost visibility and retained-host capacity evidence. Amit explicitly
@@ -41,11 +42,14 @@ No target-resource mutation, live Approve, IAM/OIDC/network or PROD work.
 - `docs/architecture/DEV_COMPUTE_MODEL.md` defines the accepted design: home workstation for normal development, GitHub Actions for repeatable CI, `amit` `t3.medium` only for the current full LibreChat/Ops/MongoDB integration path, and `vagent` only as a future lightweight AWS canary after an explicit repurpose gate.
 - `docs/architecture/HOME_DEV_WORKFLOW.md` is the sanitized Codex/home-workstation bootstrap. GitHub is the source of truth for `AgentCore` and `agentic-ai-cybersecurity-lab`; do not spend time forensically synchronizing the old vagent filesystem unless a concrete irreplaceable artifact is proven.
 - `aws-secops` is now formally treated as **FROZEN / REFERENCE** for new product work and remains **reference/archive** evidence until M5. `docs/architecture/AWS_SECOPS_HARVEST.md` is the canonical harvest matrix for old PR #192/#177. New implementation belongs only in `awsops`; old repo remains readable evidence until M5 cutover/archive.
+- Issue #29 M1-M3 are accepted: Home DEV is the normal development path, OLD demo names remain `ops.astromedicomp.org` / `sec.astromedicomp.org`, and NEW names are `ops2.astromedicomp.org` / `sec2.astromedicomp.org`.
+- Issue #33 M1 is merged in PR #34. `integration/edge/awsops_edge.py` now provides an offline NEW-only Route53 planner and additive Nginx renderer. It has no apply/reload/service path; OLD routes remain untouched.
+- Issue #33 M2 is next: package and run a read-only preflight that resolves the verified DNS target/zone, current edge/service/listener/TLS state, and OLD/NEW collision status before any public activation. M3 live DNS/proxy/service activation remains a separate explicit gate.
 
 ## Next
 
-1. Continue Issue #11 / PR #13 to the real isolated Reject -> receipt -> provider readback -> Archive acceptance, harvesting only the missing #192 browser/recovery patterns.
-2. Keep old aws-secops PR #177 deferred unless a concrete future awsops read-adapter milestone needs it.
-3. Finish Issue #14 operational-hygiene work independently; no cleanup mutation is implied.
+1. Continue Issue #33 M2 with a repo-owned read-only preflight collector; do not activate public DNS/proxy/service routing yet.
+2. Continue Issue #11 / PR #13 to the real isolated Reject -> receipt -> provider readback -> Archive acceptance.
+3. Keep old aws-secops PR #177 deferred unless a concrete future awsops read-adapter milestone needs it; Issue #14 remains independent and implies no cleanup mutation.
 
 Do not create another roadmap or mistake code/CI acceptance for live completion.
