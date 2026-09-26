@@ -1,0 +1,4 @@
+# Reuse the dependency versions verified by the retained Compliance Agent v1 runtime.
+boto3==1.43.98
+mcp==1.30.0
+pydantic==2.13.5
