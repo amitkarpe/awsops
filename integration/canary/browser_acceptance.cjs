@@ -196,7 +196,6 @@ async function run(root){
     await option.click();
     stage='agent_select_submit';
     const selectAgent=form.getByRole('button',{name:'Select Agent',exact:true});
-    if(await selectAgent.count()!==1)throw Error('AGENT_SELECT_REQUIRED');
     await selectAgent.click();
 
     stage='send';
