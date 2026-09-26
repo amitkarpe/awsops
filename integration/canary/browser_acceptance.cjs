@@ -58,7 +58,7 @@ async function openAgentBuilder(page,mark=()=>{},navigate=true){
     await button.waitFor({state:'visible',timeout:15000});
     if(!(await button.isEnabled()))throw Error('AGENT_BUILDER_TRIGGER_DISABLED');
     mark('agent_builder_button_click');
-    if(await button.getAttribute('aria-pressed')!=='true')await button.evaluate(element=>element.click());
+    if(await button.getAttribute('aria-pressed')!=='true')await button.click();
   }
   mark('agent_builder_form_wait');
   await form.waitFor({state:'visible',timeout:30000});
