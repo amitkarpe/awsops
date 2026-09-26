@@ -149,6 +149,92 @@ git pull --ff-only
 
 Before implementation, Codex must read the repository's own bootstrap files and current Issue/PR. Repository rules override this generic handoff.
 
+## M2 fresh-checkout setup and local validation
+
+### Supported toolchain
+
+The supported home baseline is Ubuntu 24.04 x86-64. CI uses Python 3.12 and
+Node.js 22 (`.github/workflows/ci.yml`); CI follows the latest patch release in
+each line, so this repository does not promise a specific Python/Node patch
+number. The M2 local run used Python 3.12.3 and Node.js 22.23.1. The CI test
+path uses Python's standard library and Node built-ins.
+There is no Python requirements/lock file or Node package manifest to install.
+`boto3` is imported only by AWS provider/read operations and is not needed for
+offline tests. The fixture fetch needs HTTPS access to GitHub, not AWS access.
+
+### Bootstrap from GitHub
+
+```bash
+git clone https://github.com/amitkarpe/awsops.git
+cd awsops
+git switch main
+python3.12 -m venv .venv
+. .venv/bin/activate
+python --version  # 3.12.x
+node --version    # v22.x
+git status --short --branch
+```
+
+No `pip install` or `npm install` is needed for repository validation. If
+`python3.12 -m venv` is unavailable, install the matching OS-provided venv
+component; do not replace the supported Python version or install the AWS app
+stack on the workstation.
+
+### One repository-green command
+
+From the activated environment and repository root:
+
+```bash
+python scripts/fetch_native_fixture.py && AWSOPS_REQUIRE_NATIVE_FIXTURE=1 python -m unittest discover -s tests -p 'test_*.py'
+```
+
+The fixture step fetches and verifies the immutable LibreChat producer and
+resume blobs pinned in `integration/librechat/upstream.json`, then writes only
+the generated `artifacts/native-upstream/` fixture. The suite exercises Python
+contracts and Node producer/controller rehearsals; it makes no AWS calls. This
+is the local counterpart of the repository CI gate, not live acceptance.
+The current release/rehearsal pin is LibreChat `v0.8.8-rc1` at
+`eaef87fa2684025627e25d649a56f4f2a63417a7`. PR #13 keeps its browser-canary
+source pin separate at `cdfe54c3498818b21b33fb609fee02f2742b37ea`; after that
+PR merges, the same fetch command verifies both profiles into separate ignored
+fixture directories. Do not replace one profile with the other.
+
+### Browser contract versus real browser E2E
+
+PR #13 adds the offline browser guard suite at
+`tests/test_canary_browser.py`. On that branch, run:
+
+```bash
+python -m unittest discover -s tests -p 'test_canary_browser.py'
+```
+
+It requires Node.js 22 and exercises the browser harness's local contract
+helpers. It does not launch Playwright, authenticate, or contact AWS. The file
+is not on `main` until PR #13 merges; a fresh `main` checkout can run this
+command after that merge.
+
+The separate `integration/canary/browser_acceptance.cjs` path is real native UI
+acceptance. It requires the isolated LibreChat app, its installed Playwright and
+browser, private canary login/configuration, and the Issue #11 provider
+integration. Receipt-linked provider readback is a separate
+`integration/canary/readback.py` operation. These are not offline workstation
+tests and are not implied by passing either local test command. Real browser
+E2E is complete only with the owning Issue's approved environment and durable
+acceptance evidence.
+
+### Reset and rebuild
+
+- To refresh generated upstream fixtures, rerun
+  `python scripts/fetch_native_fixture.py`; it verifies pinned Git blobs before
+  writing them. No AWS credentials are needed.
+- To recreate Python tooling, make a new venv with the supported Python 3.12
+  line and rerun the repository-green command. Do not copy an EC2 Python
+  environment or local browser state.
+- If a checkout is damaged or its state is unclear, preserve any work first
+  and clone a fresh copy from GitHub. Do not use `git clean` or hard reset as a
+  bootstrap shortcut. Do not copy EC2 files, `.env` material, databases,
+  browser profiles, cookies, session keys, or credentials to Home DEV.
+
 ## Installation rule
 
 Do not install a large platform stack pre-emptively.
