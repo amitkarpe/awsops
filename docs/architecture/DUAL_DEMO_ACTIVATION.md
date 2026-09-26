@@ -163,6 +163,111 @@ any NEW upstream. A shared host or proxy may be acceptable only if each request
 routes to isolated NEW app state and additive configuration leaves OLD behavior
 unchanged.
 
+## M1 offline edge planner
+
+`integration/edge/awsops_edge.py` is a local plan/render utility only. Its
+`plan-dns` command reads a private operator config plus a saved Route 53
+`list-resource-record-sets` response and prints a proposed change batch. It
+does not import an AWS SDK, call Route 53, or offer an apply operation. Its
+fixed scope is `ops2.astromedicomp.org` and `sec2.astromedicomp.org`; it emits
+only `CREATE` for absent names, treats an exact CNAME/target/TTL match as
+`UNCHANGED`, and refuses any conflicting pre-existing record. The target must
+already have one A record set. TTL 60 follows the reviewed bounded reference
+plan. OLD records and the target record are never emitted as changes.
+
+The config must supply the verified retained-host target, a NEW `sec` service
+unit, non-overlapping NEW runtime/state roots, its loopback port, and
+certificate/key paths in the dedicated `awsops-ops2-sec2` certificate
+directory. A NEW `ops` service block is optional and may be `null` until M2
+proves a real operator backend; when present it must have a distinct service,
+roots, and loopback port. `edge-config.example.json` contains null placeholders
+and is intentionally unusable until M2 resolves those values. The validator
+refuses missing placeholders, old `aws-secops` service or path values,
+overlapping roots, duplicate ports, and a shared/incorrect certificate
+directory. The renderer hard-codes loopback as the only upstream address.
+
+`render-nginx` writes only to stdout. It produces an additive include with
+NEW-only `server_name` blocks, HTTP-to-HTTPS redirects, loopback-only upstreams,
+and WebSocket upgrade headers. It cannot replace or stop the OLD Nginx site.
+`ops2` is only a reverse proxy to a verified configured backend; the package
+does not create an operator/admin UI. If M2 finds no real NEW Ops backend, keep
+`ops` null so neither a DNS record nor an Nginx block is emitted for `ops2`;
+record the product gap separately.
+
+The dedicated TLS identity is `awsops-ops2-sec2`; exact file paths and
+certificate issuance remain private config. Use DNS-01 for issuance/renewal as
+the reference pattern did, but verify the existing challenge mechanism and
+least-privilege Route 53 policy for the exact `_acme-challenge` names first.
+This PR changes no IAM policy or certificate. Run `nginx -t` against the
+reviewed candidate include before any separately approved install/reload; do
+not replace the OLD site file.
+
+Offline invocations (no host-side effects):
+
+```sh
+python3 integration/edge/awsops_edge.py plan-dns \
+  --config "$AWSOPS_EDGE_CONFIG" --record-sets "$PRIVATE_ROUTE53_RECORDS_JSON"
+python3 integration/edge/awsops_edge.py render-nginx \
+  --config "$AWSOPS_EDGE_CONFIG"
+```
+
+Keep the config and readback private; commit neither runtime paths nor private
+DNS/provider output. There is no Nginx write, AWS apply, service start/stop, or
+live health request in these commands.
+
+Focused offline contract tests:
+
+```sh
+python3 -m unittest discover -s tests -p 'test_awsops_edge.py'
+```
+
+### M2 read-only runtime preflight
+
+Before filling the example config, G/operator should run these checks over the
+approved read-only transport. Keep raw output private and publish only the
+sanitized values needed by the activation map:
+
+```sh
+sudo systemctl show "$VERIFIED_OLD_UNIT" --property=Id --property=ActiveState \
+  --property=SubState --property=FragmentPath --property=User --property=Group \
+  --property=WorkingDirectory --property=EnvironmentFiles
+sudo systemctl show "$VERIFIED_NEW_UNIT" --property=Id --property=ActiveState \
+  --property=SubState --property=FragmentPath --property=User --property=Group \
+  --property=WorkingDirectory --property=EnvironmentFiles
+sudo certbot certificates
+sudo certbot plugins
+```
+
+First resolve exact unit names from the service inventory earlier in this
+document. Do not run a command for a guessed unit. Read referenced app
+configuration privately to confirm runtime/state roots, MongoDB database and
+volume identity, auth/session isolation, and browser/evidence paths; report
+only distinct/same and verified/unverified, never URIs, keys, usernames,
+cookies, or raw environment values. Confirm an actual `ops2` backend exists
+before enabling the optional `ops` block.
+
+For the existing DNS-01 principal, inspect current attached and inline policy
+names and contents read-only after verifying the operator identity and role:
+
+```sh
+aws sts get-caller-identity --profile "$VERIFIED_PROFILE" --output json
+aws iam list-attached-role-policies --role-name "$VERIFIED_DNS01_ROLE" --profile "$VERIFIED_PROFILE"
+aws iam list-role-policies --role-name "$VERIFIED_DNS01_ROLE" --profile "$VERIFIED_PROFILE"
+aws iam get-role-policy --role-name "$VERIFIED_DNS01_ROLE" \
+  --policy-name "$VERIFIED_INLINE_POLICY" --profile "$VERIFIED_PROFILE"
+aws iam get-policy --policy-arn "$VERIFIED_MANAGED_POLICY_ARN" --profile "$VERIFIED_PROFILE"
+aws iam get-policy-version --policy-arn "$VERIFIED_MANAGED_POLICY_ARN" \
+  --version-id "$VERIFIED_POLICY_VERSION" --profile "$VERIFIED_PROFILE"
+```
+
+Read the reported policy documents privately and confirm the existing policy
+can complete DNS-01 only for the required NEW challenge names and verified
+zone. Run `get-role-policy` only for a policy returned by `list-role-policies`;
+for a managed policy, use its returned ARN and default version from `get-policy`.
+Do not edit or widen IAM; if coverage is absent, stop for a separate approval.
+Do not publish role ARNs, account IDs, raw policy documents, or challenge
+values.
+
 ### NEW-only rollback
 
 If an approved NEW activation fails, disable/revert only the exact NEW DNS
