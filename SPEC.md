@@ -57,6 +57,33 @@ There is no generic model-facing AWS or decision API.
 - Runtime controller tests explicitly stub external auth/store/model services.
   They cannot certify native login, complete application startup or browser E2E.
 
+## Personal LAB credential standing authority
+
+For this repository's **personal LAB/DEV demo surfaces only**, Amit grants G
+standing authority to manage ordinary application/demo user credentials without
+a new approval for each account operation. G may perform the change directly
+when tooling allows or delegate it to the matching X/Codex worker.
+
+Within this boundary, G/X may:
+
+- reuse existing project credentials from the retained private `.env`, GitHub
+  repository/environment secret or variable stores, and AWS Secrets Manager;
+- create an application/demo user when the required LAB identity is absent;
+- assign or reset a LAB application password/credential when needed to restore
+  an approved demo or development journey;
+- keep the same credential synchronized across the approved private stores when
+  that is already the project pattern;
+- share the LAB username/password back to Amit through the private chat/session
+  or another private owner channel when needed for manual testing.
+
+Do not place secret values in this public repository, Issues, PRs, Actions logs,
+or public evidence. Prefer reusing an existing credential over generating a new
+one when the existing private source is valid. This standing authority covers
+application/demo credentials for config/sec/sync and related personal-LAB
+surfaces; it does **not** authorize PROD/company credentials, AWS IAM/SSO/access
+keys, broad secret rotation, OLD-environment credential copying, or unrelated
+identity-system changes.
+
 ## Deployment and rollback
 
 Issue #11 records the approved isolated canary on the existing verified LAB
