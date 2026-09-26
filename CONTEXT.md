@@ -57,7 +57,21 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
   ops HTTP 308/TLS 0, then HTTP 401/TLS 0 after its redirect. Private normal
   sec2 login returned HTTP 200 with a user object; its in-memory bearer accessed
   protected `/api/user` and `/api/models` at HTTP 200. M4 public and private
-  HTTP acceptance is complete; browser GUI navigation was not exercised.
+  HTTP acceptance was complete at Issue #33 closeout; browser GUI navigation
+  was exercised later under Issue #29 as recorded below.
+- Issue #29 M4 browser walkthrough (2026-09-26): all four public names resolved
+  and had valid TLS. On the retained host, headless Chromium reached each
+  hostname through the local Nginx listener with HTTPS hostname/certificate
+  verification intact. NEW `sec2` used its existing private NEW-only account
+  to complete normal browser login at `/c/new`; Chat History, Agent Builder,
+  Prompts, and New chat controls were clicked. NEW `ops2` showed its read-only
+  status page and its link opened `sec2` login. OLD `sec` showed LibreChat's
+  Welcome back login and its theme/registration navigation worked. OLD `ops`
+  redirected to a protected config endpoint with unauthenticated HTTP 401;
+  it is not a public click-through GUI. No OLD credential was available in this
+  session, so authenticated OLD sec navigation remains an operator Demo Day
+  check. No OLD service or state was changed. The concise sequence is
+  `docs/current/DEMO_DAY.md`; Issue #11 Reject remains deferred.
 - Separate NEW Certbot Route53 certificates have exact `sec2` and `ops2` SANs
   and expire 2026-12-25 UTC. The existing Certbot timer is enabled; actual
   unattended renewal has not yet been observed. Check it with
