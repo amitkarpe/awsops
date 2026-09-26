@@ -177,7 +177,7 @@ async function run(root){
     await agentSelect.waitFor({state:'visible',timeout:30000});
     stage='agent_combobox_click';
     if(!(await agentSelect.isEnabled()))throw Error('AGENT_COMBOBOX_DISABLED');
-    await agentSelect.evaluate(element=>element.click());
+    await agentSelect.click({force:true});
     const option=page.getByRole('option',{name,exact:true});
     stage='agent_option_probe';
     const directVisible=await option.waitFor({state:'visible',timeout:3000}).then(()=>true).catch(()=>false);
