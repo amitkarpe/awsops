@@ -46,6 +46,7 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
 - `aws-secops` is now formally treated as **FROZEN / REFERENCE** for new product work and remains **reference/archive** evidence until M5. `docs/architecture/AWS_SECOPS_HARVEST.md` is the canonical harvest matrix for old PR #192/#177. New implementation belongs only in `awsops`; old repo remains readable evidence until M5 cutover/archive.
 - Issue #29 M1-M3 are accepted: Home DEV is the normal development path, OLD demo names remain `ops.astromedicomp.org` / `sec.astromedicomp.org`, and NEW names are `ops2.astromedicomp.org` / `sec2.astromedicomp.org`.
 - Issue #33 M1 is merged in PR #34. `integration/edge/awsops_edge.py` now provides an offline NEW-only Route53 planner and additive Nginx renderer. It has no apply/reload/service path; OLD routes remain untouched.
+- Issue #33 standing personal-LAB authority covers exact NEW TLS/DNS-01, additive Nginx/service work, and narrow challenge-TXT IAM where needed. Bridge2 capability flags do not constrain Codex native execution. No OLD mutation, deletion, broad IAM, new compute/network resources or PROD.
 - Issue #33 Option A public reachability is live on the retained host. NEW `sec2`
   has isolated transient db/model/app units on loopback 27111/4312/4311,
   respectively; `/login` returns HTTP 200 with TLS verification 0. NEW `ops2`
