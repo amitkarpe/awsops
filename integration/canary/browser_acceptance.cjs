@@ -82,8 +82,7 @@ async function run(root){
     throw Error('CANARY_PYTHON_REQUIRED');
   process.env.PLAYWRIGHT_BROWSERS_PATH=path.join(root,'state/browser');
   const {chromium}=require(path.join(root,'app/node_modules/playwright'));
-  let browser,page,agentId,conversationId,agentName;
-  const option_state={count:0,visible:false,enabled:false,box:false,center_hit:false,search_visible:false,form_visible:false,select_completed:false};
+  let browser,page,agentId,conversationId;
   let stage='launch';
   const diagnostics=[];
   const resumeRequests=[];
@@ -136,8 +135,7 @@ async function run(root){
     if(!tools)throw Error('MCP_TOOL_NOT_READY');
 
     stage='agent_create';
-    agentName='AWS Ops Reject Canary '+Date.now();
-    const name=agentName;
+    const name='AWS Ops Reject Canary '+Date.now();
     const created=await api(page,'/api/agents','POST',{
       name,description:'Disposable Reject-only native acceptance agent.',
       instructions:'Call the provided S3 TLS decision tool exactly once. Never request or perform remediation.',
@@ -164,64 +162,32 @@ async function run(root){
     };
     writePrivate(path.join(root,'state/native.json'),native);
 
-    let agentSelected=false;
-    for(let attempt=0;attempt<3;attempt++){
-      try{
-        Object.assign(option_state,{count:0,visible:false,enabled:false,box:false,center_hit:false,
-          search_visible:false,form_visible:false,select_completed:false});
-        stage='agent_builder_open';
-        const form=await openAgentBuilder(page,value=>{stage=value},attempt>0);
-        stage='agent_builder_root';
-        const backToBuilder=form.getByRole('button',{name:'Back to builder',exact:true});
-        const agentSelect=form.getByRole('combobox',{name:'Agent',exact:true});
-        let builderRootReady=false;
-        for(let i=0;i<120;i++){
-          if(await agentSelect.isVisible().catch(()=>false)){builderRootReady=true;break}
-          if(await backToBuilder.isVisible().catch(()=>false)){
-            if(!(await backToBuilder.isEnabled()))throw Error('AGENT_BUILDER_BACK_DISABLED');
-            await backToBuilder.click();
-          }
-          await page.waitForTimeout(250);
-        }
-        if(!builderRootReady)throw Error('AGENT_BUILDER_ROOT_REQUIRED');
-        stage='agent_combobox_click';
-        if(!(await agentSelect.isEnabled()))throw Error('AGENT_COMBOBOX_DISABLED');
-        await agentSelect.click();
-        stage='agent_search_wait';
-        const search=page.getByPlaceholder('Search agents by name',{exact:true});
-        await search.waitFor({state:'visible',timeout:30000});
-        stage='agent_search';
-        await search.fill(name);
-        const option=page.getByRole('option',{name,exact:true});
-        stage='agent_option_wait';
-        await option.waitFor({state:'visible',timeout:30000});
-        option_state.count=await option.count();
-        option_state.visible=await option.isVisible().catch(()=>false);
-        option_state.enabled=await option.isEnabled().catch(()=>false);
-        option_state.search_visible=await search.isVisible().catch(()=>false);
-        option_state.form_visible=await form.isVisible().catch(()=>false);
-        option_state.box=await option.boundingBox().then(box=>!!(box&&box.width>0&&box.height>0)).catch(()=>false);
-        option_state.center_hit=await option.evaluate(element=>{
-          const rect=element.getBoundingClientRect();
-          if(!rect.width||!rect.height)return false;
-          const hit=document.elementFromPoint(rect.left+rect.width/2,rect.top+rect.height/2);
-          return !!(hit&&(hit===element||element.contains(hit)));
-        }).catch(()=>false);
-        stage='agent_option_enter';
-        await search.press('Enter');
-        option_state.select_completed=true;
-        stage='agent_select_submit';
-        const selectAgent=form.getByRole('button',{name:'Select Agent',exact:true});
-        await selectAgent.click();
-        agentSelected=true;
-        break;
-      }catch(error){
-        if(attempt===2)throw error;
-        stage='agent_selection_retry';
-        await page.waitForTimeout(250);
-      }
+    stage='agent_builder_open';
+    const form=await openAgentBuilder(page,value=>{stage=value});
+    stage='agent_builder_root';
+    const agentSelect=form.getByRole('combobox',{name:'Agent',exact:true});
+    await agentSelect.waitFor({state:'visible',timeout:30000});
+    stage='agent_combobox_click';
+    await agentSelect.click();
+    const option=page.getByRole('option',{name,exact:true});
+    stage='agent_option_wait';
+    await option.waitFor({state:'visible',timeout:30000});
+    stage='agent_option_click';
+    await option.click();
+    stage='agent_selection_confirm';
+    const agentNameField=form.getByLabel('Agent name');
+    await agentNameField.waitFor({state:'visible',timeout:30000});
+    let selectedAgentName='';
+    for(let attempt=0;attempt<120;attempt++){
+      selectedAgentName=await agentNameField.inputValue();
+      if(selectedAgentName===name)break;
+      await page.waitForTimeout(250);
     }
-    if(!agentSelected)throw Error('AGENT_SELECTION_UI_BLOCKED');
+    if(selectedAgentName!==name)throw Error('AGENT_SELECTION_MISMATCH');
+    stage='agent_builder_back';
+    await form.getByRole('button',{name:'Back to builder',exact:true}).click();
+    stage='agent_select_submit';
+    await form.getByRole('button',{name:'Select Agent',exact:true}).click();
 
     stage='send';
     const input=page.getByRole('textbox',{name:'Message input'});
@@ -317,25 +283,6 @@ async function run(root){
       browser_auth_exported:false,provider_readback:'PENDING',diagnostics};
   }catch{
     let agentCleanup=false,conversationCleanup=false;
-    const ui_state={select_agent_count:0,select_agent_visible:false,select_agent_enabled:false,
-      agent_name_count:0,agent_name_matches:false,agent_combobox_count:0,agent_combobox_matches:false};
-    if(page){
-      try{
-        const failedForm=page.getByRole('form',{name:'Agent configuration form'});
-        const failedSelect=failedForm.getByRole('button',{name:'Select Agent',exact:true});
-        const failedName=failedForm.getByLabel('Agent name');
-        const failedCombo=failedForm.getByRole('combobox',{name:'Agent',exact:true});
-        ui_state.select_agent_count=await failedSelect.count();
-        ui_state.select_agent_visible=await failedSelect.isVisible().catch(()=>false);
-        ui_state.select_agent_enabled=await failedSelect.isEnabled().catch(()=>false);
-        ui_state.agent_name_count=await failedName.count();
-        ui_state.agent_name_matches=typeof agentName==='string'
-          ?await failedName.inputValue().then(value=>value===agentName).catch(()=>false):false;
-        ui_state.agent_combobox_count=await failedCombo.count();
-        ui_state.agent_combobox_matches=typeof agentName==='string'
-          ?await failedCombo.innerText().then(value=>value.includes(agentName)).catch(()=>false):false;
-      }catch{}
-    }
     if(page&&agentId){
       try{const removed=await api(page,'/api/agents/'+encodeURIComponent(agentId),'DELETE');
         agentCleanup=removed.ok||removed.status===404;}catch{}
@@ -347,7 +294,7 @@ async function run(root){
     }
     return {version:1,outcome:'REJECT_UI_BLOCKED',stage,browser_auth_exported:false,
       agent_created:!!agentId,conversation_created:!!conversationId,resume_submissions:resumeRequests.length,
-      agent_cleanup:agentCleanup,conversation_archived:conversationCleanup,ui_state,option_state,diagnostics};
+      agent_cleanup:agentCleanup,conversation_archived:conversationCleanup,diagnostics};
   }finally{
     login.password='';
     if(browser)await browser.close();
