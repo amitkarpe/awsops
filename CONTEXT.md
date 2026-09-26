@@ -86,11 +86,8 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
 
 ## Next
 
-1. Preserve the accepted OLD and NEW demos and periodically check public health
-   plus Certbot renewal. PR #35 is merged; its read-only collector CI and the
-   separate live M4 evidence are both recorded on Issue #33. A future browser
-   GUI walkthrough may add evidence but is not needed for the HTTP acceptance.
-2. Continue Issue #11 / PR #13 to the real isolated Reject -> receipt -> provider readback -> Archive acceptance.
+1. Execute Issue #29 M4 Demo Day readiness now: exercise the supported OLD and NEW browser GUI paths, fix only demo blockers, and produce one concise click-through checklist for Amit. Preserve the accepted HTTP/API baseline from Issue #33.
+2. Issue #11 / PR #13 native Reject acceptance is explicitly DEFERRED by Amit and is non-blocking. Do not resume unless Amit re-prioritizes it.
 3. Keep old aws-secops PR #177 deferred unless a concrete future awsops read-adapter milestone needs it; Issue #14 remains independent and implies no cleanup mutation.
 
 Do not create another roadmap or mistake code/CI acceptance for live completion.
