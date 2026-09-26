@@ -100,7 +100,7 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
 
 ## Next
 
-1. Execute Issue #29 M4 Demo Day readiness now: exercise the supported OLD and NEW browser GUI paths, fix only demo blockers, and produce one concise click-through checklist for Amit. Preserve the accepted HTTP/API baseline from Issue #33.
+1. Issue #29 M4 is nearly complete. PR #37 merged the Demo Day checklist and real browser evidence. NEW sec2 authenticated browser navigation, NEW ops2 read-only UI, OLD sec login UI, and OLD ops protected-endpoint behavior are verified. The only remaining Demo Day check is authenticated OLD sec chat navigation using the pre-existing private OLD account. Do not create/reset OLD credentials without explicit authority.
 2. Issue #11 / PR #13 native Reject acceptance is explicitly DEFERRED by Amit and is non-blocking. Do not resume unless Amit re-prioritizes it.
 3. Keep old aws-secops PR #177 deferred unless a concrete future awsops read-adapter milestone needs it; Issue #14 remains independent and implies no cleanup mutation.
 
