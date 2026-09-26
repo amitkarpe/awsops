@@ -163,6 +163,12 @@ async function run(root){
 
     stage='agent_builder_open';
     const form=await openAgentBuilder(page,value=>{stage=value},false);
+    stage='agent_builder_root';
+    const backToBuilder=form.getByRole('button',{name:'Back to builder',exact:true});
+    if(await backToBuilder.isVisible().catch(()=>false)){
+      await backToBuilder.click();
+      await form.waitFor({state:'visible',timeout:30000});
+    }
     stage='agent_combobox_wait';
     const agentSelect=form.getByRole('combobox',{name:'Agent',exact:true});
     await agentSelect.waitFor({state:'visible',timeout:30000});
