@@ -15,6 +15,22 @@ Read in this order:
 
 GitHub is durable engineering state. Chat history is not authoritative.
 
+## Canonical Agent OS routing
+
+Use this repository file as the local router; do **not** load all of Agent OS for every task.
+
+Relevant canonical guidance:
+- [Agent Operating Principles](https://github.com/amitkarpe/agent-os/blob/main/kb/principles/amit-agent-operating-principles.md) — intent-led, evidence-gated delivery and Critical Path First.
+- [ChatGPT and Codex Collaboration Protocol](https://github.com/amitkarpe/agent-os/blob/main/kb/playbooks/integrations/chatgpt-codex-collaboration-protocol.md) — G research/planning, X execution truth, handoffs and acceptance.
+- [Context Loading Economy](https://github.com/amitkarpe/agent-os/blob/main/kb/playbooks/integrations/context-loading-economy.md) — warm continuation versus authority/recovery reloads.
+- [GitHub OIDC and AWS-Owned Control](https://github.com/amitkarpe/agent-os/blob/main/kb/playbooks/integrations/github-oidc-aws-control.md) — durable bounded AWS control and provider readback.
+
+Working default:
+- G/ChatGPT owns intent clarification, research sufficiency, ordered plan, scope, safety and final acceptance.
+- X/Codex owns live environment facts, implementation, low-level CLI/SSM/AWS execution and validation, and must challenge stale/infeasible plans.
+- “80/20” is a heuristic, not a fixed ratio. Simple work may be mostly X; unfamiliar/high-risk/stateful work should be G-researched before mutation.
+- Local `SPEC.md` plus the owning Issue/user instruction define actual AWS authority. Agent OS guidance never widens permission.
+
 ## Migration rule
 
 `amitkarpe/aws-secops` is a **reference/archive**, not a template to copy.
