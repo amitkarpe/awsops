@@ -1,6 +1,13 @@
 {
   "dns_target_fqdn": null,
   "ops": null,
+  "config": {
+    "service_unit": null,
+    "runtime_root": null,
+    "state_root": null,
+    "loopback_port": null,
+    "basic_auth_file": null
+  },
   "sec": {
     "service_unit": null,
     "runtime_root": null,
@@ -8,8 +15,20 @@
     "loopback_port": null
   },
   "tls": {
-    "identity": "awsops-ops2-sec2",
-    "certificate_file": null,
-    "private_key_file": null
+    "ops": {
+      "identity": "awsops-ops2",
+      "certificate_file": null,
+      "private_key_file": null
+    },
+    "config": {
+      "identity": "awsops-config2",
+      "certificate_file": null,
+      "private_key_file": null
+    },
+    "sec": {
+      "identity": "awsops-sec2",
+      "certificate_file": null,
+      "private_key_file": null
+    }
   }
 }
