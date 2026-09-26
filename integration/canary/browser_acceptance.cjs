@@ -165,13 +165,17 @@ async function run(root){
     const form=await openAgentBuilder(page,value=>{stage=value},false);
     stage='agent_builder_root';
     const backToBuilder=form.getByRole('button',{name:'Back to builder',exact:true});
-    if(await backToBuilder.isVisible().catch(()=>false)){
-      await backToBuilder.click();
-      await form.waitFor({state:'visible',timeout:30000});
-    }
-    stage='agent_combobox_wait';
     const agentSelect=form.getByRole('combobox',{name:'Agent',exact:true});
-    await agentSelect.waitFor({state:'visible',timeout:30000});
+    let builderRootReady=false;
+    for(let i=0;i<120;i++){
+      if(await agentSelect.isVisible().catch(()=>false)){builderRootReady=true;break}
+      if(await backToBuilder.isVisible().catch(()=>false)){
+        if(!(await backToBuilder.isEnabled()))throw Error('AGENT_BUILDER_BACK_DISABLED');
+        await backToBuilder.click();
+      }
+      await page.waitForTimeout(250);
+    }
+    if(!builderRootReady)throw Error('AGENT_BUILDER_ROOT_REQUIRED');
     stage='agent_combobox_click';
     if(!(await agentSelect.isEnabled()))throw Error('AGENT_COMBOBOX_DISABLED');
     await agentSelect.click();
