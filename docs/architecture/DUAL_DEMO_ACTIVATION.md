@@ -66,100 +66,63 @@ for a failed earlier one.
 | Service/runtime | The `awsops` resource ledger reports retained LibreChat/Ops/MongoDB services on the `amit` runtime, but does not assign them to the requested NEW public hostnames. | No persistent `ops2/sec2` service mapping is in repository evidence. Exact units, users, checkout/config/data roots, MongoDB identities, auth/session state, and dependencies are `VERIFY-BEFORE-ACTIVATION`. The Issue #11 canary is not proof of these services. |
 | Health | OLD URLs are user-reported working; current health endpoints and responses were not queried. | Verify DNS, TLS/SNI and host routing, service revision, documented readiness path, normal auth, database connectivity, and OLD unchanged. NEW health paths and expected status/content are `VERIFY-BEFORE-ACTIVATION`. |
 
-### Read-only resolution checks
+### M2 read-only operator flow
 
-Run these only later through the approved operator channel. Keep full output
-private; record only sanitized record types/TTL/targets, service names/states,
-port roles, and pass/fail in the public Issue. Do not run them as part of this
-documentation-only mission.
+Use `integration/edge/preflight-config.example.json` as a **schema**, then
+create a private owner-only config outside Git. Supply the verified AWS profile,
+public Route 53 hosted-zone ID, retained-host DNS target, and a fresh private
+evidence directory. Enter old/new unit names, candidate ports, Nginx config
+file, certbot config directory, and DNS-01 role only after confirming each on
+the retained host. Leave any unknown optional value `null`; never copy the old
+repo's historical ports, units, or paths. The operator environment needs
+Python 3.12, boto3, and the read-only `dig`, `nginx`, `systemctl`, `ss`, `jq`, and
+`certbot` commands with permissions to inspect their current state.
 
-1. Compare recursive answers and delegation for all four names:
+Run exactly this one command later through the approved operator transport:
 
-   ```sh
-   for host in ops.astromedicomp.org sec.astromedicomp.org ops2.astromedicomp.org sec2.astromedicomp.org; do
-     for type in CNAME A AAAA; do dig +noall +answer "$host" "$type"; done
-   done
-   dig +noall +answer astromedicomp.org NS
-   ```
+```sh
+python3 -m integration.edge.preflight --config "$AWSOPS_M2_PRIVATE_CONFIG" --output-dir "$AWSOPS_M2_PRIVATE_EVIDENCE_DIR"
+```
 
-   If OLD answers but NEW is empty, check the authoritative zone and delegation
-   before concluding the records are absent. The Chrome symptom alone cannot
-   distinguish an absent record from a wrong authority or resolver state.
+The config must be mode 0600 and outside the repository. The evidence directory
+must be a fresh absolute path outside Git; the collector creates it mode 0700
+or validates an existing empty owner-only directory. It sets `umask 077` and
+writes raw evidence files mode 0600 only there. It uses a named boto3 profile
+for STS identity, the exact Route 53 zone and its records, and existing IAM
+policy documents only when a DNS-01 role was explicitly supplied. Fixed host
+reads inspect public NS delegation, Nginx, systemd units, listeners, and
+certbot certificate/plugin state. There is no shell passthrough, apply mode,
+Route 53 change, IAM write, service control, proxy reload, or browser step.
 
-2. After verifying the approved account/profile and exact public hosted zone,
-   use Route 53 read-only calls to inspect only the four names:
+The private `PRIVATE_ROUTE53_PLANNER_JSON` contains only the verified target
+record and the `ops`, `sec`, `ops2`, `sec2` record sets. It is emitted **only**
+when the readback contains exactly one A record set for the configured target.
+The collector also runs the reviewed `jq -e` exact-one-A assertion on that
+private planner file; a false/missing assertion sets target verification to
+false. This preserves the reviewed `93806d6` safety delta and avoids using the
+four-name inspection result as planner input. The collector never changes OLD
+or NEW DNS. If the target fails validation, inspect the private full-zone
+readback and stop; do not infer a replacement target.
 
-   ```sh
-   aws route53 list-hosted-zones-by-name --dns-name astromedicomp.org --profile "$VERIFIED_PROFILE" --output json
-   aws route53 list-resource-record-sets --hosted-zone-id "$VERIFIED_ZONE_ID" --profile "$VERIFIED_PROFILE" \
-     --output json > "$PRIVATE_ROUTE53_RECORDS_JSON"
-   TARGET_FQDN="${VERIFIED_DNS_TARGET%.}."
-   jq --arg target "$TARGET_FQDN" \
-     '{ResourceRecordSets:[.ResourceRecordSets[] | select(.Name==$target or .Name=="ops.astromedicomp.org." or .Name=="sec.astromedicomp.org." or .Name=="ops2.astromedicomp.org." or .Name=="sec2.astromedicomp.org.")]}' \
-     "$PRIVATE_ROUTE53_RECORDS_JSON" > "$PRIVATE_ROUTE53_PLANNER_JSON"
-   ```
+The one public-safe JSON summary is printed and saved privately as
+`PUBLIC_SAFE_SUMMARY.json`. Its fields are `schema_version`, `status`,
+`activation_ready`, `dns` (delegation/zone and target-A proof, plus fixed-name
+OLD/NEW record states), `edge` (vhost states), `services` (role states),
+`listeners` (inventory and explicitly nominated ports free at that snapshot),
+`separation` (runtime/state, auth/session, browser/evidence), `tls_dns01`
+(certificate, plugin, policy-document and effective-coverage states),
+`ops2_backend`, `collision`, and fixed reason codes. It contains no account
+ID, role ARN, raw policy, private path, process name, secret, or environment
+value. The collector exits 2 with `status=NOT_READY` whenever required proof is
+unknown or conflicting; technical/input failure exits 3. A free port at one
+snapshot is not a reservation.
 
-   The reference profile alias is only a hint. Reverify the caller identity and
-   zone ownership; if another provider/zone owns delegation, use its read-only
-   record inventory instead. Resolve `VERIFIED_DNS_TARGET` from the reviewed
-   OLD/edge mapping before building `PRIVATE_ROUTE53_PLANNER_JSON`. That private
-   planner input must contain the target's existing A record plus the four public
-   names; otherwise `plan-dns` fails closed. Feed that file to the offline planner:
-
-   ```sh
-   python3 integration/edge/awsops_edge.py plan-dns \
-     --config "$AWSOPS_EDGE_CONFIG" \
-     --record-sets "$PRIVATE_ROUTE53_PLANNER_JSON"
-   ```
-
-   The verified record inventory determines the exact target and whether the
-   planned CNAMEs are safe; do not infer those values from the historical repo.
-
-3. On the verified host, inventory proxy and runtime without changing them:
-
-   ```sh
-   sudo nginx -T
-   sudo systemctl list-units --type=service --all --no-legend
-   sudo systemctl list-unit-files --type=service --no-legend
-   sudo ss -ltnp
-   ```
-
-   Inspect the Nginx `server_name`, `listen`, TLS certificate references, and
-   `proxy_pass`/upstream mapping for OLD and any NEW names. Match unit names,
-   process owners, listener sockets, and checkout/config roots. Nginx dumps and
-   service metadata can contain private values; keep raw output private and
-   publish only sanitized mapping facts. Do not assume `nginx`, `aws-secops-*`,
-   or any unit name is the current awsops NEW service name.
-
-4. For every candidate NEW upstream discovered above, use its verified private
-   loopback port and application-documented health path for a read-only local
-   probe, for example:
-
-   ```sh
-   curl --fail --silent --show-error --max-time 5 \
-     "http://127.0.0.1:${VERIFIED_NEW_PORT}/${VERIFIED_HEALTH_PATH}"
-   ```
-
-   Resolve the port and path from the actual service/config and application
-   documentation first. Do not probe a guessed port or treat an open socket as
-   health. Validate HTTPS hostname/TLS and normal auth only during a separately
-   approved acceptance window.
-
-   In that separately approved window, check SNI/certificate verification and
-   the documented HTTPS health path for each NEW hostname:
-
-   ```sh
-   openssl s_client -connect "${VERIFIED_EDGE}:443" -servername ops2.astromedicomp.org -verify_return_error </dev/null
-   openssl s_client -connect "${VERIFIED_EDGE}:443" -servername sec2.astromedicomp.org -verify_return_error </dev/null
-   curl --fail --silent --show-error --max-time 10 \
-     "https://ops2.astromedicomp.org/${VERIFIED_OPS_HEALTH_PATH}"
-   curl --fail --silent --show-error --max-time 10 \
-     "https://sec2.astromedicomp.org/${VERIFIED_SEC_HEALTH_PATH}"
-   ```
-
-   `VERIFIED_EDGE` and both verified health paths must come from the reviewed
-   activation map. These checks are not part of the current repository-only
-   mission.
+Generic systemd/Nginx/certbot output cannot prove MongoDB, auth/session, or
+browser/evidence isolation, and IAM policy documents alone cannot prove
+effective DNS-01 permission. The collector reports those dimensions `UNKNOWN`
+and `activation_ready=false` until a separate private operator review resolves
+them. Do not treat the saved DNS plan or a successful read as activation
+authority. M3 still requires an explicit change review and approval.
 
 ### Proposed change set after values are verified
 
@@ -221,7 +184,8 @@ Offline invocations (no host-side effects):
 
 ```sh
 python3 integration/edge/awsops_edge.py plan-dns \
-  --config "$AWSOPS_EDGE_CONFIG" --record-sets "$PRIVATE_ROUTE53_RECORDS_JSON"
+  --config "$AWSOPS_EDGE_CONFIG" \
+  --record-sets "$AWSOPS_M2_PRIVATE_EVIDENCE_DIR/PRIVATE_ROUTE53_PLANNER_JSON"
 python3 integration/edge/awsops_edge.py render-nginx \
   --config "$AWSOPS_EDGE_CONFIG"
 ```
@@ -236,52 +200,12 @@ Focused offline contract tests:
 python3 -m unittest discover -s tests -p 'test_awsops_edge.py'
 ```
 
-### M2 read-only runtime preflight
-
-Before filling the example config, G/operator should run these checks over the
-approved read-only transport. Keep raw output private and publish only the
-sanitized values needed by the activation map:
-
-```sh
-sudo systemctl show "$VERIFIED_OLD_UNIT" --property=Id --property=ActiveState \
-  --property=SubState --property=FragmentPath --property=User --property=Group \
-  --property=WorkingDirectory --property=EnvironmentFiles
-sudo systemctl show "$VERIFIED_NEW_UNIT" --property=Id --property=ActiveState \
-  --property=SubState --property=FragmentPath --property=User --property=Group \
-  --property=WorkingDirectory --property=EnvironmentFiles
-sudo certbot certificates
-sudo certbot plugins
-```
-
-First resolve exact unit names from the service inventory earlier in this
-document. Do not run a command for a guessed unit. Read referenced app
-configuration privately to confirm runtime/state roots, MongoDB database and
-volume identity, auth/session isolation, and browser/evidence paths; report
-only distinct/same and verified/unverified, never URIs, keys, usernames,
-cookies, or raw environment values. Confirm an actual `ops2` backend exists
-before enabling the optional `ops` block.
-
-For the existing DNS-01 principal, inspect current attached and inline policy
-names and contents read-only after verifying the operator identity and role:
-
-```sh
-aws sts get-caller-identity --profile "$VERIFIED_PROFILE" --output json
-aws iam list-attached-role-policies --role-name "$VERIFIED_DNS01_ROLE" --profile "$VERIFIED_PROFILE"
-aws iam list-role-policies --role-name "$VERIFIED_DNS01_ROLE" --profile "$VERIFIED_PROFILE"
-aws iam get-role-policy --role-name "$VERIFIED_DNS01_ROLE" \
-  --policy-name "$VERIFIED_INLINE_POLICY" --profile "$VERIFIED_PROFILE"
-aws iam get-policy --policy-arn "$VERIFIED_MANAGED_POLICY_ARN" --profile "$VERIFIED_PROFILE"
-aws iam get-policy-version --policy-arn "$VERIFIED_MANAGED_POLICY_ARN" \
-  --version-id "$VERIFIED_POLICY_VERSION" --profile "$VERIFIED_PROFILE"
-```
-
-Read the reported policy documents privately and confirm the existing policy
-can complete DNS-01 only for the required NEW challenge names and verified
-zone. Run `get-role-policy` only for a policy returned by `list-role-policies`;
-for a managed policy, use its returned ARN and default version from `get-policy`.
-Do not edit or widen IAM; if coverage is absent, stop for a separate approval.
-Do not publish role ARNs, account IDs, raw policy documents, or challenge
-values.
+The M2 collector above replaces individual DNS, Nginx, systemd, certbot, and
+IAM command sequences. Its raw files are private inputs for the operator's
+separate review of database/state identity, auth/session isolation, browser
+profiles, evidence directories, and exact DNS-01 policy coverage. Publish only
+the bounded summary and the resulting reviewed change map; never publish raw
+unit configuration, account identity, policy documents, or certificate paths.
 
 ### NEW-only rollback
 
