@@ -43,6 +43,7 @@ the presentation:
 - one 4-account x 2-control Markdown matrix first;
 - compact status emojis: ✅ compliant, 🔴 non-compliant, ⚠️ insufficient data,
   ⚪ not applicable;
+- Status, Explain, and Plan are mutually exclusive response modes;
 - **Explain** adds only a short attention table using aliases and aggregate counts;
 - **Plan** adds only a short remediation table whose execution column is always
   `🚫 Not executed`;
