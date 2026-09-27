@@ -8,6 +8,8 @@ for `go` between routine steps. Stop only at Issue #56 hard gates.
 
 ## M2 — real Home bootstrap
 
+**Status: BLOCKED on Home execution access, not on code.** The current Bridge worker was verified as Amit's **office WSL (Ubuntu 24.04 on WSL2)** and is explicitly unsuitable for runtime installation. Docker/MongoDB/LibreChat/tunnel tooling must not be installed there. Direct Home/Hermes Bridge currently fails closed with `missing trusted checkout`; aws-platform Issue #106 owns that operator-side trust/binding fix.
+
 - [ ] Fresh `awsops/main` on Home Ubuntu.
 - [ ] `python scripts/home_demo.py check` PASS.
 - [ ] Pinned LibreChat prepare/verify PASS.
@@ -57,3 +59,12 @@ cookies, browser storage, owner passwords, raw private findings or tunnel secret
 
 This PR remains open until M2-M5 pass. Routine fixes, scripts, tests and docs are
 added to this same PR. Merge only after Issue #56 acceptance is complete.
+
+
+## Execution environment boundary — 2026-09-28
+
+- Office laptop / office WSL: **NO runtime installs**. Read/review/Git/docs only.
+- Home system: all Docker/Compose, MongoDB, LibreChat, Playwright/browser and tunnel work.
+- Current direct Home/Hermes profile: **BLOCKED — missing trusted checkout**.
+- Existing aws-platform relay remains rollback/transport evidence, but it is not permission to install runtime dependencies on office WSL.
+- Resume M2 only after the Home system is addressable through the trusted operator path. Do not improvise an office fallback.
