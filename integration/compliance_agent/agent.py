@@ -24,10 +24,34 @@ def _response_mode(user_request: str) -> str:
     return "STATUS"
 
 
+def _mode_layout(mode: str) -> str:
+    if mode == "STATUS":
+        return """STATUS MODE:
+- After the matrix, add at most one short summary sentence.
+- Do not add any second table, explanation table, remediation table, suggestion or implementation detail."""
+    if mode == "EXPLAIN":
+        return """EXPLAIN MODE:
+- After the matrix, add exactly one compact table:
+  | Needs attention | Why | Affected |
+- Include only evidence-backed NON_COMPLIANT or insufficient-data items.
+- For S3 NON_COMPLIANT, the reason is only: bucket-level Block Public Access is not in the compliant configuration.
+- For restricted SSH NON_COMPLIANT, the reason is only: unrestricted SSH ingress is present.
+- Use aliases and aggregate counts only.
+- Do not include suggested changes, remediation steps, priorities or an execution column."""
+    return """PLAN MODE:
+- After the matrix, add exactly one compact table:
+  | Priority | Control | Suggested change | Execution |
+- For S3 NON_COMPLIANT, suggest only bringing bucket-level Block Public Access into the compliant configuration.
+- For restricted SSH NON_COMPLIANT, suggest only removing unrestricted SSH ingress and, if access is still required, replacing it with an approved source.
+- Every Execution cell must be "🚫 Not executed".
+- Do not include a separate attention/explanation table."""
+
+
 def build_prompt(user_request: str, evidence: dict[str, Any]) -> str:
     request = _request(user_request)
     mode = _response_mode(request)
     packet = json.dumps(evidence, separators=(",", ":"), sort_keys=True)
+    layout = _mode_layout(mode)
     return f"""USER_REQUEST:
 {request}
 
@@ -40,15 +64,12 @@ AUTHORITATIVE_EVIDENCE_JSON:
 RULES:
 - Answer only from AUTHORITATIVE_EVIDENCE_JSON.
 - This Issue #39 migration slice is read-only. Never claim that a change was applied, approved, executed or verified.
-- You may answer current status, explain one current finding, and provide a no-change remediation plan.
 - Name the registered LAB aliases and exact supported controls when relevant.
 - Missing, partial, stale or unavailable evidence is not compliant evidence.
 - affected_resources is an aggregate count only; no resource or account identifiers are available.
-- For S3 NON_COMPLIANT, say only that bucket-level Block Public Access should be brought into the compliant configuration.
-- For restricted SSH NON_COMPLIANT, say only that unrestricted SSH ingress should be removed and, if access is still required, replaced with an approved source.
 - AWS Config is asynchronous evidence. Do not infer exposure, exploitability, activity, data sensitivity, authentication behavior, or unrelated controls.
 - Do not invent identifiers, policies, ports, CIDRs, resource names or implementation details.
-- If asked to fix/apply/remediate now, provide a plan only and state that no change is executed in this migration slice.
+- If asked to fix/apply/remediate now, RESPONSE_MODE must be PLAN and no change may be claimed.
 
 OUTPUT CONTRACT:
 - Use compact Markdown only. Be KISS and demo-friendly.
@@ -66,21 +87,14 @@ OUTPUT CONTRACT:
   ⚠️ INSUFFICIENT_DATA
   ⚪ NOT_APPLICABLE
 - Never turn missing, stale, partial, unavailable or warning evidence into a green status.
-- RESPONSE_MODE is authoritative. Produce only the layout for that one mode; never combine modes.
-- STATUS: after the matrix, add at most one short summary sentence. Do not include attention or plan tables.
-- EXPLAIN: after the matrix, add exactly one compact table:
-  | Needs attention | Why | Affected |
-  Include only evidence-backed NON_COMPLIANT or insufficient-data items. Use aliases and aggregate counts only.
-  Do not include a remediation-plan table or suggested changes.
-- PLAN: after the matrix, add exactly one compact table:
-  | Priority | Control | Suggested change | Execution |
-  Use only the bounded S3 BPA / restricted-SSH guidance above. Every Execution cell must be "🚫 Not executed".
-  Do not include a separate attention/explanation table.
+- RESPONSE_MODE is authoritative. Follow only MODE_LAYOUT below.
 - Keep the full answer under about 220 words unless the user explicitly asks for detail.
 - End every answer with exactly:
   > 🛡️ **Read-only:** No AWS changes executed.
-"""
 
+MODE_LAYOUT:
+{layout}
+"""
 
 def answer(
     user_request: str,
