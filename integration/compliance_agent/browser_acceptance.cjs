@@ -33,6 +33,15 @@ function ensurePrivateDir(directory) {
   if (!stat.isDirectory() || (stat.mode & 0o077) !== 0 || (process.getuid && stat.uid !== process.getuid()))
     throw Error('PRIVATE_EVIDENCE_DIR_REQUIRED');
 }
+
+async function requireVisible(locator, code, timeout = 30000) {
+  try {
+    await locator.waitFor({state: 'visible', timeout});
+  } catch (error) {
+    if (error?.name === 'TimeoutError') throw Error(code);
+    throw error;
+  }
+}
 async function api(page, urlPath, method = 'GET', body) {
   return page.evaluate(async ({urlPath, method, body}) => {
     const refresh = await fetch('/api/auth/refresh', {method: 'POST', credentials: 'include',
@@ -95,16 +104,22 @@ async function selectAgent(page) {
     await page.goto(`${BASE}/c/new`, {waitUntil: 'domcontentloaded'});
   }
   const selector = page.getByTestId('model-selector-button');
-  await selector.waitFor({state: 'visible', timeout: 30000});
+  await requireVisible(selector, 'MODEL_SELECTOR_REQUIRED');
   if ((await selector.innerText()).trim() === AGENT) return;
   await selector.click();
   const search = page.locator('#model-search');
-  await search.waitFor({state: 'visible', timeout: 15000});
+  await requireVisible(search, 'MODEL_SEARCH_REQUIRED', 15000);
   await search.fill(AGENT);
   await page.waitForTimeout(800);
   const option = page.getByRole('option').filter({hasText: AGENT});
   if (await option.count() !== 1) throw Error('EXACT_AGENT_OPTION_REQUIRED');
-  await option.click();
+  await requireVisible(option, 'AGENT_OPTION_VISIBLE_REQUIRED', 15000);
+  try {
+    await option.click({timeout: 15000});
+  } catch (error) {
+    if (error?.name === 'TimeoutError') throw Error('AGENT_OPTION_CLICK_TIMEOUT');
+    throw error;
+  }
   const deadline = Date.now() + 30000;
   while ((await selector.innerText()).trim() !== AGENT && Date.now() < deadline) {
     await page.waitForTimeout(250);
@@ -131,11 +146,22 @@ async function renderedSnapshot(page) {
 async function acceptPrompt(page, mode, evidenceDir, gitHead, registerConversation) {
   await selectAgent(page);
   const input = page.getByRole('textbox', {name: 'Message input'});
+  await requireVisible(input, 'MESSAGE_INPUT_REQUIRED');
   await input.fill(contract.MODES[mode]);
   const admission = page.waitForResponse((response) => response.request().method() === 'POST' &&
-    new URL(response.url()).pathname === '/api/agents/chat' && response.status() === 200);
-  await input.press('Enter'); await admission;
-  await page.waitForURL(/\/c\/(?!new)[A-Za-z0-9_-]{1,128}$/, {timeout: 30000});
+    new URL(response.url()).pathname === '/api/agents/chat' && response.status() === 200, {timeout: 45000})
+    .catch((error) => {
+      if (error?.name === 'TimeoutError') throw Error('AGENT_CHAT_ADMISSION_TIMEOUT');
+      throw error;
+    });
+  await input.press('Enter');
+  await admission;
+  try {
+    await page.waitForURL(/\/c\/(?!new)[A-Za-z0-9_-]{1,128}$/, {timeout: 30000});
+  } catch (error) {
+    if (error?.name === 'TimeoutError') throw Error('CONVERSATION_URL_TIMEOUT');
+    throw error;
+  }
   const conversationId = new URL(page.url()).pathname.slice(3);
   registerConversation(conversationId);
   const snapshot = await contract.waitForSettledSnapshot(async () => {
