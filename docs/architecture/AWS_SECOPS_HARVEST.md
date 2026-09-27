@@ -2,7 +2,7 @@
 
 Status: ACTIVE MIGRATION REFERENCE  
 Owner: awsops Issue #1  
-Updated: 2026-09-25
+Updated: 2026-09-27
 
 ## Repository roles
 
@@ -28,9 +28,9 @@ Current value: **HIGH as evidence/test-pattern source**.
 | Area | Decision | Target |
 | --- | --- | --- |
 | exact native card validation: one Reject / zero Approve / exact tool+scope | **KEEP** | PR #13 browser acceptance |
-| rendered-state waits while card/stream UI is settling | **KEEP** | canonical browser harness |
-| auth-safe diagnostics: route/method/status/header-name presence only | **KEEP** | browser troubleshooting |
-| supported native Archive cleanup bound to exact conversation | **KEEP** | replace Delete-style conversation cleanup |
+| rendered-state waits while card/stream UI is settling | **KEEP** | `integration/compliance_agent/browser_acceptance.cjs` + PR #13 |
+| auth-safe diagnostics: route/method/status/header-name presence only | **KEEP** | canonical Playwright browser troubleshooting |
+| supported native Archive cleanup bound to exact conversation | **KEEP** | canonical Playwright harness; never Delete |
 | Reject submitted once / no accidental Approve | **KEEP** | acceptance assertion |
 | durable REJECTED receipt before continuation | **KEEP CONCEPT** | current awsops ledger/receipt implementation |
 | zero remediation/MCP dispatch on Reject | **KEEP** | canary acceptance |
@@ -50,8 +50,14 @@ Current value: **HIGH as evidence/test-pattern source**.
 
 ### Important #192 lesson
 
+The generic browser harvest is now proven in awsops Issue #49 / PR #54. The
+canonical architecture and lessons are in
+`docs/architecture/PLAYWRIGHT_E2E.md`.
+
 The 401 investigation proved that a browser-harness failure must not be
-mistaken for a production-auth failure.
+mistaken for a production-auth failure. PR #54 added a stronger version of that
+rule: bind persisted MCP output, persisted assistant text and rendered DOM
+before calling the browser path accepted.
 
 The cleanup lesson is also explicit:
 
@@ -62,8 +68,11 @@ The cleanup lesson is also explicit:
 
 Do not continue feature development there.
 
-Keep it open only until the remaining useful browser/recovery patterns are
-confirmed in awsops PR #13. Then close it as:
+The reusable generic browser patterns are already confirmed in awsops PR #54.
+Reject-specific acceptance remains owned by awsops PR #13, but the old PR does
+not need to stay open to preserve reference code. A closed PR remains readable.
+
+Close it as:
 
 **superseded by awsops migration; retained as R&D/evidence reference**
 
@@ -131,15 +140,17 @@ aws-secops is frozen reference material only.
 Do not implement new product work there.
 
 For current M3, continue Issue #11 / PR #13.
-Read old aws-secops PR #192 only to harvest missing browser/recovery patterns.
+Read old aws-secops PR #192 only when a missing Reject/recovery detail still
+needs source evidence. Generic Playwright/browser mechanics are already
+harvested into awsops; see `docs/architecture/PLAYWRIGHT_E2E.md`.
 Do not copy old deployment/runtime architecture wholesale.
 ```
 
 ## Cutover sequence
 
 1. finish awsops M3 real authenticated Reject acceptance;
-2. confirm #192 browser/recovery harvest is complete;
-3. close old PR #192 as superseded/reference;
+2. generic #192 browser harvest is complete in Issue #49 / PR #54;
+3. close old PR #192 as superseded/reference when doing old-repo hygiene;
 4. close old PR #177 as deferred/superseded unless a concrete future milestone needs it;
 5. keep aws-secops readable as historical evidence;
 6. complete M4 selective remediation migration;
