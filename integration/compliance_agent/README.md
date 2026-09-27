@@ -35,6 +35,13 @@ Runtime inputs stay private:
 
 No remediation, re-arm, generic AWS tool or Issue #11 flow is included here.
 
+The MCP surface intentionally returns **only the final Markdown string** to
+LibreChat. The richer evidence envelope remains inside the Python agent for
+tests and internal validation, but it is no longer exposed to the outer
+LibreChat model. This reduces the opportunity for a second model pass to invent
+or reinterpret evidence. The authenticated browser acceptance below still
+fails closed if LibreChat rewrites even that final string.
+
 ## KISS response contract
 
 Issue #49 keeps the reasoning/evidence contract unchanged and standardizes only
@@ -75,3 +82,47 @@ https://github.com/amitkarpe/awsops/blob/g/issue-39-g-implementation/integration
 X must validate the effective LibreChat tool name after installation before the
 agent record is enabled. If the installed name differs, stop and reconcile the
 server key/spec rather than widening the agent tool list.
+
+
+## Authenticated browser acceptance — Issue #49
+
+The canonical browser harness is:
+
+`integration/compliance_agent/browser_acceptance.cjs`
+
+It selectively reuses the proven browser mechanics from current `awsops` PR
+#13 and frozen `aws-secops` PR #192: normal LibreChat login, same-origin
+request observation, settled-turn sampling, exact tool-call binding, persisted
+message readback and supported Archive cleanup. Reject/Approve/canary/executor
+logic is deliberately not reused.
+
+The harness runs three fresh conversations:
+
+1. `Status`
+2. `Explain what needs attention`
+3. `Give me a remediation plan without making changes`
+
+For each conversation it requires exactly one `ask_compliance_agent` tool
+call, extracts that tool's final Markdown, reads the persisted assistant
+message from `/api/messages/<conversation>`, and requires an exact normalized
+match. Any outer-agent rewrite is a failure.
+
+It additionally fails on:
+
+- missing or extra LAB aliases/controls;
+- mixed Status / Explain / Plan layouts;
+- quoted/blockquoted/trailing guardrail text;
+- invented account IDs, ARNs, resource IDs, IPs/CIDRs, port 22, bastion,
+  sensitive-data, public-internet or exploitability claims;
+- any answer that does not end exactly with
+  `🛡️ **Read-only:** No AWS changes executed.`
+
+Runtime inputs stay private. The harness expects an owner-only root directory
+containing `state/login.json` (mode 0600), plus
+`AWSOPS_PLAYWRIGHT_MODULE` pointing at an existing approved Playwright
+installation. It never exports cookies, bearer tokens or browser storage state.
+Screenshots and JSON manifests are written only under the private
+`evidence/` directory and must not be committed.
+
+Every exact test conversation is Archived and read back as
+`isArchived=true`; the harness never Deletes conversations.
