@@ -1,6 +1,6 @@
 import unittest
 
-from integration.compliance_agent.agent import _response_mode, build_prompt
+from integration.compliance_agent.agent import _normalize_final_answer, _response_mode, build_prompt
 
 
 class ComplianceAgentPromptTests(unittest.TestCase):
@@ -24,6 +24,12 @@ class ComplianceAgentPromptTests(unittest.TestCase):
         self.assertIn("RESPONSE_MODE:\nEXPLAIN", prompt)
         self.assertIn("| Needs attention | Why | Affected |", prompt)
         self.assertNotIn("| Priority | Control | Suggested change | Execution |", prompt)
+
+    def test_final_guardrail_normalization_is_exact(self):
+        raw = '| Account | x | y |\n"🛡️ **Read-only:** No AWS changes executed"'
+        self.assertTrue(_normalize_final_answer(raw).endswith(
+            "🛡️ **Read-only:** No AWS changes executed."
+        ))
 
     def test_plan_prompt_excludes_explain_guidance(self):
         prompt = build_prompt(
