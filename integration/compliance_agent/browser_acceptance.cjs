@@ -78,7 +78,7 @@ async function exactAgent(page) {
   const agentId = matches[0].id ?? matches[0]._id;
   if (typeof agentId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(agentId))
     throw Error('EXACT_AGENT_ID_REQUIRED');
-  const detail = await api(page, `/api/agents/${encodeURIComponent(agentId)}`);
+  const detail = await api(page, `/api/agents/${encodeURIComponent(agentId)}/expanded`);
   const agent = detail.ok ? (detail.json?.agent ?? detail.json) : null;
   if (!agent || agent.name !== AGENT) throw Error('EXACT_AGENT_DETAIL_REQUIRED');
   const tools = agent.tools;
@@ -92,20 +92,24 @@ async function exactAgent(page) {
 
 async function selectAgent(page) {
   await page.goto(`${BASE}/c/new`, {waitUntil: 'domcontentloaded'});
-  const selector = page.getByTestId('model-selector-button');
-  await selector.waitFor({state: 'visible', timeout: 30000});
-  if ((await selector.innerText()).trim() === AGENT) return;
-  await selector.click();
-  const search = page.locator('#model-search');
-  await search.waitFor({state: 'visible', timeout: 15000});
-  await search.fill(AGENT);
-  await page.waitForTimeout(500);
-  await search.press('Enter');
-  const deadline = Date.now() + 30000;
-  while ((await selector.innerText()).trim() !== AGENT && Date.now() < deadline) {
-    await page.waitForTimeout(250);
+  const form = page.getByRole('form', {name: 'Agent configuration form'});
+  const builderVisible = await form.waitFor({state: 'visible', timeout: 1000})
+    .then(() => true).catch(() => false);
+  if (!builderVisible) {
+    const button = page.getByRole('button', {name: 'Agent Builder'});
+    await button.waitFor({state: 'visible', timeout: 30000});
+    if (await button.getAttribute('aria-pressed') !== 'true') await button.click();
   }
-  if ((await selector.innerText()).trim() !== AGENT) throw Error('AGENT_SELECTION_MISMATCH');
+  await form.waitFor({state: 'visible', timeout: 30000});
+  await form.getByRole('combobox', {name: 'Agent', exact: true}).click();
+  const option = page.getByRole('option', {name: AGENT, exact: true});
+  await option.waitFor({state: 'visible', timeout: 30000});
+  await option.click();
+  const name = form.getByLabel('Agent name');
+  await name.waitFor({state: 'visible', timeout: 30000});
+  if (await name.inputValue() !== AGENT) throw Error('AGENT_SELECTION_MISMATCH');
+  await form.getByRole('button', {name: 'Back to builder'}).click();
+  await form.getByRole('button', {name: 'Select Agent'}).click();
 }
 
 async function renderedSnapshot(page) {
