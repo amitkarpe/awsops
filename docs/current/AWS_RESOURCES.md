@@ -35,12 +35,14 @@
 | **Amazon Lightsail** | **USD 8.28** |
 | Tax | USD 4.83 |
 | Amazon VPC | USD 3.00 |
-| Amazon Bedrock | USD 2.66 |
+| Amazon Bedrock | USD 2.67 |
 | EC2 - Other | USD 1.84 |
 | AWS Config | USD 1.60 |
 | Amazon Bedrock AgentCore | USD 1.48 |
 | Amazon Inspector | USD 1.41 |
 | Amazon Route 53 | USD 0.65 |
+| AWS Key Management Service | USD 0.63 |
+| CodeBuild | USD 0.45 |
 
 ## 🔴 EC2 / always-on compute
 
@@ -48,7 +50,7 @@ Always-on compute is intentionally separated because it is the first cost lever 
 
 | Account | EC2 name | Project | Compute | State | Age | Estimated monthly | Decision |
 | --- | --- | --- | --- | --- | --- | ---: | --- |
-| **amit** | **`agentcore-issue19-librechat-poc-r01`** | shared-runtime | **`t3.medium`** | running | 23d | **~USD 38.54 compute** | **RETAIN** |
+| **amit** | **`agentcore-issue19-librechat-poc-r01`** | shared-runtime | **`t3.medium`** | running | 26d | **~USD 38.54 compute** | **RETAIN** |
 | **vagent** | **`seccop-project1-old-ami-host-r01`** | Security Copilot | **`t3.small`** | running + public IPv4 | 27d | **~USD 19.27 compute list-price** | **CLEANUP-CANDIDATE** |
 
 ## `amit` retained host
@@ -77,7 +79,7 @@ Approximate incremental gp3 cost: **~USD 0.96/month**.
 
 | Project | Account | Name | Resource class | Qty | State | Age | Purpose | Cost | Decision | Evidence |
 | --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- |
-| shared-runtime | **amit** | `agentcore-issue19-librechat-poc-r01` | EC2 retained demo host | 1 | running | 23d | LibreChat + Ops retained personal-LAB runtime | EST ~USD 38.54/mo compute | RETAIN | LIVE |
+| shared-runtime | **amit** | `agentcore-issue19-librechat-poc-r01` | EC2 retained demo host | 1 | running | 26d | LibreChat + Ops retained personal-LAB runtime | EST ~USD 38.54/mo compute | RETAIN | LIVE |
 | aws-secops | **amit** | - | AWS Config rule | 2 | present | UNKNOWN | issue-88-config-evidence | USAGE-BASED | REVIEW | LIVE |
 | aws-secops | **amit** | - | AgentCore Gateway | 1 | present | 16d | governed-harmless-tool | USAGE-BASED | CLEANUP-CANDIDATE | LIVE |
 | aws-secops | **amit** | - | AgentCore Harness | 3 | present | UNKNOWN | compliance-agent-v1 | USAGE-BASED | RETAIN | LIVE |
