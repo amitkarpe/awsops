@@ -35,6 +35,22 @@ Runtime inputs stay private:
 
 No remediation, re-arm, generic AWS tool or Issue #11 flow is included here.
 
+## KISS response contract
+
+Issue #49 keeps the reasoning/evidence contract unchanged and standardizes only
+the presentation:
+
+- one 4-account x 2-control Markdown matrix first;
+- compact status emojis: ✅ compliant, 🔴 non-compliant, ⚠️ insufficient data,
+  ⚪ not applicable;
+- **Explain** adds only a short attention table using aliases and aggregate counts;
+- **Plan** adds only a short remediation table whose execution column is always
+  `🚫 Not executed`;
+- every answer ends with `🛡️ Read-only: No AWS changes executed.`;
+- no repeated prose when the table already communicates the same fact.
+
+Live compliance values are never hardcoded; every cell remains derived from the
+authoritative config2 evidence packet.
 
 ## LibreChat registration contract
 
