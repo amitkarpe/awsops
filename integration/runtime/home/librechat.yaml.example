@@ -1,0 +1,18 @@
+version: 1.3.1
+
+mcpServers:
+  awsops_compliance_agent:
+    type: stdio
+    command: "${AWSOPS_HOME_PYTHON}"
+    args:
+      - -m
+      - integration.compliance_agent.mcp_server
+    env:
+      PYTHONPATH: "${AWSOPS_HOME_REPO}"
+      AWSOPS_CONFIG_BACKEND_URL: "http://127.0.0.1:4313"
+      COMPLIANCE_AGENT_V1_HARNESS_ARN: "${COMPLIANCE_AGENT_V1_HARNESS_ARN}"
+      AWS_REGION: "ap-southeast-1"
+    timeout: 30000
+    initTimeout: 10000
+    chatMenu: false
+    serverInstructions: true
