@@ -137,6 +137,8 @@ class ComplianceAgentBrowserContractTests(unittest.TestCase):
                           "api/convos/delete", "api/convos/all", "Reject", "s3_ssl", "candidate.json"]:
             self.assertNotIn(forbidden, source)
         self.assertIn("contract.archiveRequest(conversationId)", source)
+        self.assertIn("/api/agents/\${encodeURIComponent(agentId)}", source)
+        self.assertIn("EXACT_AGENT_DETAIL_REQUIRED", source)
         self.assertIn("connectOverCDP", source)
         self.assertIn("--host-resolver-rules=MAP sec2.astromedicomp.org 127.0.0.1", source)
         self.assertIn("loopback_origin", source)
