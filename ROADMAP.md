@@ -40,12 +40,16 @@ provider readback, supported Archive cleanup and retained-service protection.
 
 - Compliance Agent Status / Explain / no-change Plan share one KISS Markdown
   matrix across the exact four aliases and two controls.
-- Status, Explain and Plan are mutually exclusive response modes; Explain adds
-  only attention evidence, while Plan marks every suggested change
-  `🚫 Not executed`.
-- Live NEW sec2 tool smokes passed 3/3 with `mutation=false`, eight evidence
-  checks, exactly one MCP tool and zero actions.
-- Config2 and OLD sec/ops/config regressions remained healthy and unchanged.
+- PR #54 adds one canonical Playwright acceptance harness by reusing proven
+  browser mechanics from deferred PR #13 and frozen aws-secops PR #192.
+- Persisted MCP output must equal final/rendered assistant output; format drift
+  fails closed to canonical evidence rendering, so extra prose, invented
+  identifiers/risk claims, quoted guardrails, and mode mixing are rejected.
+- Live NEW sec2 browser acceptance passed 3/3; all three exact test conversations
+  were archived, browser auth/storage state were not exported, and the agent
+  remained exactly one read-only tool / zero actions.
+- Config2 remained READY/non-partial with four aliases, eight checks and two
+  controls; NEW/OLD sec/ops/config regressions remained healthy and unchanged.
 
 ## M4 - bounded remediation migration - NOT STARTED
 
