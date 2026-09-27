@@ -97,6 +97,24 @@ MODE_LAYOUT:
 {layout}
 """
 
+def _normalize_final_answer(value: str) -> str:
+    """Normalize only the exact final read-only guardrail; leave other drift visible."""
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("agent answer is invalid")
+    lines = value.strip().splitlines()
+    if not lines:
+        raise ValueError("agent answer is invalid")
+    final = lines[-1].strip()
+    final = final.removeprefix(">").strip()
+    final = final.strip('"“”')
+    if final in {
+        "🛡️ **Read-only:** No AWS changes executed",
+        "🛡️ **Read-only:** No AWS changes executed.",
+    }:
+        lines[-1] = "🛡️ **Read-only:** No AWS changes executed."
+    return "\n".join(lines).strip()
+
+
 def answer(
     user_request: str,
     *,
@@ -115,7 +133,7 @@ def answer(
     return {
         "version": 2,
         "agent": "awsops Compliance Agent",
-        "answer": result["answer"],
+        "answer": _normalize_final_answer(result["answer"]),
         "evidence": {
             "source": evidence["source"],
             "fetched_at": evidence["fetched_at"],
