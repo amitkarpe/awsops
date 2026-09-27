@@ -1,0 +1,30 @@
+# DEFERRED ISSUE #11 ONLY.
+# This preserves the accepted host launch contract for the deterministic Reject-canary
+# model. It is NOT required by the read-only Home demo and must not be enabled merely
+# to run the AWS Ops Compliance Agent.
+[Unit]
+Description=awsops deferred Issue #11 deterministic canary model
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ssm-user
+Group=ssm-user
+WorkingDirectory=/opt/awsops-native-canary/awsops
+Environment=HOME=/opt/awsops-native-canary/state/home
+ExecStart=/usr/bin/node /opt/awsops-native-canary/awsops/integration/canary/fixture_model.cjs /opt/awsops-native-canary
+Restart=on-failure
+RestartSec=3
+TasksMax=128
+CPUQuota=70%
+KillMode=control-group
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+NoNewPrivileges=true
+ReadWritePaths=/opt/awsops-native-canary
+MemoryMax=192M
+
+[Install]
+WantedBy=multi-user.target

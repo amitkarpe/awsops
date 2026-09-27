@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "repository": "LibreChat-AI/LibreChat",
+  "repository_url": "https://github.com/LibreChat-AI/LibreChat.git",
+  "release": "v0.8.8-rc1",
+  "commit": "cdfe54c3498818b21b33fb609fee02f2742b37ea",
+  "purpose": "Pinned source used to reconstruct the NEW sec2 LibreChat runtime without copying the EC2 filesystem"
+}

@@ -23,6 +23,18 @@ preparation/readback through the isolated SSM probe. Evidence is in
 Require authenticated native Reject, durable receipt, zero dispatch, unchanged
 provider readback, supported Archive cleanup and retained-service protection.
 
+## Home runtime preservation / EC2 stop-readiness - IN PROGRESS (#56)
+
+- Capture the non-secret config2/sec2 runtime/service contract in Git.
+- Pin LibreChat source and provide a fresh Home rebuild path; never copy EC2
+  secrets, database/browser state or TLS private material.
+- Keep Issue #11 Reject-canary model deferred; do not import it into the
+  read-only Home baseline.
+- CI must validate the runtime contract, local config2 health and config2 build.
+- Final acceptance requires a real Home browser journey plus a separate public
+  tunnel proof before the retained `amit` EC2 may be stopped.
+- This milestone authorizes no EC2/DNS/IAM/network/tunnel mutation.
+
 ## Operational hygiene - AWS resource ledger - IN PROGRESS (#14)
 
 - Canonical public Markdown ledger: `docs/current/AWS_RESOURCES.md`.
@@ -61,8 +73,8 @@ Every new/retained M4 AWS resource must appear in the resource ledger.
 
 - `aws-secops` is frozen for **new product development**.
 - Harvest matrix: `docs/architecture/AWS_SECOPS_HARVEST.md`.
-- PR #192 is a high-value browser/E2E reference for M3 only; do not continue product development there.
-- PR #177 is deferred reference material; do not port merely for parity.
+- PR #192 is preserved in frozen `aws-secops/main` and remains a high-value browser/E2E reference; do not continue product development there.
+- PR #177 is also preserved in frozen `aws-secops/main`; do not port its persistent read-adapter merely for parity.
 - Old repository history/evidence remains readable until M5.
 
 ## M5 - parity and cutover - NOT STARTED

@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "observed_on": "2026-09-27",
+  "purpose": "Public-safe retained-host runtime inventory used only for rebuild and stop-readiness",
+  "config2": {
+    "source_commit": "078e4992576cbd8f668c9ddb614df0fc6975c6bc",
+    "source_path": "integration/config_dashboard",
+    "service": "awsops-config2-app.service",
+    "listen": "127.0.0.1:4313",
+    "environment_file": "/etc/awsops/config2.env",
+    "working_directory": "/opt/awsops/config2/current",
+    "generated_assets": "dist/"
+  },
+  "sec2": {
+    "librechat_pin": "integration/runtime/librechat-runtime.json",
+    "app_service": "awsops-sec2-app.service",
+    "app_listen": "127.0.0.1:4311",
+    "database_service": "awsops-sec2-db.service",
+    "database_listen": "127.0.0.1:27111",
+    "compliance_agent_source": "integration/compliance_agent",
+    "deferred_issue11_model": {
+      "service": "awsops-sec2-model.service",
+      "listen": "127.0.0.1:4312",
+      "source_ref": "PR #13 @ e6486c016a3119c92995a97a932f24640765352d",
+      "canonical_home_required": false,
+      "reason": "Issue #11 deterministic Reject-canary model is preserved as deferred reference and is not part of the read-only Home demo"
+    }
+  },
+  "edge": {
+    "ops2": "redirect to config2",
+    "config2": "authenticated proxy to 127.0.0.1:4313",
+    "sec2": "proxy to 127.0.0.1:4311"
+  }
+}
