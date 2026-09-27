@@ -10,7 +10,7 @@
     "decision": "REVIEW",
     "source": "REPO-EVIDENCE",
     "first_seen": "2026-09-11",
-    "note": "live revalidation pending; TTL is a review deadline"
+    "note": "live account inventory 2026-09-27: 109 buckets total; bounded 100-bucket fleet remains repo-evidence/review scope"
   },
   {
     "project": "Security Copilot",
@@ -24,7 +24,7 @@
     "source": "LIVE",
     "first_seen": "2026-08-31",
     "monthly_usd": 19.27,
-    "note": "live read 2026-09-25; TTL expired; no deletion authorized",
+    "note": "live read 2026-09-27; running with public IPv4, 20 GiB encrypted gp3, TTL expired; no deletion authorized",
     "resource_name": "seccop-project1-old-ami-host-r01"
   }
 ]
