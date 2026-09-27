@@ -73,8 +73,8 @@ Every new/retained M4 AWS resource must appear in the resource ledger.
 
 - `aws-secops` is frozen for **new product development**.
 - Harvest matrix: `docs/architecture/AWS_SECOPS_HARVEST.md`.
-- PR #192 is a high-value browser/E2E reference for M3 only; do not continue product development there.
-- PR #177 is deferred reference material; do not port merely for parity.
+- PR #192 is preserved in frozen `aws-secops/main` and remains a high-value browser/E2E reference; do not continue product development there.
+- PR #177 is also preserved in frozen `aws-secops/main`; do not port its persistent read-adapter merely for parity.
 - Old repository history/evidence remains readable until M5.
 
 ## M5 - parity and cutover - NOT STARTED
