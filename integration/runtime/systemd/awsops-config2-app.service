@@ -1,0 +1,19 @@
+[Unit]
+Description=awsops NEW read-only Config Dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ssm-user
+Group=ssm-user
+WorkingDirectory=/opt/awsops/config2/current
+EnvironmentFile=/etc/awsops/config2.env
+ExecStart=/usr/bin/node server.mjs
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
