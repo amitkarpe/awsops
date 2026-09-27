@@ -175,6 +175,6 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
    Explain / no-change Plan output are the current NEW demo path. Use
    `docs/current/DEMO_DAY.md` for rehearsal.
 3. Issue #11 / PR #13 native Reject acceptance is explicitly DEFERRED by Amit and is non-blocking. Do not resume unless Amit re-prioritizes it.
-4. Keep old aws-secops PR #177 deferred unless a concrete future awsops read-adapter milestone needs it; Issue #14 remains independent and implies no cleanup mutation.
+4. `aws-secops` PR #177 and PR #192 are now preserved in frozen `aws-secops/main`; do not port either merely for parity. Reuse only when a concrete `awsops` milestone needs the capability. Issue #14 remains independent and implies no cleanup mutation.
 
 Do not create another roadmap or mistake code/CI acceptance for live completion.
