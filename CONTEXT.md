@@ -81,16 +81,19 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
   the NEW sec2 model allowlist, restored service-user execute access to the NEW
   MCP virtual environment, and recovered only the transient NEW sec2 app unit.
   No OLD auth/state or agent model/tool record was changed.
-- Issue #49 presentation polish is accepted on the live NEW sec2 read-only
-  Compliance Agent path. Status, Explain, and no-change Plan now use a compact
-  four-alias x two-control Markdown matrix with useful status emojis; Explain
-  adds only the evidence-backed attention table, and Plan adds only the
-  no-execution remediation table. Live prompt smokes passed 3/3 with eight
-  evidence checks and `mutation=false`; the MCP surface remains exactly one
-  read-only tool with zero actions. Config2 remained READY/non-partial with
-  four aliases, eight checks and two controls. NEW/OLD TLS and routing
-  regressions passed; no AWS resource, IAM, network, DNS, TLS, auth or OLD
-  runtime state was changed.
+- Issue #49 presentation polish is accepted through the live NEW sec2 browser
+  path. PR #54 harvested the proven browser mechanics from deferred PR #13 and
+  frozen aws-secops PR #192 into one canonical Playwright acceptance harness.
+  Status / Explain / no-change Plan passed 3/3 against the exact reviewed head:
+  each answer is bound to the persisted MCP output, rendered with the exact
+  four-alias x two-control matrix and final read-only guardrail, and its exact
+  test conversation is archived. The harness exports no browser auth or storage
+  state. Model-format drift now fails closed to canonical evidence rendering,
+  preventing the quote/rewrite/invented-detail regression exposed by the owner
+  screenshot. Config2 remained READY/non-partial with four aliases, eight checks
+  and two controls; the agent remained exactly one read-only tool / zero actions.
+  NEW/OLD TLS and routing regressions passed; no AWS resource, IAM, network, DNS,
+  TLS, auth, model/provider, remediation, or OLD runtime state was changed.
 - OLD `ops/config/sec` remained active and unchanged through the merged-main
   recovery. Independent public checks returned TLS verification 0 and expected
   statuses: OLD sec 200, OLD ops 308 to config, OLD config 401; NEW sec2 200,
