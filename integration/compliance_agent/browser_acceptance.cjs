@@ -75,13 +75,19 @@ async function exactAgent(page) {
   const matches = listed.ok && Array.isArray(listed.json?.data)
     ? listed.json.data.filter((agent) => agent?.name === AGENT) : [];
   if (matches.length !== 1) throw Error('EXACT_AGENT_REQUIRED');
-  const tools = matches[0].tools;
+  const agentId = matches[0].id ?? matches[0]._id;
+  if (typeof agentId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(agentId))
+    throw Error('EXACT_AGENT_ID_REQUIRED');
+  const detail = await api(page, `/api/agents/${encodeURIComponent(agentId)}`);
+  const agent = detail.ok ? (detail.json?.agent ?? detail.json) : null;
+  if (!agent || agent.name !== AGENT) throw Error('EXACT_AGENT_DETAIL_REQUIRED');
+  const tools = agent.tools;
   if (!Array.isArray(tools) || JSON.stringify(tools) !== JSON.stringify([contract.TOOL]))
     throw Error('ONE_READ_ONLY_TOOL_REQUIRED');
   for (const field of ['actions', 'action_ids', 'agentActions']) {
-    if (Array.isArray(matches[0][field]) && matches[0][field].length) throw Error('ZERO_ACTIONS_REQUIRED');
+    if (Array.isArray(agent[field]) && agent[field].length) throw Error('ZERO_ACTIONS_REQUIRED');
   }
-  return matches[0];
+  return agent;
 }
 
 async function selectAgent(page) {
