@@ -96,7 +96,10 @@ async function selectAgent(page) {
   await selector.waitFor({state: 'visible', timeout: 30000});
   if ((await selector.innerText()).trim() === AGENT) return;
   await selector.click();
-  const option = page.getByText(AGENT, {exact: true});
+  const search = page.locator('#model-search');
+  await search.waitFor({state: 'visible', timeout: 15000});
+  await search.fill(AGENT);
+  const option = page.getByRole('menuitem').filter({hasText: AGENT});
   if (await option.count() !== 1) throw Error('EXACT_AGENT_OPTION_REQUIRED');
   await option.waitFor({state: 'visible', timeout: 30000});
   await option.click();
