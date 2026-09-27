@@ -170,12 +170,6 @@ async function acceptPrompt(page, mode, evidenceDir, gitHead, registerConversati
       !/^[A-Za-z0-9_-]{1,128}$/.test(conversationId)) {
     throw Error('PERSISTED_CONVERSATION_REQUIRED');
   }
-  try {
-    await page.waitForURL(`/c/${conversationId}`, {timeout: 30000});
-  } catch (error) {
-    if (error?.name === 'TimeoutError') throw Error('CONVERSATION_URL_TIMEOUT');
-    throw error;
-  }
   registerConversation(conversationId);
   const snapshot = await contract.waitForSettledSnapshot(async () => {
     const persisted = await api(page, `/api/messages/${encodeURIComponent(conversationId)}`);
