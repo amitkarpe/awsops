@@ -10,7 +10,8 @@ mcp = FastMCP(
     instructions=(
         "Use ask_compliance_agent for current four-account S3 Block Public Access "
         "or restricted-SSH status, explanation and no-change planning. "
-        "This Issue #39 tool has no remediation capability."
+        "Return the evidence-grounded KISS Markdown answer unchanged, including "
+        "its compact tables and read-only guardrail. This tool has no remediation capability."
     ),
 )
 
