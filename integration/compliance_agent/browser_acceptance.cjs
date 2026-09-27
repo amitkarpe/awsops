@@ -67,29 +67,36 @@ async function api(page, urlPath, method = 'GET', body) {
   }, {urlPath, method, body});
 }
 
-async function openAgentBuilder(page) {
+async function openAgentBuilder(page, mark = () => {}) {
+  mark('agent_page');
   await page.goto(ORIGIN + '/c/new', {waitUntil: 'domcontentloaded'});
+  mark('agent_form_probe');
   const form = page.getByRole('form', {name: 'Agent configuration form'});
   const visible = await form.waitFor({state: 'visible', timeout: 1500}).then(() => true).catch(() => false);
   if (!visible) {
+    mark('agent_builder_button');
     const button = page.getByRole('button', {name: 'Agent Builder', exact: true});
     await button.waitFor({state: 'visible', timeout: 15000});
     if (!(await button.isEnabled())) throw Error('AGENT_BUILDER_DISABLED');
     if (await button.getAttribute('aria-pressed') !== 'true') await button.click();
   }
+  mark('agent_form_wait');
   await form.waitFor({state: 'visible', timeout: 30000});
   return form;
 }
 
-async function selectAgent(page) {
-  const form = await openAgentBuilder(page);
+async function selectAgent(page, mark = () => {}) {
+  const form = await openAgentBuilder(page, mark);
+  mark('agent_combobox');
   const agentSelect = form.getByRole('combobox', {name: 'Agent', exact: true});
   await agentSelect.waitFor({state: 'visible', timeout: 30000});
   await agentSelect.click();
+  mark('agent_option');
   const option = page.getByRole('option', {name: AGENT_NAME, exact: true});
   await option.waitFor({state: 'visible', timeout: 30000});
   await option.click();
 
+  mark('agent_name');
   const nameField = form.getByLabel('Agent name');
   await nameField.waitFor({state: 'visible', timeout: 30000});
   let selected = '';
@@ -100,7 +107,9 @@ async function selectAgent(page) {
   }
   if (selected !== AGENT_NAME) throw Error('AGENT_SELECTION_MISMATCH');
 
+  mark('agent_builder_back');
   await form.getByRole('button', {name: 'Back to builder', exact: true}).click();
+  mark('agent_submit');
   await form.getByRole('button', {name: 'Select Agent', exact: true}).click();
 }
 
@@ -161,7 +170,7 @@ async function runPrompt(page, root, mode, diagnostics, pageErrors, mark = () =>
   const prompt = contract.PROMPTS[mode];
   if (!prompt) throw Error('MODE_REQUIRED');
   mark(mode + '_agent_select');
-  await selectAgent(page);
+  await selectAgent(page, (step) => mark(mode + '_' + step));
 
   mark(mode + '_composer');
   const input = page.getByRole('textbox', {name: 'Message input'});
