@@ -1,0 +1,26 @@
+[Unit]
+Description=awsops NEW sec2 LibreChat application
+After=network-online.target awsops-sec2-db.service
+Wants=network-online.target awsops-sec2-db.service
+
+[Service]
+Type=simple
+User=ssm-user
+Group=ssm-user
+WorkingDirectory=/opt/awsops-native-canary/app
+EnvironmentFile=/etc/awsops/sec2-service.env
+ExecStart=/usr/bin/node api/server/index.js
+Restart=on-failure
+RestartSec=3
+TasksMax=128
+CPUQuota=70%
+KillMode=control-group
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+NoNewPrivileges=true
+ReadWritePaths=/opt/awsops-native-canary
+MemoryMax=768M
+
+[Install]
+WantedBy=multi-user.target
