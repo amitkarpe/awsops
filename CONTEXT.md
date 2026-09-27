@@ -19,8 +19,10 @@ Amit granted standing approval on 2026-09-27 to continue M2-M5 without repeated
 read-only AWS SSO evidence, establish one NEW-only temporary public tunnel using
 a provider-assigned hostname, and after M1-M4 pass stop exactly the retained
 `amit` EC2. That instance may be stopped but never terminated under Issue #56.
-No EBS/EIP deletion, custom Route53 migration, broad IAM, live remediation,
-Lightsail mutation or protected `vagent` mutation is authorized.
+No EBS/EIP deletion, custom Route53 migration, broad IAM, live remediation or
+Lightsail mutation is authorized. Amit separately authorized **STOP only** for
+the `vagent` EC2 on 2026-09-28; terminate/delete/resize/retag/EBS/EIP/IAM/network/DNS
+changes remain unauthorized.
 
 Issue #14 owns operational hygiene: the public-safe AWS resource/cost ledger,
 account-level cost visibility and retained-host capacity evidence. Amit explicitly
