@@ -1,0 +1,25 @@
+[Unit]
+Description=awsops NEW sec2 isolated MongoDB
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ssm-user
+Group=ssm-user
+Environment=HOME=/opt/awsops-native-canary/state/home
+ExecStart=/usr/bin/mongod --dbpath /opt/awsops-native-canary/state/mongo --bind_ip 127.0.0.1 --port 27111 --wiredTigerCacheSizeGB 0.25 --logpath /opt/awsops-native-canary/state/logs/mongo.log --nounixsocket --setParameter diagnosticDataCollectionEnabled=false
+Restart=on-failure
+RestartSec=3
+TasksMax=128
+CPUQuota=70%
+KillMode=control-group
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+NoNewPrivileges=true
+ReadWritePaths=/opt/awsops-native-canary
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target
