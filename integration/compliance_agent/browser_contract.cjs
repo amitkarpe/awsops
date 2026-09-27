@@ -91,13 +91,24 @@ function collectToolCalls(messages) {
 
 function persistedBinding(messages) {
   const calls = collectToolCalls(messages);
-  if (calls.length !== 1 || calls[0].name !== LOGICAL_TOOL || typeof calls[0].id !== 'string' ||
-      !/^[A-Za-z0-9_-]{1,128}$/.test(calls[0].id))
+  if (calls.length !== 1 || ![TOOL, LOGICAL_TOOL].includes(calls[0].name) ||
+      typeof calls[0].id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(calls[0].id))
     fail('EXACT_TOOL_CALL_REQUIRED');
+
   const candidates = findToolResult(calls[0].output);
-  if (candidates.length !== 1) fail('EXACT_TOOL_OUTPUT_REQUIRED');
-  const toolResult = candidates[0];
-  validateEvidence(toolResult.evidence);
+  let toolResult;
+  let toolAnswer;
+  if (candidates.length === 1) {
+    toolResult = candidates[0];
+    validateEvidence(toolResult.evidence);
+    toolAnswer = normalize(toolResult.answer);
+  } else if (candidates.length === 0 && typeof calls[0].output === 'string' && calls[0].output.trim()) {
+    toolAnswer = normalize(calls[0].output);
+    toolResult = {answer: toolAnswer, mutation: false, evidence: null, persistedOutput: true};
+  } else {
+    fail('EXACT_TOOL_OUTPUT_REQUIRED');
+  }
+
   const messageText = (message) => {
     if (typeof message?.text === 'string' && message.text.trim()) return message.text;
     if (!Array.isArray(message?.content)) return '';
@@ -108,7 +119,7 @@ function persistedBinding(messages) {
     message?.isCreatedByUser === false && messageText(message));
   if (!assistant) fail('FINAL_ASSISTANT_REQUIRED');
   const assistantText = normalize(messageText(assistant));
-  if (assistantText !== normalize(toolResult.answer)) fail('OUTER_AGENT_REWRITE_DETECTED');
+  if (assistantText !== toolAnswer) fail('OUTER_AGENT_REWRITE_DETECTED');
   return {toolCallId: calls[0].id, toolResult, assistantText};
 }
 
@@ -157,20 +168,43 @@ function expectedStatus(check) {
   return `${prefix} (${check.affected_resources} affected)`;
 }
 
-function assertMatrix(table, checks) {
+function parseStatusCell(cell) {
+  if (cell === '✅ COMPLIANT') return {status: 'COMPLIANT', affected_resources: 0};
+  if (cell === '⚠️ INSUFFICIENT_DATA') return {status: 'INSUFFICIENT_DATA', affected_resources: null};
+  if (cell === '⚪ NOT_APPLICABLE') return {status: 'NOT_APPLICABLE', affected_resources: null};
+  const match = cell.match(/^🔴 NON_COMPLIANT \((\d+) affected\)$/);
+  if (match) return {status: 'NON_COMPLIANT', affected_resources: Number(match[1])};
+  fail('STATUS_CELL_INVALID');
+}
+
+function matrixChecks(table) {
   if (!table || JSON.stringify(table.header) !== JSON.stringify(['Account', '🪣 S3 BPA', '🔐 Restricted SSH']) ||
       table.rows.length !== 4) fail('STATUS_MATRIX_REQUIRED');
+  const checks = new Map();
   table.rows.forEach((row, index) => {
     const alias = ALIASES[index];
     if (row.length !== 3 || row[0] !== alias) fail('STATUS_MATRIX_REQUIRED');
     CONTROLS.forEach((control, controlIndex) => {
-      const expected = expectedStatus(checks.get(`${alias}\0${control}`));
-      if (row[controlIndex + 1] !== expected) fail('STATUS_EVIDENCE_MISMATCH');
+      checks.set(`${alias}\0${control}`, {
+        account_alias: alias,
+        control,
+        ...parseStatusCell(row[controlIndex + 1]),
+      });
     });
   });
+  return checks;
 }
 
-function assertNoInvention(answer, evidence) {
+function assertMatrixEvidence(tableChecks, evidenceChecks) {
+  for (const [key, expected] of evidenceChecks.entries()) {
+    const actual = tableChecks.get(key);
+    if (!actual || actual.status !== expected.status) fail('STATUS_EVIDENCE_MISMATCH');
+    if (expected.status === 'NON_COMPLIANT' &&
+        actual.affected_resources !== expected.affected_resources) fail('STATUS_EVIDENCE_MISMATCH');
+  }
+}
+
+function assertNoInvention(answer, checks) {
   const text = normalize(answer);
   const forbidden = [
     /\barn:[a-z0-9-]+:/i, /\b\d{12}\b/, /\b(?:\d{1,3}\.){3}\d{1,3}(?:\/\d{1,2})?\b/,
@@ -181,8 +215,11 @@ function assertNoInvention(answer, evidence) {
   ];
   if (forbidden.some((pattern) => pattern.test(text))) fail('INVENTED_PRIVATE_OR_RISK_CLAIM');
   const aliases = text.match(/\blab-[a-z0-9-]+\b/g) ?? [];
-  if (aliases.some((alias) => !evidence.aliases.includes(alias))) fail('EXTRA_ALIAS');
-  const allowedNumbers = new Set([2, 4, 8, ...evidence.checks.map((row) => row.affected_resources).filter(Number.isSafeInteger)]);
+  if (aliases.some((alias) => !ALIASES.includes(alias))) fail('EXTRA_ALIAS');
+  const attentionCount = [...checks.values()].filter((row) =>
+    row.status === 'NON_COMPLIANT' || row.status === 'INSUFFICIENT_DATA').length;
+  const allowedNumbers = new Set([4, 8, attentionCount,
+    ...[...checks.values()].map((row) => row.affected_resources).filter(Number.isSafeInteger)]);
   const numbers = text.match(/\b\d+\b/g) ?? [];
   if (numbers.some((value) => !allowedNumbers.has(Number(value)))) fail('INVENTED_NUMBER');
 }
@@ -224,13 +261,15 @@ function assertPlan(table, checks) {
 }
 
 function assertAnswer(mode, toolResult, rendered) {
-  if (!Object.hasOwn(MODES, mode) || toolResult?.mutation !== false) fail('READ_ONLY_RESULT_REQUIRED');
+  if (!Object.hasOwn(MODES, mode) || typeof toolResult?.answer !== 'string' ||
+      toolResult?.mutation !== false) fail('READ_ONLY_RESULT_REQUIRED');
   const answer = normalize(toolResult.answer);
-  const checks = validateEvidence(toolResult.evidence);
+  const evidenceChecks = toolResult.evidence ? validateEvidence(toolResult.evidence) : null;
   assertGuardrail(answer);
-  assertNoInvention(answer, toolResult.evidence);
   const tables = markdownTables(answer);
-  assertMatrix(tables[0], checks);
+  const checks = matrixChecks(tables[0]);
+  if (evidenceChecks) assertMatrixEvidence(checks, evidenceChecks);
+  assertNoInvention(answer, checks);
   const withoutTables = proseLines(answer);
   const attentionCount = [...checks.values()].filter((row) =>
     row.status === 'NON_COMPLIANT' || row.status === 'INSUFFICIENT_DATA').length;
@@ -240,13 +279,22 @@ function assertAnswer(mode, toolResult, rendered) {
     if (tables.length !== 1 || JSON.stringify(withoutTables) !== JSON.stringify([summary]))
       fail('STATUS_LAYOUT_MISMATCH');
   }
-  if (mode === 'explain') { if (tables.length !== 2 || withoutTables.length) fail('EXPLAIN_LAYOUT_MISMATCH'); assertAttention(tables[1], checks); }
-  if (mode === 'plan') { if (tables.length !== 2 || withoutTables.length) fail('PLAN_LAYOUT_MISMATCH'); assertPlan(tables[1], checks); }
+  if (mode === 'explain') {
+    if (tables.length !== 2 || withoutTables.length) fail('EXPLAIN_LAYOUT_MISMATCH');
+    assertAttention(tables[1], checks);
+  }
+  if (mode === 'plan') {
+    if (tables.length !== 2 || withoutTables.length) fail('PLAN_LAYOUT_MISMATCH');
+    assertPlan(tables[1], checks);
+  }
   if (!rendered || rendered.guardrailCount !== 1 || rendered.trailingText !== '' ||
       rendered.guardrailText !== '🛡️ Read-only: No AWS changes executed.' ||
       JSON.stringify(rendered.tables) !== JSON.stringify(tables.map((table) => [table.header, ...table.rows])))
     fail('RENDERED_OUTPUT_MISMATCH');
-  return {mode, checks: 8, tables: tables.length, attention: tables[1]?.rows.length ?? 0, evidenceDigest: sha256(JSON.stringify(toolResult.evidence))};
+  const proof = {mode, checks: 8, tables: tables.length, attention: tables[1]?.rows.length ?? 0,
+    toolOutputDigest: sha256(answer)};
+  if (toolResult.evidence) proof.evidenceDigest = sha256(JSON.stringify(toolResult.evidence));
+  return proof;
 }
 
 async function waitForSettledSnapshot(read, {attempts = 120, stableSamples = 3, pause = defaultPause} = {}) {
@@ -293,6 +341,6 @@ function safeDiagnostic({stage, method, url, status, headerNames = [], base}) {
 function recordDiagnostic(rows, row) { if (rows.length < MAX_DIAGNOSTICS) rows.push(row); }
 
 module.exports = {ALIASES, CONTROLS, GUARDRAIL, LOGICAL_TOOL, MAX_DIAGNOSTICS, MODES, TOOL, archiveRequest,
-  assertAnswer, assertArchived, collectToolCalls, findToolResult, markdownTables, normalize,
+  assertAnswer, assertArchived, collectToolCalls, findToolResult, markdownTables, matrixChecks, normalize,
   persistedBinding, proseLines, recordDiagnostic, routeClass, safeDiagnostic, sha256, validateEvidence,
   waitForSettledSnapshot};
