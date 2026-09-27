@@ -139,6 +139,12 @@ class ComplianceAgentBrowserContractTests(unittest.TestCase):
                    + ";try{c.assertAnswer('status',t,r);process.exit(2)}catch(e){console.log('blocked')}"
             self.assertEqual(self.node(body), "blocked")
 
+    def test_settled_wait_ignores_stable_not_ready_samples(self):
+        body = """let n=0;c.waitForSettledSnapshot(async()=>{n++;return n<3?{ready:false}:{ready:true,value:'ok'}},
+{attempts:8,stableSamples:2,pause:async()=>{}}).then(v=>console.log(JSON.stringify({n,value:v.value})))
+.catch(e=>{console.error(e.message);process.exit(2)});"""
+        self.assertEqual(json.loads(self.node(body)), {"n": 4, "value": "ok"})
+
     def test_archive_and_diagnostics_are_bounded(self):
         self.assertEqual(self.node("console.log(JSON.stringify(c.archiveRequest('conversation-1')));"),
                          '{"path":"/api/convos/archive","method":"POST","body":{"arg":{"conversationId":"conversation-1","isArchived":true}}}')
