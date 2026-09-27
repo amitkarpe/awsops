@@ -157,11 +157,13 @@ async function archiveConversation(page, conversationId) {
   return true;
 }
 
-async function runPrompt(page, root, mode, diagnostics, pageErrors) {
+async function runPrompt(page, root, mode, diagnostics, pageErrors, mark = () => {}) {
   const prompt = contract.PROMPTS[mode];
   if (!prompt) throw Error('MODE_REQUIRED');
+  mark(mode + '_agent_select');
   await selectAgent(page);
 
+  mark(mode + '_composer');
   const input = page.getByRole('textbox', {name: 'Message input'});
   await input.waitFor({state: 'visible', timeout: 30000});
   await input.fill(prompt);
@@ -170,23 +172,28 @@ async function runPrompt(page, root, mode, diagnostics, pageErrors) {
     return request.method() === 'POST' && new URL(response.url()).pathname === '/api/agents/chat' &&
       [200, 201].includes(response.status());
   }, {timeout: 60000});
+  mark(mode + '_send');
   await input.press('Enter');
   await admitted;
 
+  mark(mode + '_conversation');
   const conversationId = await waitForConversation(page);
   let archived = false;
   try {
+    mark(mode + '_settle');
     const settled = await settledTurn(page);
     if (settled.stopVisible || settled.toolCount !== 1 || settled.outputCount !== 1 ||
         typeof settled.toolCallId !== 'string' || !settled.toolText.includes(TOOL_FRAGMENT)) {
       throw Error('SINGLE_TOOL_BINDING_REQUIRED');
     }
 
+    mark(mode + '_history');
     const historyResult = await api(page, '/api/messages/' + encodeURIComponent(conversationId));
     if (!historyResult.ok || !Array.isArray(historyResult.json)) throw Error('MESSAGE_READBACK_FAILED');
     const binding = contract.assertToolToAssistantBinding(mode, settled.outputText, historyResult.json);
     const counts = contract.structuralCounts(mode, binding.answer);
 
+    mark(mode + '_evidence');
     const evidenceDir = path.join(root, 'evidence');
     fs.mkdirSync(evidenceDir, {recursive: true, mode: 0o700});
     fs.chmodSync(evidenceDir, 0o700);
@@ -194,6 +201,7 @@ async function runPrompt(page, root, mode, diagnostics, pageErrors) {
     await page.screenshot({path: screenshot, fullPage: true});
     fs.chmodSync(screenshot, 0o600);
 
+    mark(mode + '_archive');
     archived = await archiveConversation(page, conversationId);
     const manifest = {
       version: 1,
@@ -275,7 +283,7 @@ async function run(rootValue) {
     const outcomes = [];
     for (const mode of ['status', 'explain', 'plan']) {
       stage = mode;
-      outcomes.push(await runPrompt(page, root, mode, diagnostics, pageErrors));
+      outcomes.push(await runPrompt(page, root, mode, diagnostics, pageErrors, (value) => { stage = value; }));
     }
     return {
       version: 1,
