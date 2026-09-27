@@ -179,7 +179,7 @@ async function acceptPrompt(page, mode, evidenceDir, gitHead, registerConversati
     if (!rendered.ready || rendered.streaming) return {ready: false};
     return {ready: true, assistantText: binding.assistantText, toolCallId: binding.toolCallId,
       toolResult: binding.toolResult, rendered};
-  }, {pause: (ms) => page.waitForTimeout(ms)});
+  }, {attempts: 240, pause: (ms) => page.waitForTimeout(ms)});
   if (!snapshot.ready) throw Error('SETTLED_OUTPUT_REQUIRED');
   const toolCall = page.locator(`[data-testid="tool-call"][data-tool-call-id="${snapshot.toolCallId}"]`);
   const toolOutput = page.locator(`[data-tool-call-output-id="${snapshot.toolCallId}"]`);
