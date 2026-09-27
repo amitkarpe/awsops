@@ -36,6 +36,17 @@ provider readback, supported Archive cleanup and retained-service protection.
 - **Legacy Lightsail and the retained `vagent` t3.small are PROTECTED / DO NOT TOUCH.** Read-only inspection is allowed; any stop/start/delete/resize/repurpose/tag/IAM/network change needs new exact authorization.
 - No auto-cleanup. Any other deletion/termination/repurpose is a separate exact mutation boundary.
 
+## Demo UX polish - ACCEPTED (#49)
+
+- Compliance Agent Status / Explain / no-change Plan share one KISS Markdown
+  matrix across the exact four aliases and two controls.
+- Status, Explain and Plan are mutually exclusive response modes; Explain adds
+  only attention evidence, while Plan marks every suggested change
+  `🚫 Not executed`.
+- Live NEW sec2 tool smokes passed 3/3 with `mutation=false`, eight evidence
+  checks, exactly one MCP tool and zero actions.
+- Config2 and OLD sec/ops/config regressions remained healthy and unchanged.
+
 ## M4 - bounded remediation migration - NOT STARTED
 
 Only S3 BPA and restricted SSH on retained demo scope may be considered.
