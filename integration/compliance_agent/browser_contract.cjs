@@ -300,10 +300,18 @@ function assertAnswer(mode, toolResult, rendered) {
 async function waitForSettledSnapshot(read, {attempts = 120, stableSamples = 3, pause = defaultPause} = {}) {
   let previous; let stable = 0;
   for (let i = 0; i < attempts; i++) {
-    const value = await read(); const encoded = JSON.stringify(value);
-    stable = encoded && encoded === previous ? stable + 1 : 1;
+    const value = await read();
+    if (value?.ready !== true) {
+      previous = undefined;
+      stable = 0;
+      await pause(250);
+      continue;
+    }
+    const encoded = JSON.stringify(value);
+    stable = encoded === previous ? stable + 1 : 1;
     if (stable >= stableSamples) return value;
-    previous = encoded; await pause(250);
+    previous = encoded;
+    await pause(250);
   }
   fail('RENDERED_TURN_NOT_SETTLED');
 }
