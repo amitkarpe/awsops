@@ -148,21 +148,34 @@ async function acceptPrompt(page, mode, evidenceDir, gitHead, registerConversati
   const input = page.getByRole('textbox', {name: 'Message input'});
   await requireVisible(input, 'MESSAGE_INPUT_REQUIRED');
   await input.fill(contract.MODES[mode]);
-  const admission = page.waitForResponse((response) => response.request().method() === 'POST' &&
-    new URL(response.url()).pathname === '/api/agents/chat' && response.status() === 200, {timeout: 45000})
-    .catch((error) => {
-      if (error?.name === 'TimeoutError') throw Error('AGENT_CHAT_ADMISSION_TIMEOUT');
-      throw error;
-    });
+  const admission = page.waitForResponse((response) => {
+    const pathname = new URL(response.url()).pathname;
+    const isAgentsChat = pathname === '/api/agents/chat' || pathname.startsWith('/api/agents/chat/');
+    return response.request().method() === 'POST' && isAgentsChat &&
+      !pathname.endsWith('/abort') && response.status() === 200;
+  }, {timeout: 45000}).catch((error) => {
+    if (error?.name === 'TimeoutError') throw Error('AGENT_CHAT_ADMISSION_TIMEOUT');
+    throw error;
+  });
   await input.press('Enter');
-  await admission;
+  const admitted = await admission;
+  let start;
   try {
-    await page.waitForURL(/\/c\/(?!new)[A-Za-z0-9_-]{1,128}$/, {timeout: 30000});
+    start = await admitted.json();
+  } catch {
+    throw Error('AGENT_CHAT_ADMISSION_JSON_REQUIRED');
+  }
+  const conversationId = start?.conversationId;
+  if (typeof conversationId !== 'string' || conversationId === 'new' ||
+      !/^[A-Za-z0-9_-]{1,128}$/.test(conversationId)) {
+    throw Error('PERSISTED_CONVERSATION_REQUIRED');
+  }
+  try {
+    await page.waitForURL(`/c/${conversationId}`, {timeout: 30000});
   } catch (error) {
     if (error?.name === 'TimeoutError') throw Error('CONVERSATION_URL_TIMEOUT');
     throw error;
   }
-  const conversationId = new URL(page.url()).pathname.slice(3);
   registerConversation(conversationId);
   const snapshot = await contract.waitForSettledSnapshot(async () => {
     const persisted = await api(page, `/api/messages/${encodeURIComponent(conversationId)}`);
