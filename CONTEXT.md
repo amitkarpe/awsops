@@ -13,11 +13,14 @@ isolated normal-auth native Reject canary. Issue #29 owns the Home DEV -> AWS
 Demo operating model; Issue #39 owns the recovered read-only NEW Config
 Dashboard and Compliance Agent demo.
 
-Issue #56 owns the pre-stop runtime preservation/Home-demo reproducibility gate.
-It may version non-secret runtime/service/bootstrap artifacts and validate them
-locally/CI, but it does not authorize EC2 stop/start/restart/terminate, tunnel
-activation, DNS/IAM/network change, OLD mutation, or protected Lightsail/vagent
-mutation.
+Issue #56 is now **Roadmap Autopilot / one execution PR, many milestones**.
+Amit granted standing approval on 2026-09-27 to continue M2-M5 without repeated
+`go` prompts. G/X may run Home local services, use existing owner-approved
+read-only AWS SSO evidence, establish one NEW-only temporary public tunnel using
+a provider-assigned hostname, and after M1-M4 pass stop exactly the retained
+`amit` EC2. That instance may be stopped but never terminated under Issue #56.
+No EBS/EIP deletion, custom Route53 migration, broad IAM, live remediation,
+Lightsail mutation or protected `vagent` mutation is authorized.
 
 Issue #14 owns operational hygiene: the public-safe AWS resource/cost ledger,
 account-level cost visibility and retained-host capacity evidence. Amit explicitly
@@ -167,9 +170,11 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
 
 ## Next
 
-1. Issue #56 is the active pre-stop gate: merge and validate the canonical
-   `integration/runtime/` + Home rebuild, then prove a fresh local browser
-   journey and separate tunnel before stopping any EC2.
+1. Issue #56 is the active one-PR Home cutover execution. PR #57 completed
+   M1 runtime preservation. The single remaining execution PR owns M2 real Home
+   bootstrap, M3 Home browser acceptance, M4 NEW-only temporary tunnel and M5
+   retained-`amit` EC2 stop/cost cutover. No repeated Amit approval is required
+   between those milestones unless an Issue #56 hard stop is reached.
 2. Issue #39 and Issue #49 are accepted: config2, sec2 owner access, the
    read-only AWS Ops Compliance Agent, and its KISS table-first Status /
    Explain / no-change Plan output are the current NEW demo path. Use
