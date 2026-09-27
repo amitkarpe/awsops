@@ -151,6 +151,8 @@ class ComplianceAgentBrowserContractTests(unittest.TestCase):
         self.assertIn("!pathname.endsWith('/abort')", source)
         self.assertIn("start?.conversationId", source)
         self.assertIn("PERSISTED_CONVERSATION_REQUIRED", source)
+        self.assertIn("registerConversation(conversationId)", source)
+        self.assertNotIn("waitForURL(\`/c/\${conversationId}", source)
         self.assertIn(".screenshot({path: screenshot})", source)
         self.assertIn("console_types: consoleTypes", source)
         self.assertIn("page_error_types: pageErrorTypes", source)
