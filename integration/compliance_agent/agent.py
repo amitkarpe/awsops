@@ -27,20 +27,24 @@ def _response_mode(user_request: str) -> str:
 def _mode_layout(mode: str) -> str:
     if mode == "STATUS":
         return """STATUS MODE:
-- After the matrix, add at most one short summary sentence.
+- After the matrix, add exactly one summary sentence. If attention items exist, use: "N of 8 checks need attention." with the evidence-derived N. Otherwise use: "All 8 checks are compliant or not applicable."
 - Do not add any second table, explanation table, remediation table, suggestion or implementation detail."""
     if mode == "EXPLAIN":
         return """EXPLAIN MODE:
 - After the matrix, add exactly one compact table:
   | Needs attention | Why | Affected |
 - Include only evidence-backed NON_COMPLIANT or insufficient-data items.
+- Format Needs attention as "<alias> — <S3 BPA|Restricted SSH>".
 - For S3 NON_COMPLIANT, the reason is only: bucket-level Block Public Access is not in the compliant configuration.
 - For restricted SSH NON_COMPLIANT, the reason is only: unrestricted SSH ingress is present.
+- For INSUFFICIENT_DATA, the reason is only: evidence is insufficient; Affected is "Unknown".
 - Use aliases and aggregate counts only.
 - Do not include suggested changes, remediation steps, priorities or an execution column."""
     return """PLAN MODE:
 - After the matrix, add exactly one compact table:
-  | Priority | Control | Suggested change | Execution |
+  | Alias | Control | Evidence | Suggested change | Execution |
+- Include one row for each NON_COMPLIANT alias/control check and no other rows.
+- Evidence must use the same status and aggregate affected_resources count as the matrix.
 - For S3 NON_COMPLIANT, suggest only bringing bucket-level Block Public Access into the compliant configuration.
 - For restricted SSH NON_COMPLIANT, suggest only removing unrestricted SSH ingress and, if access is still required, replacing it with an approved source.
 - Every Execution cell must be "🚫 Not executed".
@@ -83,7 +87,7 @@ OUTPUT CONTRACT:
   | lab-sec | ... | ... |
 - Render evidence statuses only as:
   ✅ COMPLIANT
-  🔴 NON_COMPLIANT (include the aggregate affected_resources count when present)
+  🔴 NON_COMPLIANT (N affected), where N is the exact aggregate affected_resources count
   ⚠️ INSUFFICIENT_DATA
   ⚪ NOT_APPLICABLE
 - Never turn missing, stale, partial, unavailable or warning evidence into a green status.
@@ -96,6 +100,118 @@ OUTPUT CONTRACT:
 MODE_LAYOUT:
 {layout}
 """
+
+
+ALIASES = ("lab-dev", "lab-poc", "lab-qa", "lab-sec")
+CONTROL_S3 = "s3-bucket-level-public-access-prohibited"
+CONTROL_SSH = "restricted-ssh"
+
+
+def _status_text(check: dict[str, Any]) -> str:
+    status = check.get("status")
+    if status == "COMPLIANT":
+        return "✅ COMPLIANT"
+    if status == "NON_COMPLIANT":
+        count = check.get("affected_resources")
+        if not isinstance(count, int) or count < 0:
+            raise ValueError("non-compliant evidence count is invalid")
+        return f"🔴 NON_COMPLIANT ({count} affected)"
+    if status == "INSUFFICIENT_DATA":
+        return "⚠️ INSUFFICIENT_DATA"
+    if status == "NOT_APPLICABLE":
+        return "⚪ NOT_APPLICABLE"
+    raise ValueError("unsupported evidence status")
+
+
+def _check_map(evidence: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]]:
+    checks = evidence.get("checks")
+    if not isinstance(checks, list) or len(checks) != 8:
+        raise ValueError("evidence matrix is invalid")
+    mapped: dict[tuple[str, str], dict[str, Any]] = {}
+    for check in checks:
+        key = (check.get("account_alias"), check.get("control"))
+        if key in mapped:
+            raise ValueError("evidence matrix contains duplicates")
+        mapped[key] = check
+    expected = {(alias, control) for alias in ALIASES for control in (CONTROL_S3, CONTROL_SSH)}
+    if set(mapped) != expected:
+        raise ValueError("evidence matrix is incomplete")
+    return mapped
+
+
+def _canonical_answer(user_request: str, evidence: dict[str, Any]) -> str:
+    mode = _response_mode(user_request)
+    checks = _check_map(evidence)
+    lines = [
+        "| Account | 🪣 S3 BPA | 🔐 Restricted SSH |",
+        "| --- | --- | --- |",
+    ]
+    for alias in ALIASES:
+        lines.append(
+            f"| {alias} | {_status_text(checks[(alias, CONTROL_S3)])} | "
+            f"{_status_text(checks[(alias, CONTROL_SSH)])} |"
+        )
+
+    attention = [
+        check for alias in ALIASES for control in (CONTROL_S3, CONTROL_SSH)
+        if (check := checks[(alias, control)]).get("status") in ("NON_COMPLIANT", "INSUFFICIENT_DATA")
+    ]
+
+    if mode == "STATUS":
+        lines.extend([
+            "",
+            f"{len(attention)} of 8 checks need attention."
+            if attention else "All 8 checks are compliant or not applicable.",
+        ])
+    elif mode == "EXPLAIN":
+        lines.extend([
+            "",
+            "| Needs attention | Why | Affected |",
+            "| --- | --- | --- |",
+        ])
+        for check in attention:
+            alias = check["account_alias"]
+            control = check["control"]
+            label = "S3 BPA" if control == CONTROL_S3 else "Restricted SSH"
+            if check["status"] == "INSUFFICIENT_DATA":
+                why, affected = "evidence is insufficient.", "Unknown"
+            elif control == CONTROL_S3:
+                why = "bucket-level Block Public Access is not in the compliant configuration."
+                affected = str(check["affected_resources"])
+            else:
+                why = "unrestricted SSH ingress is present."
+                affected = str(check["affected_resources"])
+            lines.append(f"| {alias} — {label} | {why} | {affected} |")
+    else:
+        non_compliant = [check for check in attention if check.get("status") == "NON_COMPLIANT"]
+        lines.extend([
+            "",
+            "| Alias | Control | Evidence | Suggested change | Execution |",
+            "| --- | --- | --- | --- | --- |",
+        ])
+        for check in non_compliant:
+            alias = check["account_alias"]
+            control = check["control"]
+            label = "S3 BPA" if control == CONTROL_S3 else "Restricted SSH"
+            guidance = (
+                "Bring bucket-level Block Public Access into the compliant configuration."
+                if control == CONTROL_S3
+                else "Remove unrestricted SSH ingress; if access is required, replace it with an approved source."
+            )
+            lines.append(
+                f"| {alias} | {label} | {_status_text(check)} | {guidance} | 🚫 Not executed |"
+            )
+
+    lines.extend(["", "🛡️ **Read-only:** No AWS changes executed."])
+    return "\n".join(lines)
+
+
+def _bounded_model_answer(user_request: str, evidence: dict[str, Any], model_answer: Any) -> str:
+    canonical = _canonical_answer(user_request, evidence)
+    if isinstance(model_answer, str) and model_answer.strip() == canonical:
+        return model_answer.strip()
+    return canonical
+
 
 def answer(
     user_request: str,
@@ -115,7 +231,7 @@ def answer(
     return {
         "version": 2,
         "agent": "awsops Compliance Agent",
-        "answer": result["answer"],
+        "answer": _bounded_model_answer(user_request, evidence, result.get("answer")),
         "evidence": {
             "source": evidence["source"],
             "fetched_at": evidence["fetched_at"],

@@ -75,3 +75,63 @@ https://github.com/amitkarpe/awsops/blob/g/issue-39-g-implementation/integration
 X must validate the effective LibreChat tool name after installation before the
 agent record is enabled. If the installed name differs, stop and reconcile the
 server key/spec rather than widening the agent tool list.
+
+## Authenticated browser acceptance
+
+`browser_acceptance.cjs` is the single NEW sec2 Playwright harness for the
+three owner prompts. It adapts the proven normal-login, settled-render,
+same-origin diagnostics and Archive mechanics from the deferred PR #13 without
+carrying its Reject/candidate/receipt logic.
+
+Harvest boundary:
+
+- **KEEP / adapt:** owner-only input guards, normal authentication or an
+  existing loopback CDP session, native Agent selection clicks, three-sample
+  settled-render waits, route/method/status/header-name diagnostics, exact
+  conversation binding, and supported Archive/readback.
+- **LEAVE behind:** approval cards, Reject, `s3_ssl`, candidates, receipts,
+  dispatch/provider readback, disposable agents, canary services and all
+  executor/remediation behavior.
+
+The runner requires an owner-only directory and uses the Playwright already
+installed below its private `app/` runtime. `manifest.json` must be mode `0600`:
+
+```json
+{
+  "purpose": "awsops-issue49-compliance-agent-browser",
+  "base_url": "https://sec2.astromedicomp.org",
+  "agent_name": "AWS Ops Compliance Agent",
+  "git_head": "REVIEWED_40_HEX_GIT_HEAD",
+  "browser_mode": "launch",
+  "loopback_origin": true
+}
+```
+
+For `launch`, private `state/login.json` supplies the existing NEW owner login. On the retained AWS demo host, set `loopback_origin: true` so Chromium resolves only `sec2.astromedicomp.org` to the local Nginx listener while preserving the public hostname/TLS contract. Leave it false/absent on normal external clients.
+For an already-authenticated browser, set `browser_mode` to `cdp` and add a
+loopback-only `cdp_endpoint`; the harness attaches without exporting browser
+state and closes only its own page. Run from the reviewed checkout:
+
+```text
+node integration/compliance_agent/browser_acceptance.cjs PRIVATE_OWNER_ONLY_ROOT
+```
+
+The harness uses a fresh conversation for Status, Explain and no-change Plan.
+For each turn it requires exactly one `ask_compliance_agent` call, binds the
+persisted tool result to the persisted final assistant text, validates the
+rendered tables and exact final guardrail, writes an owner-only screenshot and
+sanitized evidence manifest, then archives that exact conversation and reads
+back `isArchived=true`. It never calls conversation Delete and never exports
+cookies, tokens or Playwright storage state.
+
+Screenshots are limited to the final assistant message element so login fields,
+account chrome and unrelated conversations are excluded. The owner-only
+manifest contains only reviewed Git head, prompt, digests, structural counts,
+safe console/page-error classes, screenshot SHA256, Archive result and bounded
+diagnostics; raw conversation/tool IDs stay private and are stored only as
+digests.
+
+`COMPLIANCE_UI_PASS` is repository/runtime evidence for G's live review. It is
+not AWS mutation evidence. `COMPLIANCE_UI_BLOCKED` reports only a bounded stage
+and safe route/status/header-presence diagnostics; inspect private state before
+retrying so a prior conversation is not duplicated.
