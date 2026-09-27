@@ -10,16 +10,17 @@ mcp = FastMCP(
     instructions=(
         "Use ask_compliance_agent for current four-account S3 Block Public Access "
         "or restricted-SSH status, explanation and no-change planning. "
-        "Return the evidence-grounded KISS Markdown answer unchanged, including "
-        "its compact tables and read-only guardrail. This tool has no remediation capability."
+        "The tool returns the complete user-visible Markdown answer as one string. "
+        "Echo that string unchanged: do not summarize, quote, explain or append to it. "
+        "This tool has no remediation capability."
     ),
 )
 
 
 @mcp.tool()
-def ask_compliance_agent(request: str) -> dict:
-    """Answer from the exact current config2 4-account x 2-control evidence matrix."""
-    return answer(request)
+def ask_compliance_agent(request: str) -> str:
+    """Return the complete read-only user-visible Markdown answer."""
+    return answer(request)["answer"]
 
 
 def main() -> None:
