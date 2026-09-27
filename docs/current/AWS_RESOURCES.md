@@ -75,7 +75,16 @@ Always-on compute is intentionally separated because it is the first cost lever 
 The partition and ext4 filesystem were grown online. No instance stop/restart or instance-type change occurred.
 Approximate incremental gp3 cost: **~USD 0.96/month**.
 
-## 🧹 2026-09-27 read-only audit\n\n| Account | Live finding | Decision |\n| --- | --- | --- |\n| **amit** | 1 running t3.medium; 30 GiB encrypted gp3; 18 S3 buckets; 140 tagged resources | **RETAIN** runtime; **REVIEW** old Lightsail |\n| **vagent** | 1 running t3.small with public IPv4; 20 GiB encrypted gp3; 0 Elastic IPs; 109 S3 buckets; 219 tagged resources | **CLEANUP-CANDIDATE** host; **REVIEW** bucket fleet |\n\nDirect vagent host dependencies observed: **1 ENI, 1 security group, 1 instance profile / 1 role**. The ENI is untagged; no mutation or cleanup was performed.\n\n## Full resource ledger
+## 🧹 2026-09-27 read-only audit
+
+| Account | Live finding | Decision |
+| --- | --- | --- |
+| **amit** | 1 running t3.medium; 30 GiB encrypted gp3; 18 S3 buckets; 140 tagged resources | **RETAIN** runtime; **REVIEW** old Lightsail |
+| **vagent** | 1 running t3.small with public IPv4; 20 GiB encrypted gp3; 0 Elastic IPs; 109 S3 buckets; 219 tagged resources | **CLEANUP-CANDIDATE** host; **REVIEW** bucket fleet |
+
+Direct vagent host dependencies observed: **1 ENI, 1 security group, 1 instance profile / 1 role**. The ENI is untagged; no mutation or cleanup was performed.
+
+## Full resource ledger
 
 | Project | Account | Name | Resource class | Qty | State | Age | Purpose | Cost | Decision | Evidence |
 | --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- |
