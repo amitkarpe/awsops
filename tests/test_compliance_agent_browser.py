@@ -107,6 +107,23 @@ class ComplianceAgentBrowserContractTests(unittest.TestCase):
         body = "const m=" + json.dumps(messages) + ";try{c.persistedBinding(m);process.exit(2)}catch(e){console.log(e.message)}"
         self.assertEqual(self.node(body), "OUTER_AGENT_REWRITE_DETECTED")
 
+    def test_live_style_effective_tool_markdown_is_authoritative(self):
+        answer = self.matrix() + "\n\n2 of 8 checks need attention.\n\n" \
+                 + "🛡️ **Read-only:** No AWS changes executed."
+        messages = [
+            {"isCreatedByUser": False, "text": "", "content": [
+                {"type": "tool_call", "tool_call": {"id": "call-live",
+                 "name": "ask_compliance_agent_mcp_awsops_compliance_agent",
+                 "output": answer}},
+                {"type": "text", "text": answer},
+            ]},
+        ]
+        body = "const m=" + json.dumps(messages) + ";const b=c.persistedBinding(m);" \
+               + "console.log(JSON.stringify({id:b.toolCallId,raw:b.toolResult.persistedOutput,mode:c.assertAnswer('status',b.toolResult," \
+               + json.dumps(self.rendered(answer)) + ").mode}));"
+        self.assertEqual(json.loads(self.node(body)),
+                         {"id": "call-live", "raw": True, "mode": "status"})
+
     def test_invention_and_guardrail_variants_fail_closed(self):
         base = self.matrix() + "\n\n🛡️ **Read-only:** No AWS changes executed."
         tool = {"answer": base, "mutation": False, "evidence": self.evidence()}
