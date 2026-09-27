@@ -1,17 +1,17 @@
 {
-  "verified_at": "2026-09-25T12:31:00+08:00",
+  "verified_at": "2026-09-27T12:14:50+08:00",
   "accounts": [
     {
       "account": "amit",
-      "period": "2026-09-01..2026-09-25",
-      "actual_usd": 54.24,
+      "period": "2026-09-01..2026-09-27",
+      "actual_usd": 58.51,
       "note": "Cost Explorer account/service view; includes non-awsops spend."
     },
     {
       "account": "vagent",
-      "period": "2026-09-01..2026-09-25",
+      "period": "2026-09-01..2026-09-27",
       "actual_usd": 0.0,
-      "note": "Cost Explorer reported 0.00 MTD in this account; do not assume every running resource is economically free."
+      "note": "Cost Explorer reported effectively USD 0.00 MTD in this account; do not assume every running resource is economically free."
     }
   ],
   "priority": [
@@ -20,7 +20,7 @@
       "account": "amit",
       "name": "EC2 Compute",
       "state": "retained t3.medium running",
-      "cost": "USD 28.94 MTD actual; ~USD 38.54/mo list-price compute",
+      "cost": "USD 31.52 MTD actual; ~USD 38.54/mo list-price compute",
       "action": "KEEP t3.medium; monitor"
     },
     {
@@ -28,28 +28,30 @@
       "account": "amit",
       "name": "Amazon Lightsail",
       "state": "1 running + 1 stopped legacy instance",
-      "cost": "USD 7.62 MTD actual",
+      "cost": "USD 8.28 MTD actual",
       "action": "REVIEW legacy 2017/2018 resources"
     },
     {
       "priority": "🟠 REVIEW",
       "account": "vagent",
       "name": "EC2 t3.small",
-      "state": "running; old learning-demo TTL expired",
-      "cost": "Cost Explorer reports USD 0.00 MTD; list-price/public IPv4 exposure still exists",
+      "state": "running; old learning-demo TTL expired; public IPv4 present",
+      "cost": "Cost Explorer reports USD 0.00 MTD; list-price/public-IPv4 exposure still exists",
       "action": "CLEANUP-CANDIDATE; no deletion authorized"
     }
   ],
   "amit_top_services": [
-    ["Amazon Elastic Compute Cloud - Compute", 28.94],
-    ["Amazon Lightsail", 7.62],
-    ["Tax", 4.48],
-    ["Amazon Virtual Private Cloud", 2.75],
-    ["Amazon Bedrock", 2.66],
-    ["EC2 - Other", 1.65],
-    ["AWS Config", 1.56],
-    ["Amazon Bedrock AgentCore", 1.47],
-    ["Amazon Inspector", 1.33],
-    ["Amazon Route 53", 0.64]
+    ["Amazon Elastic Compute Cloud - Compute", 31.52],
+    ["Amazon Lightsail", 8.28],
+    ["Tax", 4.83],
+    ["Amazon Virtual Private Cloud", 3.0],
+    ["Amazon Bedrock", 2.67],
+    ["EC2 - Other", 1.84],
+    ["AWS Config", 1.6],
+    ["Amazon Bedrock AgentCore", 1.48],
+    ["Amazon Inspector", 1.41],
+    ["Amazon Route 53", 0.65],
+    ["AWS Key Management Service", 0.63],
+    ["CodeBuild", 0.45]
   ]
 }
