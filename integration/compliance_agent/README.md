@@ -78,6 +78,9 @@ server key/spec rather than widening the agent tool list.
 
 ## Authenticated browser acceptance
 
+Architecture, flow and critical lessons are in
+`docs/architecture/PLAYWRIGHT_E2E.md`.
+
 `browser_acceptance.cjs` is the single NEW sec2 Playwright harness for the
 three owner prompts. It adapts the proven normal-login, settled-render,
 same-origin diagnostics and Archive mechanics from the deferred PR #13 without

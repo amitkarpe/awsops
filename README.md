@@ -13,6 +13,10 @@ Clean, selectively migrated AWS security-operations contracts.
 - Remediation remains disabled. The old repo is reference material, not a
   runtime dependency or an automatic source of credentials/deployment authority.
 - Issue #14 owns the KISS read-only AWS resource/cost ledger and EC2 right-sizing evidence.
+- Issue #49 browser acceptance is captured in
+  `docs/architecture/PLAYWRIGHT_E2E.md`: Playwright verifies the live sec2
+  tool -> persisted answer -> rendered DOM -> Archive path without exporting
+  browser auth or enabling remediation.
 
 Read `CONTEXT.md`, `SPEC.md`, Issue #1 and the active milestone Issue before work.
 Migration choices are in `docs/architecture/MIGRATION.md`.
@@ -43,6 +47,7 @@ AWSOPS_REQUIRE_NATIVE_FIXTURE=1 python -m unittest discover -s tests -p 'test_*.
 The explicit fixture step fetches two immutable upstream source files and
 verifies their whole Git blobs. Python 3.12 and Node 22 are used in CI.
 Offline tests without fixtures do not establish native integration acceptance.
+For the Compliance Agent browser path, see `docs/architecture/PLAYWRIGHT_E2E.md`.
 
 ## Development compute
 
