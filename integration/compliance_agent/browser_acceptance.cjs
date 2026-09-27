@@ -140,7 +140,12 @@ async function settledTurn(page) {
       toolText,
       outputText,
     };
-  }, {pause: (ms) => page.waitForTimeout(ms)});
+  }, {
+    pause: (ms) => page.waitForTimeout(ms),
+    isReady: (value) => !value.stopVisible && value.messageCount >= 2 &&
+      value.toolCount === 1 && value.outputCount === 1 &&
+      typeof value.outputText === 'string' && value.outputText.includes(contract.GUARDRAIL),
+  });
 }
 
 async function archiveConversation(page, conversationId) {
