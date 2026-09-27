@@ -20,11 +20,11 @@
     "state": "running",
     "purpose": "Inspector-to-SSM old-package learning demo",
     "cost_label": "EST",
-    "decision": "CLEANUP-CANDIDATE",
+    "decision": "RETAIN",
     "source": "LIVE",
     "first_seen": "2026-08-31",
     "monthly_usd": 19.27,
-    "note": "live read 2026-09-27; running with public IPv4, 20 GiB encrypted gp3, TTL expired; no deletion authorized",
+    "note": "PROTECTED / DO NOT TOUCH by owner decision 2026-09-27; live read shows running with public IPv4 and 20 GiB encrypted gp3; read-only inspection only unless new exact authorization",
     "resource_name": "seccop-project1-old-ami-host-r01"
   }
 ]

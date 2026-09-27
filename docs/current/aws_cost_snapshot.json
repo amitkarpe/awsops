@@ -24,20 +24,20 @@
       "action": "KEEP t3.medium; monitor"
     },
     {
-      "priority": "🔴 HIGH",
+      "priority": "🛡️ PROTECTED",
       "account": "amit",
       "name": "Amazon Lightsail",
       "state": "1 running + 1 stopped legacy instance",
       "cost": "USD 8.28 MTD actual",
-      "action": "REVIEW legacy 2017/2018 resources"
+      "action": "DO NOT TOUCH; read-only inspection only"
     },
     {
-      "priority": "🟠 REVIEW",
+      "priority": "🛡️ PROTECTED",
       "account": "vagent",
       "name": "EC2 t3.small",
       "state": "running; old learning-demo TTL expired; public IPv4 present",
       "cost": "Cost Explorer reports USD 0.00 MTD; list-price/public-IPv4 exposure still exists",
-      "action": "CLEANUP-CANDIDATE; no deletion authorized"
+      "action": "DO NOT TOUCH; read-only inspection only"
     }
   ],
   "amit_top_services": [
