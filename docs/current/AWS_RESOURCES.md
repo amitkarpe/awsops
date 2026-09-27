@@ -3,9 +3,9 @@
 > KISS public ledger. **Canonical account names are `amit` and `vagent`.**
 > Raw AWS account IDs and provider identifiers stay out of this public repository.
 
-- Last verified: `2026-09-25T12:31:00+08:00`
+- Last verified: `2026-09-27T12:14:50+08:00`
 - Scope: personal LAB / `ap-southeast-1`
-- Cost period: `2026-09-01..2026-09-25`
+- Cost period: `2026-09-01..2026-09-27`
 - Current rule: **look at the red/high-cost tables first**
 - Cleanup rows are recommendations only; this file does not authorize deletion.
 
@@ -13,16 +13,16 @@
 
 | Priority | Account | Resource / service | State | Cost evidence | Action |
 | --- | --- | --- | --- | ---: | --- |
-| 🔴 **HIGH** | **amit** | **EC2 `agentcore-issue19-librechat-poc-r01` / `t3.medium`** | running | **USD 28.94 MTD actual**; ~**USD 38.54/mo** compute list-price | **KEEP `t3.medium`** |
-| 🔴 **HIGH** | **amit** | **Amazon Lightsail** | 1 running + 1 stopped legacy instance | **USD 7.62 MTD actual** | **REVIEW** old 2017/2018 resources |
+| 🔴 **HIGH** | **amit** | **EC2 `agentcore-issue19-librechat-poc-r01` / `t3.medium`** | running | **USD 31.52 MTD actual**; ~**USD 38.54/mo** compute list-price | **KEEP `t3.medium`** |
+| 🔴 **HIGH** | **amit** | **Amazon Lightsail** | 1 running + 1 stopped legacy instance | **USD 8.28 MTD actual** | **REVIEW** old 2017/2018 resources |
 | 🟠 **REVIEW** | **vagent** | **EC2 `seccop-project1-old-ami-host-r01` / `t3.small`** | running; old demo TTL expired | Cost Explorer reports **USD 0.00 MTD**; list-price/public-IPv4 exposure still exists | **CLEANUP-CANDIDATE**; no deletion authorized |
 
 ## Account cost summary
 
 | Account | Actual Cost Explorer MTD | Current inventory signal | What to check first |
 | --- | ---: | --- | --- |
-| **amit** | **USD 54.24** | 1 running EC2, 18 S3 buckets, 139 tagged resources | **EC2, Lightsail, VPC, Bedrock** |
-| **vagent** | **USD 0.00 reported** | 1 running EC2, 109 S3 buckets, 219 tagged resources | **expired EC2 demo + retained 100-bucket fleet** |
+| **amit** | **USD 58.51** | 1 running EC2, 18 S3 buckets, 140 tagged resources | **EC2, Lightsail, VPC, Bedrock** |
+| **vagent** | **USD 0.00 reported** | 1 running EC2, 109 S3 buckets, 219 tagged resources | **expired/public EC2 demo + retained 100-bucket fleet** |
 
 > Cost Explorer is account/service billing evidence, not proof that every dollar belongs to `awsops` or `aws-secops`.
 > A reported zero does not mean a running resource is guaranteed to be free.
@@ -31,16 +31,18 @@
 
 | Service | MTD actual |
 | --- | ---: |
-| **Amazon EC2 - Compute** | **USD 28.94** |
-| **Amazon Lightsail** | **USD 7.62** |
-| Tax | USD 4.48 |
-| Amazon VPC | USD 2.75 |
-| Amazon Bedrock | USD 2.66 |
-| EC2 - Other | USD 1.65 |
-| AWS Config | USD 1.56 |
-| Amazon Bedrock AgentCore | USD 1.47 |
-| Amazon Inspector | USD 1.33 |
-| Amazon Route 53 | USD 0.64 |
+| **Amazon EC2 - Compute** | **USD 31.52** |
+| **Amazon Lightsail** | **USD 8.28** |
+| Tax | USD 4.83 |
+| Amazon VPC | USD 3.00 |
+| Amazon Bedrock | USD 2.67 |
+| EC2 - Other | USD 1.84 |
+| AWS Config | USD 1.60 |
+| Amazon Bedrock AgentCore | USD 1.48 |
+| Amazon Inspector | USD 1.41 |
+| Amazon Route 53 | USD 0.65 |
+| AWS Key Management Service | USD 0.63 |
+| CodeBuild | USD 0.45 |
 
 ## 🔴 EC2 / always-on compute
 
@@ -48,8 +50,8 @@ Always-on compute is intentionally separated because it is the first cost lever 
 
 | Account | EC2 name | Project | Compute | State | Age | Estimated monthly | Decision |
 | --- | --- | --- | --- | --- | --- | ---: | --- |
-| **amit** | **`agentcore-issue19-librechat-poc-r01`** | shared-runtime | **`t3.medium`** | running | 23d | **~USD 38.54 compute** | **RETAIN** |
-| **vagent** | **`seccop-project1-old-ami-host-r01`** | Security Copilot | **`t3.small`** | running | 25d | **~USD 19.27 compute** | **CLEANUP-CANDIDATE** |
+| **amit** | **`agentcore-issue19-librechat-poc-r01`** | shared-runtime | **`t3.medium`** | running | 26d | **~USD 38.54 compute** | **RETAIN** |
+| **vagent** | **`seccop-project1-old-ami-host-r01`** | Security Copilot | **`t3.small`** | running + public IPv4 | 27d | **~USD 19.27 compute list-price** | **CLEANUP-CANDIDATE** |
 
 ## `amit` retained host
 
@@ -73,11 +75,20 @@ Always-on compute is intentionally separated because it is the first cost lever 
 The partition and ext4 filesystem were grown online. No instance stop/restart or instance-type change occurred.
 Approximate incremental gp3 cost: **~USD 0.96/month**.
 
+## 🧹 2026-09-27 read-only audit
+
+| Account | Live finding | Decision |
+| --- | --- | --- |
+| **amit** | 1 running t3.medium; 30 GiB encrypted gp3; 18 S3 buckets; 140 tagged resources | **RETAIN** runtime; **REVIEW** old Lightsail |
+| **vagent** | 1 running t3.small with public IPv4; 20 GiB encrypted gp3; 0 Elastic IPs; 109 S3 buckets; 219 tagged resources | **CLEANUP-CANDIDATE** host; **REVIEW** bucket fleet |
+
+Direct vagent host dependencies observed: **1 ENI, 1 security group, 1 instance profile / 1 role**. The ENI is untagged; no mutation or cleanup was performed.
+
 ## Full resource ledger
 
 | Project | Account | Name | Resource class | Qty | State | Age | Purpose | Cost | Decision | Evidence |
 | --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- |
-| shared-runtime | **amit** | `agentcore-issue19-librechat-poc-r01` | EC2 retained demo host | 1 | running | 23d | LibreChat + Ops retained personal-LAB runtime | EST ~USD 38.54/mo compute | RETAIN | LIVE |
+| shared-runtime | **amit** | `agentcore-issue19-librechat-poc-r01` | EC2 retained demo host | 1 | running | 26d | LibreChat + Ops retained personal-LAB runtime | EST ~USD 38.54/mo compute | RETAIN | LIVE |
 | aws-secops | **amit** | - | AWS Config rule | 2 | present | UNKNOWN | issue-88-config-evidence | USAGE-BASED | REVIEW | LIVE |
 | aws-secops | **amit** | - | AgentCore Gateway | 1 | present | 16d | governed-harmless-tool | USAGE-BASED | CLEANUP-CANDIDATE | LIVE |
 | aws-secops | **amit** | - | AgentCore Harness | 3 | present | UNKNOWN | compliance-agent-v1 | USAGE-BASED | RETAIN | LIVE |
