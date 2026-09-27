@@ -7,22 +7,22 @@
 - Scope: personal LAB / `ap-southeast-1`
 - Cost period: `2026-09-01..2026-09-27`
 - Current rule: **look at the red/high-cost tables first**
-- Cleanup rows are recommendations only; this file does not authorize deletion.
+- **Protection rule (2026-09-27): legacy Lightsail and the `vagent` retained `t3.small` are DO NOT TOUCH.** Read-only inspection is allowed; stop/terminate/delete/resize/repurpose/tag/IAM/network changes require a new explicit user authorization.
 
 ## 🔴 Cost watch — check this first
 
 | Priority | Account | Resource / service | State | Cost evidence | Action |
 | --- | --- | --- | --- | ---: | --- |
 | 🔴 **HIGH** | **amit** | **EC2 `agentcore-issue19-librechat-poc-r01` / `t3.medium`** | running | **USD 31.52 MTD actual**; ~**USD 38.54/mo** compute list-price | **KEEP `t3.medium`** |
-| 🔴 **HIGH** | **amit** | **Amazon Lightsail** | 1 running + 1 stopped legacy instance | **USD 8.28 MTD actual** | **REVIEW** old 2017/2018 resources |
-| 🟠 **REVIEW** | **vagent** | **EC2 `seccop-project1-old-ami-host-r01` / `t3.small`** | running; old demo TTL expired | Cost Explorer reports **USD 0.00 MTD**; list-price/public-IPv4 exposure still exists | **CLEANUP-CANDIDATE**; no deletion authorized |
+| 🛡️ **PROTECTED** | **amit** | **Amazon Lightsail** | 1 running + 1 stopped legacy instance | **USD 8.28 MTD actual** | **DO NOT TOUCH** |
+| 🛡️ **PROTECTED** | **vagent** | **EC2 `seccop-project1-old-ami-host-r01` / `t3.small`** | running; old demo TTL expired | Cost Explorer reports **USD 0.00 MTD**; list-price/public-IPv4 exposure still exists | **DO NOT TOUCH** |
 
 ## Account cost summary
 
 | Account | Actual Cost Explorer MTD | Current inventory signal | What to check first |
 | --- | ---: | --- | --- |
 | **amit** | **USD 58.51** | 1 running EC2, 18 S3 buckets, 140 tagged resources | **EC2, Lightsail, VPC, Bedrock** |
-| **vagent** | **USD 0.00 reported** | 1 running EC2, 109 S3 buckets, 219 tagged resources | **expired/public EC2 demo + retained 100-bucket fleet** |
+| **vagent** | **USD 0.00 reported** | 1 running EC2, 109 S3 buckets, 219 tagged resources | **protected EC2 + retained 100-bucket fleet** |
 
 > Cost Explorer is account/service billing evidence, not proof that every dollar belongs to `awsops` or `aws-secops`.
 > A reported zero does not mean a running resource is guaranteed to be free.
@@ -51,7 +51,7 @@ Always-on compute is intentionally separated because it is the first cost lever 
 | Account | EC2 name | Project | Compute | State | Age | Estimated monthly | Decision |
 | --- | --- | --- | --- | --- | --- | ---: | --- |
 | **amit** | **`agentcore-issue19-librechat-poc-r01`** | shared-runtime | **`t3.medium`** | running | 26d | **~USD 38.54 compute** | **RETAIN** |
-| **vagent** | **`seccop-project1-old-ami-host-r01`** | Security Copilot | **`t3.small`** | running + public IPv4 | 27d | **~USD 19.27 compute list-price** | **CLEANUP-CANDIDATE** |
+| **vagent** | **`seccop-project1-old-ami-host-r01`** | Security Copilot | **`t3.small`** | running + public IPv4 | 27d | **~USD 19.27 compute list-price** | **RETAIN / DO NOT TOUCH** |
 
 ## `amit` retained host
 
@@ -79,8 +79,8 @@ Approximate incremental gp3 cost: **~USD 0.96/month**.
 
 | Account | Live finding | Decision |
 | --- | --- | --- |
-| **amit** | 1 running t3.medium; 30 GiB encrypted gp3; 18 S3 buckets; 140 tagged resources | **RETAIN** runtime; **REVIEW** old Lightsail |
-| **vagent** | 1 running t3.small with public IPv4; 20 GiB encrypted gp3; 0 Elastic IPs; 109 S3 buckets; 219 tagged resources | **CLEANUP-CANDIDATE** host; **REVIEW** bucket fleet |
+| **amit** | 1 running t3.medium; 30 GiB encrypted gp3; 18 S3 buckets; 140 tagged resources | **RETAIN** runtime; legacy Lightsail **DO NOT TOUCH** |
+| **vagent** | 1 running t3.small with public IPv4; 20 GiB encrypted gp3; 0 Elastic IPs; 109 S3 buckets; 219 tagged resources | host **DO NOT TOUCH**; bucket fleet **REVIEW** |
 
 Direct vagent host dependencies observed: **1 ENI, 1 security group, 1 instance profile / 1 role**. The ENI is untagged; no mutation or cleanup was performed.
 
@@ -106,7 +106,7 @@ Direct vagent host dependencies observed: **1 ENI, 1 security group, 1 instance 
 | aws-secops | **amit** | - | S3 bucket | 1 | present | 15d | versioning-exception-demo | USAGE-BASED | RETAIN | LIVE |
 | aws-secops | **amit** | - | Security Group | 1 | present | 16d | pilot-compliance-demo | DIRECT-$0 | RETAIN | LIVE |
 | aws-secops | **amit** | - | Security Group rule | 1 | present | 15d | authenticated-ui-https | DIRECT-$0 | RETAIN | LIVE |
-| Security Copilot | **vagent** | `seccop-project1-old-ami-host-r01` | EC2 retained learning host | 1 | running | 25d | Inspector-to-SSM old-package learning demo | EST ~USD 19.27/mo compute | CLEANUP-CANDIDATE | LIVE |
+| Security Copilot | **vagent** | `seccop-project1-old-ami-host-r01` | EC2 retained learning host | 1 | running | 27d | Inspector-to-SSM old-package learning demo | EST ~USD 19.27/mo compute | RETAIN | LIVE |
 | aws-secops | **vagent** | - | S3 bounded demo fleet | 100 | retained | 14d first-seen | bounded S3 Block Public Access scale demo | USAGE-BASED | REVIEW | REPO-EVIDENCE |
 
 ## Cost labels
@@ -120,4 +120,4 @@ Direct vagent host dependencies observed: **1 ENI, 1 security group, 1 instance 
 ## Operating rule
 
 Refresh before/after major demos and before cleanup decisions.
-TTL means **review date**, never automatic deletion.
+TTL means **review date**, never automatic deletion. **Protected resources remain unchanged until Amit gives a new exact authorization.**
