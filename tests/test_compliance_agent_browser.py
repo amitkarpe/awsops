@@ -40,8 +40,8 @@ PLAN = matrix() + """
 
 | Priority | Control | Suggested change | Execution |
 | --- | --- | --- | --- |
-| P1 | S3 BPA | Bring bucket-level Block Public Access into the compliant configuration. | 🚫 Not executed |
-| P2 | Restricted SSH | Remove unrestricted SSH ingress and use an approved source if access is required. | 🚫 Not executed |
+| 1 | S3 BPA | Bring bucket-level Block Public Access into the compliant configuration. | 🚫 Not executed |
+| 2 | Restricted SSH | Remove unrestricted SSH ingress and use an approved source if access is required. | 🚫 Not executed |
 
 🛡️ **Read-only:** No AWS changes executed."""
 
