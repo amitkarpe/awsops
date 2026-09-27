@@ -92,27 +92,19 @@ async function exactAgent(page) {
 
 async function selectAgent(page) {
   await page.goto(`${BASE}/c/new`, {waitUntil: 'domcontentloaded'});
-  const form = page.getByRole('form', {name: 'Agent configuration form'});
-  const visible = await form.waitFor({state: 'visible', timeout: 1500}).then(() => true).catch(() => false);
-  if (!visible) {
-    const button = page.getByRole('button', {name: 'Agent Builder', exact: true});
-    if (await button.count() !== 1) throw Error('AGENT_BUILDER_REQUIRED');
-    await button.waitFor({state: 'visible', timeout: 15000});
-    if (!(await button.isEnabled())) throw Error('AGENT_BUILDER_DISABLED');
-    if (await button.getAttribute('aria-pressed') !== 'true') await button.click();
-  }
-  await form.waitFor({state: 'visible', timeout: 30000});
-  const select = form.getByRole('combobox', {name: 'Agent', exact: true});
-  await select.click();
-  const option = page.getByRole('option', {name: AGENT, exact: true});
+  const selector = page.getByTestId('model-selector-button');
+  await selector.waitFor({state: 'visible', timeout: 30000});
+  if ((await selector.innerText()).trim() === AGENT) return;
+  await selector.click();
+  const option = page.getByText(AGENT, {exact: true});
+  if (await option.count() !== 1) throw Error('EXACT_AGENT_OPTION_REQUIRED');
   await option.waitFor({state: 'visible', timeout: 30000});
   await option.click();
-  const name = form.getByLabel('Agent name');
-  await name.waitFor({state: 'visible', timeout: 30000});
-  for (let i = 0; i < 120 && await name.inputValue() !== AGENT; i++) await page.waitForTimeout(250);
-  if (await name.inputValue() !== AGENT) throw Error('AGENT_SELECTION_MISMATCH');
-  await form.getByRole('button', {name: 'Back to builder', exact: true}).click();
-  await form.getByRole('button', {name: 'Select Agent', exact: true}).click();
+  const deadline = Date.now() + 30000;
+  while ((await selector.innerText()).trim() !== AGENT && Date.now() < deadline) {
+    await page.waitForTimeout(250);
+  }
+  if ((await selector.innerText()).trim() !== AGENT) throw Error('AGENT_SELECTION_MISMATCH');
 }
 
 async function renderedSnapshot(page) {
