@@ -7,7 +7,7 @@
 - Scope: personal LAB / `ap-southeast-1`
 - Cost period: `2026-09-01..2026-09-27`
 - Current rule: **look at the red/high-cost tables first**
-- **Protection rule (2026-09-27): legacy Lightsail and the `vagent` retained `t3.small` are DO NOT TOUCH.** Read-only inspection is allowed; stop/terminate/delete/resize/repurpose/tag/IAM/network changes require a new explicit user authorization.
+- **Protection rule (2026-09-27): legacy Lightsail and the `vagent` retained `t3.small` are DO NOT TOUCH.** Read-only inspection is allowed; stop/start/terminate/delete/resize/repurpose/tag/IAM/network changes require a new explicit user authorization.
 
 ## 🔴 Cost watch — check this first
 
