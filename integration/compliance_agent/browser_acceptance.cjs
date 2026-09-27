@@ -186,7 +186,10 @@ async function runPrompt(page, root, mode, diagnostics, pageErrors, mark = () =>
       [200, 201].includes(response.status());
   }, {timeout: 60000});
   mark(mode + '_send');
-  await input.press('Enter');
+  const send = page.getByTestId('send-button');
+  await send.waitFor({state: 'visible', timeout: 30000});
+  if (!(await send.isEnabled())) throw Error('SEND_BUTTON_DISABLED');
+  await send.click();
   await admitted;
 
   mark(mode + '_conversation');
