@@ -27,20 +27,24 @@ def _response_mode(user_request: str) -> str:
 def _mode_layout(mode: str) -> str:
     if mode == "STATUS":
         return """STATUS MODE:
-- After the matrix, add at most one short summary sentence.
+- After the matrix, add exactly one summary sentence. If attention items exist, use: "N of 8 checks need attention." with the evidence-derived N. Otherwise use: "All 8 checks are compliant or not applicable."
 - Do not add any second table, explanation table, remediation table, suggestion or implementation detail."""
     if mode == "EXPLAIN":
         return """EXPLAIN MODE:
 - After the matrix, add exactly one compact table:
   | Needs attention | Why | Affected |
 - Include only evidence-backed NON_COMPLIANT or insufficient-data items.
+- Format Needs attention as "<alias> — <S3 BPA|Restricted SSH>".
 - For S3 NON_COMPLIANT, the reason is only: bucket-level Block Public Access is not in the compliant configuration.
 - For restricted SSH NON_COMPLIANT, the reason is only: unrestricted SSH ingress is present.
+- For INSUFFICIENT_DATA, the reason is only: evidence is insufficient; Affected is "Unknown".
 - Use aliases and aggregate counts only.
 - Do not include suggested changes, remediation steps, priorities or an execution column."""
     return """PLAN MODE:
 - After the matrix, add exactly one compact table:
-  | Priority | Control | Suggested change | Execution |
+  | Alias | Control | Evidence | Suggested change | Execution |
+- Include one row for each NON_COMPLIANT alias/control check and no other rows.
+- Evidence must use the same status and aggregate affected_resources count as the matrix.
 - For S3 NON_COMPLIANT, suggest only bringing bucket-level Block Public Access into the compliant configuration.
 - For restricted SSH NON_COMPLIANT, suggest only removing unrestricted SSH ingress and, if access is still required, replacing it with an approved source.
 - Every Execution cell must be "🚫 Not executed".
@@ -83,7 +87,7 @@ OUTPUT CONTRACT:
   | lab-sec | ... | ... |
 - Render evidence statuses only as:
   ✅ COMPLIANT
-  🔴 NON_COMPLIANT (include the aggregate affected_resources count when present)
+  🔴 NON_COMPLIANT (N affected), where N is the exact aggregate affected_resources count
   ⚠️ INSUFFICIENT_DATA
   ⚪ NOT_APPLICABLE
 - Never turn missing, stale, partial, unavailable or warning evidence into a green status.
