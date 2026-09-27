@@ -238,6 +238,27 @@ acceptance evidence.
   bootstrap shortcut. Do not copy EC2 files, `.env` material, databases,
   browser profiles, cookies, session keys, or credentials to Home DEV.
 
+## Full NEW demo rebuild
+
+Issue #56 removes the remaining retained-host filesystem dependency for the
+accepted read-only NEW demo. Use the canonical runtime contract at
+[`integration/runtime/README.md`](../../integration/runtime/README.md) and the
+Home rebuild at
+[`integration/runtime/home/README.md`](../../integration/runtime/home/README.md).
+
+The important boundary is:
+
+```text
+Git + pinned LibreChat source + owner-private inputs
+  -> local MongoDB
+  -> local config2
+  -> local sec2 / Compliance Agent
+```
+
+Do not copy the retained EC2 `.env`, MongoDB, certificates, cookies, browser
+profiles or filesystem tree to Home DEV. The deferred Issue #11 fixture-model
+service is not part of this read-only Home baseline.
+
 ## Installation rule
 
 Do not install a large platform stack pre-emptively.
