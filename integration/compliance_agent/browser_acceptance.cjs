@@ -108,9 +108,13 @@ async function selectAgent(page, mark = () => {}) {
   if (selected !== AGENT_NAME) throw Error('AGENT_SELECTION_MISMATCH');
 
   mark('agent_builder_back');
-  await form.getByRole('button', {name: 'Back to builder', exact: true}).click();
+  const back = form.getByRole('button', {name: 'Back to builder', exact: true});
+  if (await back.count() === 1 && await back.isVisible()) await back.click();
   mark('agent_submit');
-  await form.getByRole('button', {name: 'Select Agent', exact: true}).click();
+  const submit = form.getByRole('button', {name: 'Select Agent', exact: true});
+  await submit.waitFor({state: 'visible', timeout: 30000});
+  if (!(await submit.isEnabled())) throw Error('AGENT_SELECT_SUBMIT_DISABLED');
+  await submit.click();
 }
 
 async function waitForConversation(page) {
