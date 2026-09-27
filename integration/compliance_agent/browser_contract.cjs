@@ -104,7 +104,7 @@ function assertAnswerContract(mode, answerValue) {
   if (mode === 'plan' && (attention !== 0 || plan !== 1)) fail('PLAN_MODE_MIXED');
 
   if (mode === 'plan') {
-    const executionRows = answer.split('\n').filter((line) => /^\| (?:P\d+|[🔴🟠🟡🟢]|High|Medium|Low)/i.test(line));
+    const executionRows = answer.split('\n').filter((line) => /^\| (?:\d+|P\d+|[🔴🟠🟡🟢]|High|Medium|Low)/i.test(line));
     if (executionRows.some((line) => !line.includes('🚫 Not executed'))) fail('PLAN_EXECUTION_BOUNDARY');
   }
   return answer;
