@@ -51,10 +51,10 @@ class RuntimeReproducibilityTests(unittest.TestCase):
             "PORT": str(port),
             "AWSOPS_CONFIG_AGGREGATOR_NAME": "synthetic-home-smoke",
             "AWSOPS_CONFIG_TARGETS_JSON": json.dumps([
-                {"alias": "lab-dev", "account_id": "100000000001"},
-                {"alias": "lab-poc", "account_id": "100000000002"},
-                {"alias": "lab-qa", "account_id": "100000000003"},
-                {"alias": "lab-sec", "account_id": "100000000004"},
+                {"alias": alias, "account_id": ("1" * 11) + str(index)}
+                for index, alias in enumerate(
+                    ("lab-dev", "lab-poc", "lab-qa", "lab-sec"), start=1
+                )
             ]),
         })
         process = subprocess.Popen(
