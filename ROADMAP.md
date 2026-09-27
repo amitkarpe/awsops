@@ -38,7 +38,8 @@ Mode: **one execution PR, many milestones; standing owner approval recorded
 - M5 cost cutover — after M1-M4 PASS, stop exactly the retained `amit` EC2,
   never terminate/delete it; retain EBS/EIP and verify Home NEW stays independent.
 - Keep Issue #11 Reject-canary deferred and outside the Home read-only baseline.
-- Protected Lightsail and `vagent` remain DO NOT TOUCH.
+- Lightsail remains DO NOT TOUCH. `vagent` has a newer owner exception: **STOP only** is authorized and tracked separately in `aws-platform` #107; all destructive/configuration changes remain prohibited.
+- Home execution target is `dev@home` under `aws-platform` #99; Hermes #106 is separate. Bridge admission mismatch #109 currently blocks safe automatic mission admission.
 - The single execution tracker is `docs/current/HOME_CUTOVER_EXECUTION.md`.
 
 ## Operational hygiene - AWS resource ledger - IN PROGRESS (#14)
