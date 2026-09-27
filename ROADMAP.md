@@ -30,10 +30,11 @@ provider readback, supported Archive cleanup and retained-service protection.
 - Account-first cost watch uses Cost Explorer actual MTD plus explicit EST / USAGE-BASED / DIRECT-$0 / UNKNOWN labels.
 - EC2 / always-on compute has a separate high-visibility table.
 - `amit` retained host remains `t3.medium`; root gp3 expanded online 20 -> 30 GiB and ext4 usage dropped 92% -> 60% with retained services active.
-- `vagent` live read confirms one running expired-TTL `t3.small` learning host plus 109 S3 buckets total; cleanup remains unapproved.
+- `vagent` live read confirms one running expired-TTL `t3.small` learning host plus 109 S3 buckets total. **Owner decision 2026-09-27: the host is PROTECTED / DO NOT TOUCH.**
 - Home-first compute model is documented in `docs/architecture/DEV_COMPUTE_MODEL.md`: ordinary development stays local/GitHub, `amit` keeps the full M3 integration runtime, and `vagent` is reserved for a future lightweight AWS canary after an explicit repurpose gate.
 - EC2 Name tags are part of the canonical high-cost/resource ledger view.
-- No auto-cleanup. Any deletion/termination/repurpose is a separate exact mutation boundary.
+- **Legacy Lightsail and the retained `vagent` t3.small are PROTECTED / DO NOT TOUCH.** Read-only inspection is allowed; any stop/start/delete/resize/repurpose/tag/IAM/network change needs new exact authorization.
+- No auto-cleanup. Any other deletion/termination/repurpose is a separate exact mutation boundary.
 
 ## M4 - bounded remediation migration - NOT STARTED
 
