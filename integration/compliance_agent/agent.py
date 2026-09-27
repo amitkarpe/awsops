@@ -15,11 +15,24 @@ def _request(value: str) -> str:
     return value.strip()
 
 
+def _response_mode(user_request: str) -> str:
+    request = _request(user_request).lower()
+    if any(token in request for token in ("plan", "remediat", "fix", "apply", "execute")):
+        return "PLAN"
+    if any(token in request for token in ("explain", "attention", "why")):
+        return "EXPLAIN"
+    return "STATUS"
+
+
 def build_prompt(user_request: str, evidence: dict[str, Any]) -> str:
     request = _request(user_request)
+    mode = _response_mode(request)
     packet = json.dumps(evidence, separators=(",", ":"), sort_keys=True)
     return f"""USER_REQUEST:
 {request}
+
+RESPONSE_MODE:
+{mode}
 
 AUTHORITATIVE_EVIDENCE_JSON:
 {packet}
@@ -53,13 +66,16 @@ OUTPUT CONTRACT:
   ⚠️ INSUFFICIENT_DATA
   ⚪ NOT_APPLICABLE
 - Never turn missing, stale, partial, unavailable or warning evidence into a green status.
-- For a Status request: after the matrix, add at most one short summary sentence.
-- For an Explain request: after the matrix, add one compact table:
+- RESPONSE_MODE is authoritative. Produce only the layout for that one mode; never combine modes.
+- STATUS: after the matrix, add at most one short summary sentence. Do not include attention or plan tables.
+- EXPLAIN: after the matrix, add exactly one compact table:
   | Needs attention | Why | Affected |
   Include only evidence-backed NON_COMPLIANT or insufficient-data items. Use aliases and aggregate counts only.
-- For a no-change Plan request: after the matrix, add one compact table:
+  Do not include a remediation-plan table or suggested changes.
+- PLAN: after the matrix, add exactly one compact table:
   | Priority | Control | Suggested change | Execution |
   Use only the bounded S3 BPA / restricted-SSH guidance above. Every Execution cell must be "🚫 Not executed".
+  Do not include a separate attention/explanation table.
 - Keep the full answer under about 220 words unless the user explicitly asks for detail.
 - End every answer with exactly:
   > 🛡️ **Read-only:** No AWS changes executed.
