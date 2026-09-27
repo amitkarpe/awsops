@@ -166,7 +166,8 @@ async function run(root) {
   const manifest = privateJson(path.join(root, 'manifest.json'));
   if (manifest.purpose !== PURPOSE || manifest.base_url !== BASE || manifest.agent_name !== AGENT ||
       typeof manifest.git_head !== 'string' || !/^[a-f0-9]{40}$/.test(manifest.git_head) ||
-      !['launch', 'cdp'].includes(manifest.browser_mode)) throw Error('BROWSER_MANIFEST_REQUIRED');
+      !['launch', 'cdp'].includes(manifest.browser_mode) ||
+      ![undefined, true, false].includes(manifest.loopback_origin)) throw Error('BROWSER_MANIFEST_REQUIRED');
   const playwright = require(path.join(root, 'app/node_modules/playwright'));
   const evidenceRoot = path.join(root, 'evidence'); ensurePrivateDir(evidenceRoot);
   const runDir = path.join(evidenceRoot, `issue49-${Date.now()}`);
@@ -181,7 +182,9 @@ async function run(root) {
       browser = await playwright.chromium.connectOverCDP(manifest.cdp_endpoint); attached = true;
       context = browser.contexts()[0]; if (!context) throw Error('CDP_CONTEXT_REQUIRED');
     } else {
-      browser = await playwright.chromium.launch({headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage']});
+      const launchArgs = ['--no-sandbox', '--disable-dev-shm-usage'];
+      if (manifest.loopback_origin === true) launchArgs.push('--host-resolver-rules=MAP sec2.astromedicomp.org 127.0.0.1');
+      browser = await playwright.chromium.launch({headless: true, args: launchArgs});
       context = await browser.newContext();
     }
     page = await context.newPage(); page.setDefaultTimeout(30000);
@@ -214,16 +217,19 @@ async function run(root) {
       page_error_types: pageErrorTypes, diagnostics};
     writePrivate(path.join(runDir, 'manifest.json'), evidence);
     return evidence;
-  } catch {
+  } catch (error) {
     if (page) {
       for (const conversationId of conversations) {
         try { const archive = contract.archiveRequest(conversationId);
           await api(page, archive.path, archive.method, archive.body); } catch {}
       }
     }
-    return {version: 1, outcome: 'COMPLIANCE_UI_BLOCKED', stage, browser_auth_exported: false,
-      storage_state_exported: false, conversations_created: conversations.length,
-      console_types: consoleTypes, page_error_types: pageErrorTypes, diagnostics};
+    const reason = typeof error?.message === 'string' && /^[A-Z0-9_]{3,80}$/.test(error.message)
+      ? error.message : error?.name === 'TimeoutError' ? 'BROWSER_TIMEOUT' : 'BROWSER_RUNTIME_BLOCKED';
+    return {version: 1, outcome: 'COMPLIANCE_UI_BLOCKED', stage, reason,
+      browser_auth_exported: false, storage_state_exported: false,
+      conversations_created: conversations.length, console_types: consoleTypes,
+      page_error_types: pageErrorTypes, diagnostics};
   } finally {
     if (page) await page.close().catch(() => {});
     if (browser && !attached) await browser.close().catch(() => {});
