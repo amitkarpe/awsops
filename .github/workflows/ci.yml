@@ -28,10 +28,12 @@ jobs:
         env:
           AWSOPS_REQUIRE_NATIVE_FIXTURE: "1"
         run: python -m unittest discover -s tests -p 'test_*.py'
-      - name: Validate Home runtime prerequisites
+      - name: Validate Home runtime prerequisites and pinned source
         run: |
           python scripts/home_demo.py check
           docker compose -f integration/runtime/home/docker-compose.yaml config -q
+          python scripts/home_demo.py prepare /tmp/awsops-home-demo
+          python scripts/home_demo.py verify /tmp/awsops-home-demo
       - name: Build config2 Home artifact
         working-directory: integration/config_dashboard
         run: |
