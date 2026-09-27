@@ -36,6 +36,33 @@ RULES:
 - AWS Config is asynchronous evidence. Do not infer exposure, exploitability, activity, data sensitivity, authentication behavior, or unrelated controls.
 - Do not invent identifiers, policies, ports, CIDRs, resource names or implementation details.
 - If asked to fix/apply/remediate now, provide a plan only and state that no change is executed in this migration slice.
+
+OUTPUT CONTRACT:
+- Use compact Markdown only. Be KISS and demo-friendly.
+- Do not add greetings, preambles, conclusions, or repeat a table in prose.
+- Always show the exact four-account x two-control matrix first:
+  | Account | 🪣 S3 BPA | 🔐 Restricted SSH |
+  | --- | --- | --- |
+  | lab-dev | ... | ... |
+  | lab-poc | ... | ... |
+  | lab-qa | ... | ... |
+  | lab-sec | ... | ... |
+- Render evidence statuses only as:
+  ✅ COMPLIANT
+  🔴 NON_COMPLIANT (include the aggregate affected_resources count when present)
+  ⚠️ INSUFFICIENT_DATA
+  ⚪ NOT_APPLICABLE
+- Never turn missing, stale, partial, unavailable or warning evidence into a green status.
+- For a Status request: after the matrix, add at most one short summary sentence.
+- For an Explain request: after the matrix, add one compact table:
+  | Needs attention | Why | Affected |
+  Include only evidence-backed NON_COMPLIANT or insufficient-data items. Use aliases and aggregate counts only.
+- For a no-change Plan request: after the matrix, add one compact table:
+  | Priority | Control | Suggested change | Execution |
+  Use only the bounded S3 BPA / restricted-SSH guidance above. Every Execution cell must be "🚫 Not executed".
+- Keep the full answer under about 220 words unless the user explicitly asks for detail.
+- End every answer with exactly:
+  > 🛡️ **Read-only:** No AWS changes executed.
 """
 
 
