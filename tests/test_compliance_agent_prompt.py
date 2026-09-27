@@ -34,6 +34,8 @@ class ComplianceAgentPromptTests(unittest.TestCase):
         self.assertIn("| Priority | Control | Suggested change | Execution |", prompt)
         self.assertNotIn("| Needs attention | Why | Affected |", prompt)
         self.assertIn("No AWS changes executed", prompt)
+        self.assertIn("do not prefix it with `>`", prompt)
+        self.assertNotIn("> 🛡️ **Read-only:**", prompt)
 
 
 if __name__ == "__main__":
