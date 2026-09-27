@@ -140,11 +140,20 @@ function recordDiagnostic(rows, entry) {
   if (Array.isArray(rows) && rows.length < MAX_DIAGNOSTICS) rows.push(entry);
 }
 
-async function waitForSettledSnapshot(read, {attempts = 120, stableSamples = 3, pause = defaultPause} = {}) {
+async function waitForSettledSnapshot(
+  read,
+  {attempts = 120, stableSamples = 3, pause = defaultPause, isReady = () => true} = {},
+) {
   let previous;
   let stable = 0;
   for (let index = 0; index < attempts; index += 1) {
     const value = await read();
+    if (!isReady(value)) {
+      previous = undefined;
+      stable = 0;
+      await pause(500);
+      continue;
+    }
     const encoded = JSON.stringify(value);
     if (encoded && encoded === previous) stable += 1;
     else stable = 1;
