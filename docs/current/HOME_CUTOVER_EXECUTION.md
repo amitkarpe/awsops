@@ -8,7 +8,7 @@ for `go` between routine steps. Stop only at Issue #56 hard gates.
 
 ## M2 — real Home bootstrap
 
-**Status: BLOCKED on Home execution access, not on code.** The current Bridge worker was verified as Amit's **office WSL (Ubuntu 24.04 on WSL2)** and is explicitly unsuitable for runtime installation. Docker/MongoDB/LibreChat/tunnel tooling must not be installed there. Direct Home/Hermes Bridge currently fails closed with `missing trusted checkout`; aws-platform Issue #106 owns that operator-side trust/binding fix.
+**Status: BLOCKED on Home execution access, not on code.** The current Bridge worker was verified as Amit's **office WSL (Ubuntu 24.04 on WSL2)** and is explicitly unsuitable for runtime installation. Docker/MongoDB/LibreChat/tunnel tooling must not be installed there. The intended Home execution target is **dev@home**, tracked by `aws-platform` Issue #99. Hermes/Issue #106 is a separate bridge path and is not required for the Home cutover. A new Bridge2 admission-state defect discovered while resuming #99 is tracked in `aws-platform` Issue #109.
 
 - [ ] Fresh `awsops/main` on Home Ubuntu.
 - [ ] `python scripts/home_demo.py check` PASS.
@@ -46,7 +46,7 @@ for `go` between routine steps. Stop only at Issue #56 hard gates.
 - [ ] Stopped state verified.
 - [ ] EBS/EIP retained.
 - [ ] Lightsail untouched.
-- [ ] `vagent` untouched.
+- [ ] `vagent` stop-only action reconciled separately via `aws-platform` Issue #107; never terminate/delete/resize/retag or change its EBS/EIP/IAM/network/DNS.
 - [ ] Resource/cost ledger updated.
 - [ ] Cutover/recovery runbook updated.
 
@@ -65,6 +65,8 @@ added to this same PR. Merge only after Issue #56 acceptance is complete.
 
 - Office laptop / office WSL: **NO runtime installs**. Read/review/Git/docs only.
 - Home system: all Docker/Compose, MongoDB, LibreChat, Playwright/browser and tunnel work.
-- Current direct Home/Hermes profile: **BLOCKED — missing trusted checkout**.
-- Existing aws-platform relay remains rollback/transport evidence, but it is not permission to install runtime dependencies on office WSL.
-- Resume M2 only after the Home system is addressable through the trusted operator path. Do not improvise an office fallback.
+- Home runtime target: **dev@home**, owned by `aws-platform` Issue #99.
+- Hermes/Issue #106 remains separate and is not a prerequisite for Home runtime work.
+- Current Bridge2 blocker while resuming #99: `mission_start` reports an active controller mission while `worker_status` reports idle; tracked in `aws-platform` Issue #109.
+- Existing relay/direct bridge evidence is not permission to install runtime dependencies on office WSL.
+- Resume M2 only on the actual Home system. Do not improvise an office fallback.
