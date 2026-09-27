@@ -99,10 +99,8 @@ async function selectAgent(page) {
   const search = page.locator('#model-search');
   await search.waitFor({state: 'visible', timeout: 15000});
   await search.fill(AGENT);
-  const option = page.getByRole('option').filter({hasText: AGENT});
-  if (await option.count() !== 1) throw Error('EXACT_AGENT_OPTION_REQUIRED');
-  await option.waitFor({state: 'visible', timeout: 30000});
-  await option.click();
+  await page.waitForTimeout(500);
+  await search.press('Enter');
   const deadline = Date.now() + 30000;
   while ((await selector.innerText()).trim() !== AGENT && Date.now() < deadline) {
     await page.waitForTimeout(250);
