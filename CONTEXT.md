@@ -25,7 +25,8 @@ the `vagent` EC2 on 2026-09-28; terminate/delete/resize/retag/EBS/EIP/IAM/networ
 changes remain unauthorized.
 
 Roadmap v2 Issue #62 is active for the read-only Home demo. M1 stable HTTPS
-route is owned by Issue #63 / PR #64. Issue #65 implements the independent M2 cockpit in config2:
+route is live-validated in Issue #63 / PR #64. Issue #65 implements the
+independent M2 cockpit in config2:
 the exact normalized four-alias/two-control evidence and the last real
 Compliance Agent Harness result determine visible READY/DEGRADED state. Missing,
 failed or stale Harness telemetry degrades; unverified stable-route state is
@@ -70,7 +71,7 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
 - Issue #56 M4 passes through one provider-assigned temporary HTTPS tunnel from Home to the NEW sec2 loopback service. Remote Status, Explain and no-change Plan passed 3/3 with the same persisted/rendered evidence binding, one read-only MCP tool, zero actions and Archive readback. The tunnel hostname and evidence remain owner-private. No Route53, custom DNS, router forwarding or IAM changed.
 - Issue #56 M5 stopped exactly the retained `amit` `t3.medium` on 2026-09-28 after the final identity, EBS/EIP and Home-health gates passed. Provider readback is `stopped`; its encrypted 30 GiB gp3 volume remains attached and its Elastic IP remains associated. Home sec2 HTTPS, config2 READY/non-partial 4 x 2 evidence and the remote three-prompt proof remained healthy. Nothing was terminated, detached, released or deleted; Lightsail and `vagent` were untouched. Git/Home are the NEW demo source of truth and the stopped EBS is recovery state only.
 - Issue #60 completes Home Demo v1 productization: one repo-owned fail-closed read-only validation command and one start/status/validate/stop lifecycle. Validation is bound to the exact current Git head and the latest canonical browser attempt, so stale or superseded evidence cannot satisfy acceptance. The existing Compliance Agent browser harness remains the only browser acceptance path.
-- Issue #63 M1 selected Tailscale Funnel for one stable NEW Home sec2 HTTPS URL. Home Tailscale is online and has no existing Serve/Funnel route. Cloudflare has no named-tunnel authentication on Home; ngrok has no local auth configuration. Funnel activation is pending owner tailnet enablement; the first CLI attempt reported `Funnel is not enabled on your tailnet` and created no route. The repo lifecycle refuses unrelated routes and gates public start on the canonical local validator.
+- Issue #63 M1 uses Tailscale Funnel for one stable NEW Home sec2 HTTPS URL. After owner enablement, the owner-confirmed disposable test route to an unused port was replaced by the exact sec2 loopback route. Public `/login` and `/api/config` returned 200 with verified TLS, and a real browser loaded the login form without a same-origin error. The URL survived a sec2 backend restart. `public-stop` removed public reachability while local sec2/config2 stayed healthy; `public-start` can restore the same URL after exact-head validation. The prior Cloudflare quick tunnel was stopped; its named-tunnel hostname was not verified and is not the M1 route. PR #64 remains for G review.
 - Issue #56 was the canonical stop-readiness gate and has now passed M1-M5.
   `integration/runtime/` records the public-safe host inventory, persistent
   service templates, private-input schemas, exact LibreChat pin and Home rebuild
@@ -190,6 +191,6 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
 1. Issue #60 Home Demo v1 productization is complete. Use `python scripts/home_demo.py validate` as the canonical fail-closed Home read-only validation path.
 2. Issue #56, Issue #39 and Issue #49 are accepted. Home config2 + sec2 AWS Ops Compliance Agent is the supported NEW read-only product; the retained `amit` EC2 remains stopped/recovery-only.
 3. Issue #11 / PR #13 native Reject acceptance is explicitly DEFERRED. M4 remediation remains NOT STARTED / UNAUTHORIZED; do not use it to bypass M3.
-4. Roadmap v2 Issue #62 now owns the next authorized F1-F6 milestones. Issue #63 M1 stable Home URL is the current active slice; public activation is gated by Tailscale Funnel enablement. `aws-secops` remains frozen/reference only; Issue #14 remains independent.
+4. Roadmap v2 Issue #62 owns the next authorized F1-F6 milestones. Issue #63 M1 stable Home URL passed live lifecycle checks and awaits PR #64 review/merge. `aws-secops` remains frozen/reference only; Issue #14 remains independent.
 
 Do not create another roadmap or mistake code/CI acceptance for live completion.

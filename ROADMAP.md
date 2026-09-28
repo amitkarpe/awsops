@@ -53,9 +53,10 @@ Mode: **one execution PR, many milestones; standing owner approval recorded
 
 ## Roadmap v2 - ACTIVE (#62)
 
-- M1 / F1 stable Home HTTPS route: Issue #63 / PR #64 own one NEW-only
-  Tailscale Funnel route, gated by exact-head Home validation.
-- M2 / F2 demo cockpit: Issue #65 implementation adds a config2 READY/DEGRADED
+- M1 / F1 stable Home HTTPS route: LIVE VALIDATED in Issue #63 / PR #64;
+  one NEW-only Tailscale Funnel route passed public TLS/login, sec2 restart,
+  stop/public-off and local-health checks. PR review/merge remains.
+- M2 / F2 demo cockpit: Issue #65 / merged PR #66 adds a config2 READY/DEGRADED
   page from the existing exact 4 x 2 evidence and last actual Harness call.
   Unknown route or stale/failed Harness state is reported honestly. The
   Compliance Agent remains one read-only tool with zero actions.

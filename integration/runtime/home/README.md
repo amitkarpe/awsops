@@ -172,13 +172,13 @@ empty Home target and rerun `home_demo.py prepare`. Git remains source truth.
 
 ## One stable public route (Roadmap v2 M1 / Issue #63)
 
-The first choice, an owner-controlled stable Cloudflare tunnel, has no local
-Cloudflare origin certificate, tunnel token or named-tunnel configuration on
-Home. Tailscale is installed and authenticated and supplies a stable Home
-`*.ts.net` name. Funnel is the selected second choice. **Activation is pending
-the owner's tailnet Funnel enablement**; the CLI currently refuses with
-`Funnel is not enabled on your tailnet.` No public route was created by that
-attempt. Ngrok has no local auth configuration and is not a fallback here.
+Tailscale Funnel is the canonical M1 route for the NEW sec2 service. It uses
+`https://home.tail0e0c85.ts.net/`, with no visible port, and proxies only to
+`127.0.0.1:4311`. The owner-enabled Funnel route passed public TLS/login and
+browser checks; it survived a sec2 backend restart. A prior owner-disposable
+test route was removed. Cloudflare's named-tunnel hostname/origin was not
+verified, and its prior random quick tunnel was stopped; neither is the
+supported stable route. No app listener port was changed.
 
 From the exact Home `awsops` release checkout, after the local lifecycle above
 is healthy and current-head browser acceptance has passed:
@@ -196,12 +196,12 @@ Home requires existing noninteractive `sudo` permission for the exact Funnel
 route change; the script does not change Tailscale operator settings.
 `public-status` reads back the exact route and local sec2 health. `public-stop`
 turns off only that exact route; config2, sec2, MongoDB and Home-local URLs keep
-running. If status reports unhealthy, stop the public route and recover the
-local services before starting it again. The stable URL is printed locally by
-the commands; keep owner-private tunnel details outside Git. No router
+running. The public URL is unreachable while off and returns to the same
+hostname after a validated `public-start`. If status reports unhealthy, stop
+the public route and recover the local services before starting it again. No router
 forwarding, Route53 change, wildcard DNS or retained EC2 is involved.
 
 If `validate` reports stale or unbound browser evidence after a release change,
 rerun the existing canonical browser acceptance from that exact release head;
-do not bypass or weaken the validator. A prior Cloudflare quick tunnel remains
-an optional temporary transport and is not the stable M1 route.
+do not bypass or weaken the validator. The quick tunnel is not part of the
+supported M1 lifecycle.
