@@ -172,6 +172,7 @@ class ComplianceAgentBrowserContractTests(unittest.TestCase):
         self.assertIn("127\\.0\\.0\\.1", source)
         self.assertIn("localhost", source)
         self.assertIn("DEFAULT_BASE", source)
+        self.assertIn("trycloudflare\\.com", source)
         self.assertIn("BROWSER_TIMEOUT", source)
         self.assertIn("pathname === '/api/agents/chat' || pathname.startsWith('/api/agents/chat/')", source)
         self.assertIn("!pathname.endsWith('/abort')", source)

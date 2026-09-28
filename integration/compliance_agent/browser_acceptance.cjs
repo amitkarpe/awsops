@@ -201,7 +201,9 @@ async function run(root) {
   root = privateRoot(root);
   const manifest = privateJson(path.join(root, 'manifest.json'));
   let base; try { base = new URL(manifest.base_url).origin; } catch { throw Error('BROWSER_MANIFEST_REQUIRED'); }
-  const allowedBase = base === DEFAULT_BASE || /^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d{2,5})?$/.test(base);
+  const allowedBase = base === DEFAULT_BASE ||
+    /^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d{2,5})?$/.test(base) ||
+    /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(base);
   if (manifest.purpose !== PURPOSE || manifest.base_url !== base || !allowedBase || manifest.agent_name !== AGENT ||
       typeof manifest.git_head !== 'string' || !/^[a-f0-9]{40}$/.test(manifest.git_head) ||
       !['launch', 'cdp'].includes(manifest.browser_mode) ||
