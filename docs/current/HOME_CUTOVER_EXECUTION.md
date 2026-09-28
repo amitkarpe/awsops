@@ -67,6 +67,18 @@ added to this same PR. Merge only after Issue #56 acceptance is complete.
 - Home system: all Docker/Compose, MongoDB, LibreChat, Playwright/browser and tunnel work.
 - Home runtime target: **dev@home**, owned by `aws-platform` Issue #99.
 - Hermes/Issue #106 remains separate and is not a prerequisite for Home runtime work.
-- Current Bridge2 blocker while resuming #99: `mission_start` reports an active controller mission while `worker_status` reports idle; tracked in `aws-platform` Issue #109.
+- Bridge2 routing mismatch #109 is fixed in aws-platform main. A second mission-lifecycle blocker remains: fresh bounded read-only project and Factory missions can stay `running` without publishing a terminal result. Issue #94 is reopened with fresh reproduction evidence; its proven readback fix is now merged directly to aws-platform main via PR #114. Live runtime reload/cancellation must still wait for a safe idle checkpoint (#96/#109).
 - Existing relay/direct bridge evidence is not permission to install runtime dependencies on office WSL.
 - Resume M2 only on the actual Home system. Do not improvise an office fallback.
+
+
+## Bridge continuation checkpoint — 2026-09-28
+
+- aws-platform #108 capability split: merged/complete.
+- aws-platform #109 route/status mismatch: repository fix merged.
+- aws-platform #94 readback fix: ported directly to current main in PR #114.
+- Live Bridge remains occupied by two bounded read-only missions that have not published terminal results:
+  - one project-profile #109 acceptance mission;
+  - one Factory #99 Home-preflight mission.
+- Do not redispatch, force-clear, restart Bridge/app-server, or install office runtime while those executions are ambiguous.
+- #96 owns safe mission-cancel/reconciliation semantics.
