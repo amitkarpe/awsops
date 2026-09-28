@@ -51,6 +51,19 @@ Mode: **one execution PR, many milestones; standing owner approval recorded
 - Repository/current-state reconciliation complete; no AWS mutation or new infrastructure.
 - Validation is exact-head and latest-attempt bound: stale or superseded browser evidence fails closed.
 
+## Roadmap v2 - ACTIVE (#62)
+
+- M1 / F1 stable Home HTTPS route: BLOCKED on owner-side Tailscale Funnel
+  enablement; Issue #63 / PR #64 own that route and remain untouched by M2.
+- M2 / F2 demo cockpit: Issue #65 implementation adds a config2 READY/DEGRADED
+  page from the existing exact 4 x 2 evidence and last actual Harness call.
+  Unknown route or stale/failed Harness state is reported honestly. The
+  Compliance Agent remains one read-only tool with zero actions.
+- M3 / F3+F6 broader read-only coverage: NOT STARTED.
+- M4 / F4 Conformance Pack and M5 / F5 remediation canary: repository planning
+  may proceed under #62; live AWS writes remain UNAUTHORIZED until its exact
+  mutation gate is granted. Issue #11 / PR #13 remain deferred.
+
 ## Operational hygiene - AWS resource ledger - IN PROGRESS (#14)
 
 - Canonical public Markdown ledger: `docs/current/AWS_RESOURCES.md`.

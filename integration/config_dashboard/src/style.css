@@ -66,6 +66,16 @@ select { max-width: 100%; min-height: 40px; }
 .button-outline:hover:not(:disabled) { background: var(--hover); }
 .theme-state { color: var(--muted); border-left: 1px solid var(--line); padding-left: 7px; font-size: 10px; }
 .evidence-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 10px; margin-bottom: 18px; }
+.cockpit { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; box-shadow: var(--shadow); margin-bottom: 18px; }
+.cockpit-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cockpit-heading h2 { margin: 3px 0 12px; }
+.cockpit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 10px; }
+.cockpit-grid > div { display: flex; flex-direction: column; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--subtle); min-width: 0; }
+.cockpit-grid small { color: var(--muted); }
+.cockpit-grid strong { overflow-wrap: anywhere; font-size: 12px; }
+.cockpit-grid span { color: var(--muted); font-size: 10px; overflow-wrap: anywhere; }
+.cockpit-guardrail { color: var(--good); font-weight: 750; margin: 14px 0 2px; }
+.cockpit-note { color: var(--muted); font-size: 10px; margin: 5px 0 0; }
 .mode-label { display: inline-flex; align-items: center; gap: 6px; border-radius: 5px; background: var(--accent-soft); color: var(--link); padding: 5px 8px; font-size: 9px; font-weight: 750; letter-spacing: .06em; }
 .mode-label.synthetic { background: var(--warning-soft); color: var(--warning); }
 .fetch-time { color: var(--muted); display: flex; align-items: center; gap: 6px; margin-left: auto; }

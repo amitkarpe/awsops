@@ -32,6 +32,10 @@ Runtime inputs stay private:
 - `AWSOPS_CONFIG_BACKEND_URL` — defaults to `http://127.0.0.1:4313`;
 - `COMPLIANCE_AGENT_V1_HARNESS_ARN` — existing approved tool-free Harness;
 - `AWS_REGION` — defaults to `ap-southeast-1`.
+- `AWSOPS_HARNESS_TELEMETRY_FILE` — optional existing owner-private absolute
+  path shared with config2 for the M2 cockpit; the agent atomically records
+  only last-call success/failure, latency, and time. Telemetry write failure
+  never changes the answer or triggers another Harness call.
 
 No remediation, re-arm, generic AWS tool or Issue #11 flow is included here.
 

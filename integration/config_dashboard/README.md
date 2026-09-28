@@ -53,6 +53,26 @@ The config2 API exposes only read-only GET/HEAD routes:
 - `/api/health`
 - `/api/diagnostics`
 - `/api/controls?environment=ALL&refresh=1`
+- `/api/cockpit` — bounded public-safe projection for the Home demo cockpit
+
+## Home demo cockpit
+
+The first dashboard panel uses the same four-alias/two-control provider as
+`/api/diagnostics` and `/api/controls`. It shows READY only when the exact
+eight-check matrix is complete, its oldest fetch is recent, the versioned
+Compliance Agent contract still has one tool/zero actions, and a recent real
+Harness invocation succeeded. Missing, failed, or older-than-15-minute Harness
+telemetry shows DEGRADED. A route that has not been independently reported is
+shown as `NOT_REPORTED`; this page does not create a public route.
+
+For Home, set `AWSOPS_HARNESS_TELEMETRY_FILE` to the **same existing owner-private
+absolute file path** in both the sec2 MCP process and config2 service. The
+Compliance Agent writes only last-call status, latency, and time through its
+existing `harness_client.py` invocation path. Configure a private directory
+readable by those two processes; no prompt, answer, ARN, session, account ID,
+or raw finding is stored. Do not commit the file or its path. Without this
+optional integration the cockpit remains visibly DEGRADED while existing
+Status/Explain/Plan behavior continues to work.
 
 No demo re-arm, preview, confirmation, history, mutation, generic AWS action or
 resource-detail route is part of this package.

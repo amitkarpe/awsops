@@ -24,6 +24,17 @@ Lightsail mutation is authorized. Amit separately authorized **STOP only** for
 the `vagent` EC2 on 2026-09-28; terminate/delete/resize/retag/EBS/EIP/IAM/network/DNS
 changes remain unauthorized.
 
+Roadmap v2 Issue #62 is active for the read-only Home demo. M1 stable HTTPS
+route remains blocked on the owner-side Tailscale Funnel enablement in Issue
+#63 / PR #64. Issue #65 implements the independent M2 cockpit in config2:
+the exact normalized four-alias/two-control evidence and the last real
+Compliance Agent Harness result determine visible READY/DEGRADED state. Missing,
+failed or stale Harness telemetry degrades; unverified stable-route state is
+NOT_REPORTED. This work adds no model-facing tool or AWS action. M3 broader
+read-only coverage and M4/M5 live AWS mutation have not started; the latter
+still require the explicit Issue #62 mutation gate. Issue #11 / PR #13 remain
+deferred.
+
 Issue #14 owns operational hygiene: the public-safe AWS resource/cost ledger,
 account-level cost visibility and retained-host capacity evidence. Amit explicitly
 authorized one bounded LAB mutation: grow the `amit` retained host root gp3 volume

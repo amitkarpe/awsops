@@ -113,6 +113,15 @@ Live `/api/diagnostics` and `/api/controls` require the existing approved AWS
 Config read path and exact private bindings; local startup itself creates no AWS
 resources and performs no mutation.
 
+The Issue #65 cockpit is on the same config2 root page. To show last-call
+AgentCore status, set the same `AWSOPS_HARNESS_TELEMETRY_FILE` absolute path in
+the private config2 and Compliance Agent environments. Create its parent as an
+owner-private directory before starting either process. The MCP process writes
+only a mode-0600 bounded result/time/latency record after its existing Harness
+call; config2 reads it. A missing, failed, or stale record visibly degrades the
+cockpit and does not affect Status/Explain/Plan answers. The stable route says
+`NOT_REPORTED` until M1 has a separately verified integration.
+
 ## 6. Prepare LibreChat + Compliance Agent
 
 In a second shell:
