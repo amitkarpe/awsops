@@ -23,17 +23,22 @@ preparation/readback through the isolated SSM probe. Evidence is in
 Require authenticated native Reject, durable receipt, zero dispatch, unchanged
 provider readback, supported Archive cleanup and retained-service protection.
 
-## Home runtime preservation / EC2 stop-readiness - IN PROGRESS (#56)
+## Home cutover / EC2 cost reduction - COMPLETE (#56)
 
-- Capture the non-secret config2/sec2 runtime/service contract in Git.
-- Pin LibreChat source and provide a fresh Home rebuild path; never copy EC2
-  secrets, database/browser state or TLS private material.
-- Keep Issue #11 Reject-canary model deferred; do not import it into the
-  read-only Home baseline.
-- CI must validate the runtime contract, local config2 health and config2 build.
-- Final acceptance requires a real Home browser journey plus a separate public
-  tunnel proof before the retained `amit` EC2 may be stopped.
-- This milestone authorizes no EC2/DNS/IAM/network/tunnel mutation.
+Mode: **one execution PR, many milestones; standing owner approval recorded
+2026-09-27.**
+
+- M1 runtime preservation — COMPLETE in PR #57 / `14e004d1`.
+- M2 real Home bootstrap — COMPLETE.
+- M3 Home browser acceptance — COMPLETE with canonical Status/Explain/no-change
+  Plan, one read-only tool and zero actions.
+- M4 public NEW tunnel — COMPLETE with one provider-assigned HTTPS tunnel and
+  no custom Route53 migration or home-router inbound forwarding.
+- M5 cost cutover — COMPLETE: the exact retained `amit` EC2 is stopped, never
+  terminated; EBS/EIP remain retained and Home NEW stayed healthy.
+- Keep Issue #11 Reject-canary deferred and outside the Home read-only baseline.
+- Lightsail remains DO NOT TOUCH. `vagent` has a newer owner exception: **STOP only** is authorized and tracked separately in `aws-platform` #107; all destructive/configuration changes remain prohibited.
+- The single execution tracker is `docs/current/HOME_CUTOVER_EXECUTION.md`.
 
 ## Operational hygiene - AWS resource ledger - IN PROGRESS (#14)
 

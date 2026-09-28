@@ -2,7 +2,7 @@
 
 Repository: `amitkarpe/awsops`
 Status: ACTIVE
-Updated: 2026-09-27
+Updated: 2026-09-28
 
 ## Authority
 
@@ -13,11 +13,16 @@ isolated normal-auth native Reject canary. Issue #29 owns the Home DEV -> AWS
 Demo operating model; Issue #39 owns the recovered read-only NEW Config
 Dashboard and Compliance Agent demo.
 
-Issue #56 owns the pre-stop runtime preservation/Home-demo reproducibility gate.
-It may version non-secret runtime/service/bootstrap artifacts and validate them
-locally/CI, but it does not authorize EC2 stop/start/restart/terminate, tunnel
-activation, DNS/IAM/network change, OLD mutation, or protected Lightsail/vagent
-mutation.
+Issue #56 is now **Roadmap Autopilot / one execution PR, many milestones**.
+Amit granted standing approval on 2026-09-27 to continue M2-M5 without repeated
+`go` prompts. G/X may run Home local services, use existing owner-approved
+read-only AWS SSO evidence, establish one NEW-only temporary public tunnel using
+a provider-assigned hostname, and after M1-M4 pass stop exactly the retained
+`amit` EC2. That instance may be stopped but never terminated under Issue #56.
+No EBS/EIP deletion, custom Route53 migration, broad IAM, live remediation or
+Lightsail mutation is authorized. Amit separately authorized **STOP only** for
+the `vagent` EC2 on 2026-09-28; terminate/delete/resize/retag/EBS/EIP/IAM/network/DNS
+changes remain unauthorized.
 
 Issue #14 owns operational hygiene: the public-safe AWS resource/cost ledger,
 account-level cost visibility and retained-host capacity evidence. Amit explicitly
@@ -50,13 +55,15 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
 - Live `vagent` inventory confirms `seccop-project1-old-ami-host-r01` (`t3.small`) is SSM Online and almost idle (~0.13% 14-day CPU average), with ~1.59 GiB RAM available and ~10% root-disk use at the sampled point. It is Amazon Linux 2 with Python 3.7 and no Git/Node/Docker, so it is not a clean modern developer workstation. **Owner decision 2026-09-27: this `vagent` host is PROTECTED / DO NOT TOUCH.** No stop, terminate, delete, resize, repurpose, retag, IAM or network change is authorized; read-only inspection only unless Amit gives a new exact authorization.
 - Legacy Lightsail resources (one running, one stopped; created 2017/2018) are also **PROTECTED / DO NOT TOUCH** by Amit's 2026-09-27 decision. Read-only inspection is allowed; no stop/start/delete/resize/rebuild/tag/IAM/network mutation without new explicit authorization.
 - `docs/architecture/DEV_COMPUTE_MODEL.md` defines the accepted design: home workstation for normal development, GitHub Actions for repeatable CI, `amit` `t3.medium` only for the current full LibreChat/Ops/MongoDB integration path, and `vagent` only as a future lightweight AWS canary after an explicit repurpose gate.
-- Issue #56 is now the canonical stop-readiness gate. The retained-host audit
-  proved config2/Compliance Agent source is preserved, but config2's persistent
-  unit and sec2 transient db/app/model launch knowledge needed versioning before
-  any stop. `integration/runtime/` now records the public-safe host inventory,
-  persistent service templates, private-input schemas, exact LibreChat pin and
-  Home rebuild path. The Issue #11 fixture model remains deferred PR #13
-  reference only and is not part of the read-only Home baseline.
+- Issue #56 M2 and M3 pass on the verified Home Ubuntu workstation: the pinned LibreChat source reconstructed from Git, isolated MongoDB and config2 run on loopback, read-only Config evidence is READY/non-partial at four aliases by two controls, and normal owner browser acceptance passed Status, Explain and no-change Plan. Exactly one read-only MCP tool and zero actions were present; all three test conversations were archived without exporting browser auth or storage state.
+- Issue #56 M4 passes through one provider-assigned temporary HTTPS tunnel from Home to the NEW sec2 loopback service. Remote Status, Explain and no-change Plan passed 3/3 with the same persisted/rendered evidence binding, one read-only MCP tool, zero actions and Archive readback. The tunnel hostname and evidence remain owner-private. No Route53, custom DNS, router forwarding or IAM changed.
+- Issue #56 M5 stopped exactly the retained `amit` `t3.medium` on 2026-09-28 after the final identity, EBS/EIP and Home-health gates passed. Provider readback is `stopped`; its encrypted 30 GiB gp3 volume remains attached and its Elastic IP remains associated. Home sec2 HTTPS, config2 READY/non-partial 4 x 2 evidence and the remote three-prompt proof remained healthy. Nothing was terminated, detached, released or deleted; Lightsail and `vagent` were untouched. Git/Home are the NEW demo source of truth and the stopped EBS is recovery state only.
+- Issue #56 was the canonical stop-readiness gate and has now passed M1-M5.
+  `integration/runtime/` records the public-safe host inventory, persistent
+  service templates, private-input schemas, exact LibreChat pin and Home rebuild
+  path. The retained `amit` host is stopped with EBS/EIP preserved. The Issue #11
+  fixture model remains deferred PR #13 reference only and is not part of the
+  read-only Home baseline.
 - `docs/architecture/HOME_DEV_WORKFLOW.md` is the sanitized Codex/home-workstation bootstrap. GitHub is the source of truth for `AgentCore` and `agentic-ai-cybersecurity-lab`; do not spend time forensically synchronizing the old vagent filesystem unless a concrete irreplaceable artifact is proven.
 - `aws-secops` is **FROZEN / REFERENCE** and remains a reference/archive.
   `docs/architecture/AWS_SECOPS_HARVEST.md` is the canonical harvest matrix;
@@ -167,9 +174,7 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
 
 ## Next
 
-1. Issue #56 is the active pre-stop gate: merge and validate the canonical
-   `integration/runtime/` + Home rebuild, then prove a fresh local browser
-   journey and separate tunnel before stopping any EC2.
+1. Issue #56 M1-M5 are complete: Home rebuild, local and remote browser acceptance, temporary HTTPS tunnel, and the exact retained-`amit` EC2 stop all passed. EBS/EIP remain retained. Preserve the stopped recovery resources; any future restart, termination or cleanup needs separate authority.
 2. Issue #39 and Issue #49 are accepted: config2, sec2 owner access, the
    read-only AWS Ops Compliance Agent, and its KISS table-first Status /
    Explain / no-change Plan output are the current NEW demo path. Use

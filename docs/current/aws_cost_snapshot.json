@@ -16,12 +16,12 @@
   ],
   "priority": [
     {
-      "priority": "🔴 HIGH",
+      "priority": "✅ STOPPED",
       "account": "amit",
       "name": "EC2 Compute",
-      "state": "retained t3.medium running",
-      "cost": "USD 31.52 MTD actual; ~USD 38.54/mo list-price compute",
-      "action": "KEEP t3.medium; monitor"
+      "state": "retained t3.medium stopped; EBS/EIP retained",
+      "cost": "USD 31.52 prior MTD actual; active compute accrual stopped",
+      "action": "RETAIN stopped; start only for approved recovery/demo"
     },
     {
       "priority": "🛡️ PROTECTED",
@@ -53,5 +53,6 @@
     ["Amazon Route 53", 0.65],
     ["AWS Key Management Service", 0.63],
     ["CodeBuild", 0.45]
-  ]
+  ],
+  "resource_state_verified_at": "2026-09-28T16:54:34+08:00"
 }

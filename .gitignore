@@ -8,3 +8,5 @@ __pycache__/
 artifacts/
 .private/
 *.local.json
+integration/config_dashboard/node_modules/
+integration/config_dashboard/dist/

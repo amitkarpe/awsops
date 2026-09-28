@@ -69,8 +69,8 @@ def check_prerequisites() -> None:
         raise RuntimeError("Home demo baseline is Linux/Ubuntu")
     if sys.version_info < (3, 12):
         raise RuntimeError("Python 3.12+ is required")
-    if (version_major("node") or 0) < 22:
-        raise RuntimeError("Node.js 22+ is required")
+    if (version_major("node") or 0) < 24:
+        raise RuntimeError("Node.js 24+ is required")
     load_pin()
     for path in HOME_FILES:
         if not path.is_file():

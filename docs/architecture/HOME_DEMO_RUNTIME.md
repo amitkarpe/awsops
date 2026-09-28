@@ -57,15 +57,16 @@ read-only Compliance Agent Home demo does not import or enable that Reject path.
 Issue #56 may declare the retained `amit` EC2 **STOP-READY** only when all are
 true:
 
-- [ ] fresh Home checkout passes repository validation;
-- [ ] config2 builds, starts and returns local `/api/health`;
-- [ ] pinned LibreChat source can be prepared without the EC2 filesystem;
-- [ ] isolated local MongoDB starts on loopback;
-- [ ] Compliance Agent MCP wiring is reconstructible from Git + private inputs;
-- [ ] normal local owner login/browser journey is proven;
-- [ ] public-demo tunnel choice is documented and tested separately;
-- [ ] owner understands stopped EC2 retains EBS cost/state and is not terminated;
-- [ ] protected Lightsail and protected `vagent` remain untouched.
+- [x] fresh Home checkout passes repository validation;
+- [x] config2 builds, starts and returns local `/api/health`;
+- [x] pinned LibreChat source can be prepared without the EC2 filesystem;
+- [x] isolated local MongoDB starts on loopback;
+- [x] Compliance Agent MCP wiring is reconstructible from Git + private inputs;
+- [x] normal local owner login/browser journey is proven;
+- [x] public-demo tunnel choice is documented and tested separately;
+- [x] owner understands stopped EC2 retains EBS cost/state and is not terminated;
+- [x] protected Lightsail and protected `vagent` remain untouched.
 
-Until the local browser + tunnel gates are complete, the answer remains
-**NOT STOP-READY** even though the runtime source/glue is now captured.
+The Home bootstrap, browser, tunnel and post-stop health gates passed on
+2026-09-28. The retained host is now stopped with EBS/EIP preserved; Home and
+Git are the NEW demo source of truth.
