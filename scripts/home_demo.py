@@ -296,6 +296,26 @@ def exact_funnel(funnel: dict[str, object]) -> bool:
             next(iter(handlers.values()), {}).get("Proxy") == SEC2_DEFAULT)
 
 
+def change_funnel(argv: list[str]) -> None:
+    try:
+        subprocess.run(
+            ["tailscale", "funnel", *argv],
+            check=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=20,
+        )
+    except subprocess.CalledProcessError as error:
+        output = (error.stdout or "") + (error.stderr or "")
+        if "Funnel is not enabled on your tailnet" in output:
+            raise RuntimeError("Tailscale Funnel requires owner tailnet enablement") from error
+        raise RuntimeError("Tailscale Funnel route change failed") from error
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError("Tailscale Funnel route change timed out; check tailnet enablement") from error
+
+
 def public_start() -> None:
     status, funnel = tailscale_state()
     validate_runtime(CONFIG2_DEFAULT, SEC2_DEFAULT, BROWSER_EVIDENCE_DEFAULT)
@@ -307,7 +327,7 @@ def public_start() -> None:
     serve = json.loads(run(["tailscale", "serve", "status", "--json"]))
     if serve:
         raise RuntimeError("an existing Tailscale Serve route must be preserved")
-    run(["tailscale", "funnel", "--bg", "--yes", SEC2_DEFAULT])
+    change_funnel(["--bg", "--yes", SEC2_DEFAULT])
     status, funnel = tailscale_state()
     if not exact_funnel(funnel):
         raise RuntimeError("Tailscale did not install the exact sec2-only route")
@@ -332,7 +352,7 @@ def public_stop() -> None:
         return
     if not exact_funnel(funnel):
         raise RuntimeError("refusing to stop an unrelated Tailscale route")
-    run(["tailscale", "funnel", "--https=443", "--yes", "off"])
+    change_funnel(["--https=443", "--yes", "off"])
     _, remaining = tailscale_state()
     if remaining:
         raise RuntimeError("Tailscale public route remains active")

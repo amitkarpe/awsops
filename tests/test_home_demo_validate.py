@@ -1,6 +1,7 @@
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -128,6 +129,14 @@ class HomeDemoValidateTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "existing Tailscale route"):
                 home_demo.public_start()
             command.assert_not_called()
+
+    def test_disabled_tailnet_reports_exact_gate(self):
+        error = subprocess.CalledProcessError(
+            1, ["tailscale", "funnel"], stderr="Funnel is not enabled on your tailnet"
+        )
+        with mock.patch.object(home_demo.subprocess, "run", side_effect=error):
+            with self.assertRaisesRegex(RuntimeError, "owner tailnet enablement"):
+                home_demo.change_funnel(["--bg", "--yes", home_demo.SEC2_DEFAULT])
 
 
 if __name__ == "__main__":
