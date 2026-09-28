@@ -42,13 +42,14 @@ Mode: **one execution PR, many milestones; standing owner approval recorded
 - The single execution tracker is `docs/current/HOME_CUTOVER_EXECUTION.md`.
 
 
-## Home Demo v1 productization - IN PROGRESS (#60)
+## Home Demo v1 productization - COMPLETE (#60)
 
 - One canonical `home_demo.py validate` command for the supported Home runtime.
 - Exact config2 four-alias x two-control and sec2 one-tool/zero-action contract.
 - Existing Status / Explain / no-change Plan browser harness remains canonical.
 - One KISS start -> status -> validate -> stop lifecycle.
-- Repository/current-state reconciliation only; no AWS mutation or new infrastructure.
+- Repository/current-state reconciliation complete; no AWS mutation or new infrastructure.
+- Validation is exact-head and latest-attempt bound: stale or superseded browser evidence fails closed.
 
 ## Operational hygiene - AWS resource ledger - IN PROGRESS (#14)
 
