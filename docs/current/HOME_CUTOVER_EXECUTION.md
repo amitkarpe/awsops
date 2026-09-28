@@ -88,28 +88,14 @@ cookies, browser storage, owner passwords, raw private findings or tunnel secret
 
 ## Final acceptance
 
-This PR remains open until M2-M5 pass. Routine fixes, scripts, tests and docs are
-added to this same PR. Merge only after Issue #56 acceptance is complete.
+**M1-M5 PASS.** Home is the active NEW demo runtime, the retained `amit` EC2 is
+stopped with recovery resources preserved, and the execution evidence is complete.
+Future restart, termination, deletion or cleanup is outside Issue #56 and requires
+separate authority.
 
+## Final environment boundary
 
-## Execution environment boundary — 2026-09-28
-
-- Office laptop / office WSL: **NO runtime installs**. Read/review/Git/docs only.
-- Home system: all Docker/Compose, MongoDB, LibreChat, Playwright/browser and tunnel work.
-- Home runtime target: **dev@home**, owned by `aws-platform` Issue #99.
-- Hermes/Issue #106 remains separate and is not a prerequisite for Home runtime work.
-- Bridge2 routing mismatch #109 is fixed in aws-platform main. A second mission-lifecycle blocker remains: fresh bounded read-only project and Factory missions can stay `running` without publishing a terminal result. Issue #94 is reopened with fresh reproduction evidence; its proven readback fix is now merged directly to aws-platform main via PR #114. Live runtime reload/cancellation must still wait for a safe idle checkpoint (#96/#109).
-- Existing relay/direct bridge evidence is not permission to install runtime dependencies on office WSL.
-- Resume M2 only on the actual Home system. Do not improvise an office fallback.
-
-
-## Bridge continuation checkpoint — 2026-09-28
-
-- aws-platform #108 capability split: merged/complete.
-- aws-platform #109 route/status mismatch: repository fix merged.
-- aws-platform #94 readback fix: ported directly to current main in PR #114.
-- Live Bridge remains occupied by two bounded read-only missions that have not published terminal results:
-  - one project-profile #109 acceptance mission;
-  - one Factory #99 Home-preflight mission.
-- Do not redispatch, force-clear, restart Bridge/app-server, or install office runtime while those executions are ambiguous.
-- #96 owns safe mission-cancel/reconciliation semantics.
+- Office laptop / office WSL remains **no runtime installs**; use it only for lightweight read/review/Git/docs work.
+- Home remains the development/runtime machine for Docker, MongoDB, LibreChat, browser acceptance and temporary tunnel work.
+- The stopped retained `amit` EC2 is recovery state only; do not restart, terminate, delete, detach or release resources under this completed milestone.
+- Lightsail remains **DO NOT TOUCH**. `vagent` remains outside this execution.
