@@ -23,7 +23,7 @@ preparation/readback through the isolated SSM probe. Evidence is in
 Require authenticated native Reject, durable receipt, zero dispatch, unchanged
 provider readback, supported Archive cleanup and retained-service protection.
 
-## Home cutover / EC2 cost reduction - ACCEPTED, MERGE PENDING (#56)
+## Home cutover / EC2 cost reduction - COMPLETE (#56)
 
 Mode: **one execution PR, many milestones; standing owner approval recorded
 2026-09-27.**
@@ -38,7 +38,6 @@ Mode: **one execution PR, many milestones; standing owner approval recorded
   terminated; EBS/EIP remain retained and Home NEW stayed healthy.
 - Keep Issue #11 Reject-canary deferred and outside the Home read-only baseline.
 - Lightsail remains DO NOT TOUCH. `vagent` has a newer owner exception: **STOP only** is authorized and tracked separately in `aws-platform` #107; all destructive/configuration changes remain prohibited.
-- Home execution target is `dev@home` under `aws-platform` #99; Hermes #106 is separate. Bridge admission mismatch #109 currently blocks safe automatic mission admission.
 - The single execution tracker is `docs/current/HOME_CUTOVER_EXECUTION.md`.
 
 ## Operational hygiene - AWS resource ledger - IN PROGRESS (#14)
