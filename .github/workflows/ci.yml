@@ -28,6 +28,8 @@ jobs:
         env:
           AWSOPS_REQUIRE_NATIVE_FIXTURE: "1"
         run: python -m unittest discover -s tests -p 'test_*.py'
+      - name: Check demo cockpit read-only projection
+        run: node --test tests/demo_cockpit.test.cjs
       - name: Validate Home runtime prerequisites and pinned source
         run: |
           python scripts/home_demo.py check

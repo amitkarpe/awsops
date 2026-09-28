@@ -11,6 +11,54 @@ const CONTROLS = Object.freeze([
   "s3-bucket-level-public-access-prohibited",
   "restricted-ssh",
 ]);
+const TELEMETRY_MAX_AGE_MS = 15 * 60 * 1000;
+
+function exactMatrix(snapshot) {
+  const rules = Array.isArray(snapshot.rules) ? snapshot.rules : [];
+  const seen = new Set(rules.map((rule) => `${rule.accountAlias}:${rule.ConfigRuleName}`));
+  const expected = new Set(
+    LAB_ALIASES.flatMap((alias) => CONTROLS.map((control) => `${alias}:${control}`)),
+  );
+  return rules.length === expected.size && seen.size === expected.size &&
+    [...expected].every((key) => seen.has(key)) &&
+    snapshot.available === true && snapshot.partial === false &&
+    snapshot.availableAccounts === 4 && snapshot.totalAccounts === 4;
+}
+
+async function harnessTelemetry() {
+  const unavailable = { status: "UNAVAILABLE", provider: "AgentCore Harness", model: "Not reported",
+    latencyMs: null, result: "NOT_REPORTED", checkedAt: null };
+  const filename = process.env.AWSOPS_HARNESS_TELEMETRY_FILE;
+  if (!filename || !path.isAbsolute(filename)) return unavailable;
+  try {
+    const record = JSON.parse(await readFile(filename, "utf8"));
+    const checkedAt = Date.parse(record.checked_at);
+    if (record.version !== 1 || !["READY", "DEGRADED"].includes(record.status) ||
+        !Number.isInteger(record.latency_ms) || record.latency_ms < 0 || record.latency_ms > 90000 ||
+        !Number.isFinite(checkedAt) || checkedAt > Date.now() + 60000)
+      return unavailable;
+    const fresh = Date.now() - checkedAt <= TELEMETRY_MAX_AGE_MS;
+    return { status: fresh ? record.status : "STALE", provider: "AgentCore Harness",
+      model: "Not reported", latencyMs: record.latency_ms,
+      result: fresh ? (record.status === "READY" ? "ANSWERED" : "FAILED") : "STALE",
+      checkedAt: new Date(checkedAt).toISOString() };
+  } catch {
+    return unavailable;
+  }
+}
+
+async function agentContract() {
+  try {
+    const source = JSON.parse(await readFile(path.resolve(root, "../compliance_agent/librechat-agent.json"), "utf8"));
+    const tools = source.tools;
+    const actions = source.actions ?? [];
+    if (!Array.isArray(tools) || !Array.isArray(actions)) throw Error("Invalid agent contract");
+    return { valid: tools.length === 1 && tools[0] === "ask_compliance_agent_mcp_awsops_compliance_agent" &&
+      actions.length === 0, toolCount: tools.length, actionCount: actions.length };
+  } catch {
+    return { valid: false, toolCount: null, actionCount: null };
+  }
+}
 
 function safeRule(rule) {
   return {
@@ -129,34 +177,52 @@ export function createServer(provider) {
             },
           });
         }
-        const rules = Array.isArray(snapshot.rules) ? snapshot.rules : [];
-        const seen = new Set(rules.map((rule) => `${rule.accountAlias}:${rule.ConfigRuleName}`));
-        const expected = new Set(
-          LAB_ALIASES.flatMap((alias) => CONTROLS.map((control) => `${alias}:${control}`)),
-        );
-        const exactMatrix =
-          seen.size === expected.size &&
-          [...expected].every((key) => seen.has(key)) &&
-          snapshot.available === true &&
-          snapshot.partial === false &&
-          snapshot.availableAccounts === 4 &&
-          snapshot.totalAccounts === 4;
-        return json(exactMatrix ? 200 : 503, {
-          status: exactMatrix ? "READY" : "DEGRADED",
-          ready: exactMatrix,
+        const ready = exactMatrix(snapshot);
+        return json(ready ? 200 : 503, {
+          status: ready ? "READY" : "DEGRADED",
+          ready,
           checkedAt: new Date().toISOString(),
           components: {
             configProvider: {
-              status: exactMatrix ? "READY" : "DEGRADED",
+              status: ready ? "READY" : "DEGRADED",
               availableAccounts: Number(snapshot.availableAccounts) || 0,
               totalAccounts: 4,
               aliases: LAB_ALIASES,
               fetchedAt: snapshot.fetchedAt || null,
-              ...(exactMatrix
+              ...(ready
                 ? {}
                 : { message: "Config evidence is partial or outside the exact 4 x 2 contract." }),
             },
           },
+        });
+      }
+
+      if (url.pathname === "/api/cockpit") {
+        let snapshot;
+        try {
+          snapshot = await provider.list("ALL", false);
+        } catch {
+          snapshot = null;
+        }
+        const rules = Array.isArray(snapshot?.rules) ? snapshot.rules : [];
+        const fetchedAt = Date.parse(snapshot?.fetchedAt);
+        const fresh = Number.isFinite(fetchedAt) && fetchedAt <= Date.now() + 60000 &&
+          Date.now() - fetchedAt <= 5 * 60 * 1000;
+        const evidenceReady = snapshot && exactMatrix(snapshot) && fresh;
+        const [harness, contract] = await Promise.all([harnessTelemetry(), agentContract()]);
+        const agentReady = contract.valid && harness.status === "READY";
+        return json(200, {
+          status: evidenceReady && agentReady ? "READY" : "DEGRADED",
+          aliases: LAB_ALIASES,
+          controls: CONTROLS.length,
+          checks: snapshot ? rules.length : null,
+          evidence: { status: evidenceReady ? "READY" : "DEGRADED",
+            fetchedAt: fresh ? new Date(fetchedAt).toISOString() : null },
+          agent: { status: agentReady ? "AVAILABLE" : harness.status === "DEGRADED" ? "DEGRADED" : "UNVERIFIED",
+            toolCount: contract.toolCount, actionCount: contract.actionCount },
+          harness,
+          stableRoute: { status: "NOT_REPORTED" },
+          guardrail: "READ-ONLY / 0 actions",
         });
       }
 

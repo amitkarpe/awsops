@@ -33,6 +33,18 @@ type Snapshot = {
   totalAccounts: number;
   accounts: AccountStatus[];
 };
+type Cockpit = {
+  status: "READY" | "DEGRADED";
+  aliases: string[];
+  controls: number;
+  checks: number | null;
+  evidence: { status: string; fetchedAt: string | null };
+  agent: { status: string; toolCount: number | null; actionCount: number | null };
+  harness: { status: string; provider: string; model: string; latencyMs: number | null;
+    result: string; checkedAt: string | null };
+  stableRoute: { status: string };
+  guardrail: string;
+};
 
 const LAB_ACCOUNTS = ["lab-dev", "lab-poc", "lab-qa", "lab-sec"];
 const CATEGORIES = ["S3", "Security Groups"];
@@ -86,6 +98,7 @@ function App() {
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [section, setSection] = useState<"dashboard" | "controls" | "accounts">("dashboard");
   const [mode, setMode] = useState("Checking mode");
+  const [cockpit, setCockpit] = useState<Cockpit | null>(null);
   const [dashboard, setDashboard] = useState<"management" | "security" | "operations">(() => {
     try {
       const saved = localStorage.getItem("awsops-config2-dashboard");
@@ -95,6 +108,8 @@ function App() {
     }
     return "management";
   });
+  const localAgentUrl = ["127.0.0.1", "localhost"].includes(window.location.hostname)
+    ? `http://${window.location.hostname}:4311/` : null;
 
   const { query } = useOne<Snapshot>({
     resource: "controls",
@@ -138,6 +153,14 @@ function App() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    request("/api/cockpit")
+      .then((value: Cockpit) => { if (!cancelled) setCockpit(value); })
+      .catch(() => { if (!cancelled) setCockpit(null); });
+    return () => { cancelled = true; };
+  }, [refresh]);
 
   const chooseDashboard = (value: "management" | "security" | "operations") => {
     setDashboard(value);
@@ -276,9 +299,9 @@ function App() {
           </div>
           <div className="header-actions">
             <ThemeToggle />
-            <Button asChild variant="outline">
-              <a href="https://sec2.astromedicomp.org/"><Icon name="shield" />Compliance Agent</a>
-            </Button>
+            {localAgentUrl ? <Button asChild variant="outline">
+              <a href={localAgentUrl}><Icon name="shield" />Compliance Agent</a>
+            </Button> : <span className="mode-label">Agent public route pending M1</span>}
             <label className="selector-label">Account
               <select value={environment} onChange={(event) => setEnvironment(event.target.value)}>
                 <option value="ALL">All Accounts</option>
@@ -303,6 +326,21 @@ function App() {
         {query.isFetching && <p role="status" className="loading-note"><Icon name="refresh" className="spinning" />Reading current Config evidence...</p>}
 
         {section === "dashboard" && <>
+          <section className="cockpit" aria-label="Demo cockpit">
+            <div className="cockpit-heading">
+              <div><span className="eyebrow">Home read-only demo</span><h2>Demo cockpit</h2></div>
+              <span className={`status-chip ${cockpit?.status === "READY" ? "good" : "warning"}`}>{cockpit?.status ?? "DEGRADED"}</span>
+            </div>
+            <div className="cockpit-grid">
+              <div><small>LAB scope</small><strong>{cockpit?.aliases?.join(" · ") ?? "Unavailable"}</strong><span>{cockpit?.checks ?? "--"} checks / {cockpit?.controls ?? "--"} controls</span></div>
+              <div><small>Config evidence</small><strong>{cockpit?.evidence.status ?? "DEGRADED"}</strong><span>Oldest fetch: {date(cockpit?.evidence.fetchedAt)}</span></div>
+              <div><small>Compliance Agent</small><strong>{cockpit?.agent.status ?? "UNVERIFIED"}</strong><span>{cockpit?.agent.toolCount ?? "--"} read-only tool / {cockpit?.agent.actionCount ?? "--"} actions (source contract)</span></div>
+              <div><small>AgentCore Harness</small><strong>{cockpit?.harness.status ?? "UNAVAILABLE"}</strong><span>{cockpit?.harness.provider ?? "AgentCore Harness"} · model: {cockpit?.harness.model ?? "Not reported"}</span><span>{cockpit?.harness.result ?? "NOT_REPORTED"} · {cockpit?.harness.latencyMs == null ? "latency not reported" : `${cockpit.harness.latencyMs} ms`} · {date(cockpit?.harness.checkedAt)}</span></div>
+              <div><small>Stable demo route</small><strong>{cockpit?.stableRoute.status ?? "NOT_REPORTED"}</strong><span>M1 route activation is tracked separately.</span></div>
+            </div>
+            <p className="cockpit-guardrail">🛡️ {cockpit?.guardrail ?? "READ-ONLY / 0 actions"}</p>
+            <p className="cockpit-note">Agent availability reflects the last recent Harness invocation; it is not a live login check. Missing, failed, or stale telemetry degrades readiness.</p>
+          </section>
           <section className="dashboard-switcher" aria-label="Dashboard view">
             <div><strong>Dashboard view</strong><span className="muted">Presentation only; all views use the same evidence</span></div>
             <div className="dashboard-tabs">

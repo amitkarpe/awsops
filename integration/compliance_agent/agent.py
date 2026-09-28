@@ -3,10 +3,43 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
+import time
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Callable
 
 from .config_backend import current_evidence
 from .harness_client import invoke
+
+
+def _record_harness_result(status: str, latency_ms: int) -> None:
+    """Share only bounded, last-call telemetry with the local config2 cockpit."""
+    filename = os.environ.get("AWSOPS_HARNESS_TELEMETRY_FILE")
+    if not filename:
+        return
+    try:
+        target = Path(filename)
+        if not target.is_absolute() or target.parent.is_symlink():
+            return
+        payload = {
+            "version": 1,
+            "status": status,
+            "latency_ms": max(0, min(latency_ms, 90000)),
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+        }
+        descriptor, temporary = tempfile.mkstemp(prefix=".harness-", dir=target.parent)
+        try:
+            os.fchmod(descriptor, 0o600)
+            with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+                json.dump(payload, output, separators=(",", ":"))
+            os.replace(temporary, target)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+    except (OSError, ValueError):
+        # Telemetry is optional and must never change the agent answer or error.
+        return
 
 
 def _request(value: str) -> str:
@@ -223,11 +256,17 @@ def answer(
     backend_url = backend_url or os.environ.get("AWSOPS_CONFIG_BACKEND_URL", "http://127.0.0.1:4313")
     harness_arn = harness_arn or os.environ.get("COMPLIANCE_AGENT_V1_HARNESS_ARN", "")
     evidence = current_evidence(backend_url)
-    result = harness_call(
-        build_prompt(_request(user_request), evidence),
-        harness_arn,
-        region=os.environ.get("AWS_REGION", "ap-southeast-1"),
-    )
+    started = time.monotonic()
+    try:
+        result = harness_call(
+            build_prompt(_request(user_request), evidence),
+            harness_arn,
+            region=os.environ.get("AWS_REGION", "ap-southeast-1"),
+        )
+    except Exception:
+        _record_harness_result("DEGRADED", round((time.monotonic() - started) * 1000))
+        raise
+    _record_harness_result("READY", round((time.monotonic() - started) * 1000))
     return {
         "version": 2,
         "agent": "awsops Compliance Agent",

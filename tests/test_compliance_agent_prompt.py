@@ -1,9 +1,24 @@
 import unittest
+import json
+import os
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
 
-from integration.compliance_agent.agent import _bounded_model_answer, _canonical_answer, _response_mode, build_prompt
+from integration.compliance_agent.agent import _bounded_model_answer, _canonical_answer, _record_harness_result, _response_mode, build_prompt
 
 
 class ComplianceAgentPromptTests(unittest.TestCase):
+    def test_harness_telemetry_contains_only_bounded_public_fields(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "harness.json"
+            with patch.dict(os.environ, {"AWSOPS_HARNESS_TELEMETRY_FILE": str(target)}):
+                _record_harness_result("READY", 123)
+            record = json.loads(target.read_text())
+            self.assertEqual(set(record), {"version", "status", "latency_ms", "checked_at"})
+            self.assertEqual(record["status"], "READY")
+            self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+
     def test_owner_starters_select_one_response_mode(self):
         self.assertEqual(_response_mode("Status"), "STATUS")
         self.assertEqual(_response_mode("Explain what needs attention"), "EXPLAIN")
