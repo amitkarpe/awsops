@@ -4,6 +4,37 @@ This is the KISS rebuild path for the read-only NEW `config2` + `sec2` demo.
 It starts from Git plus one pinned LibreChat upstream commit. It never copies the
 retained EC2 `.env`, MongoDB, certificates, browser state or filesystem tree.
 
+
+## Canonical lifecycle
+
+Use one KISS flow from the `awsops` checkout. Keep all private values under the
+existing owner-only configuration boundary.
+
+1. **Start:** follow sections 4-6 to start MongoDB, config2 and LibreChat on
+   loopback. Start the optional quick tunnel only for a remote demo.
+2. **Status:** confirm `http://127.0.0.1:4313/api/health` and
+   `http://127.0.0.1:4311/api/config` return HTTP 200.
+3. **Validate:** run:
+
+   ```bash
+   python scripts/home_demo.py validate
+   ```
+
+   The command performs read-only loopback GETs and validates the repo-owned
+   agent/MCP contract plus the latest private canonical browser evidence. It
+   fails closed unless config2 is READY/non-partial with four aliases, eight
+   checks and two controls, and sec2 has one read-only tool, zero actions and
+   the three archived canonical prompt results.
+4. **Stop:** stop the optional tunnel first, stop the foreground/local config2
+   and LibreChat processes, then stop only Home MongoDB:
+
+   ```bash
+   docker compose -f integration/runtime/home/docker-compose.yaml down
+   ```
+
+This lifecycle never starts the retained EC2 and never changes AWS, IAM, DNS,
+networking or authentication architecture.
+
 ## 1. Prerequisites
 
 Supported baseline: Ubuntu 24.04 x86-64.
@@ -132,7 +163,7 @@ empty Home target and rerun `home_demo.py prepare`. Git remains source truth.
 
 ## Public demo/tunnel
 
-No tunnel is activated by Issue #56. After local acceptance, expose only the
-required Home loopback service through a separately approved Cloudflare/Tailscale
-or equivalent tunnel. Do not open the home router or change current Route53/DNS
-as an ad-hoc step.
+A Cloudflare quick tunnel is optional demo transport only. Use a provider-assigned
+hostname, expose only the required Home loopback service, and stop the tunnel when
+the demo ends. It is not permanent infrastructure: do not open the home router or
+change Route53/custom DNS for this baseline.

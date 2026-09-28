@@ -7,6 +7,7 @@ owner-local step documented in integration/runtime/home/README.md.
 """
 from __future__ import annotations
 
+import ast
 import argparse
 import json
 from pathlib import Path
@@ -15,6 +16,8 @@ import re
 import shutil
 import subprocess
 import sys
+from urllib.parse import urlparse
+from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 PIN_FILE = ROOT / "integration" / "runtime" / "librechat-runtime.json"
@@ -24,6 +27,14 @@ HOME_FILES = (
     ROOT / "integration" / "runtime" / "home" / "home-demo.env.example",
 )
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
+ALIASES = ("lab-dev", "lab-poc", "lab-qa", "lab-sec")
+CONTROLS = (
+    "s3-bucket-level-public-access-prohibited",
+    "restricted-ssh",
+)
+CONFIG2_DEFAULT = "http://127.0.0.1:4313"
+SEC2_DEFAULT = "http://127.0.0.1:4311"
+BROWSER_EVIDENCE_DEFAULT = Path.home() / ".config" / "awsops" / "browser" / "evidence"
 
 
 def load_pin() -> dict[str, object]:
@@ -106,10 +117,145 @@ def prepare(target: Path) -> None:
     print(f"HOME_DEMO_SOURCE_READY {clone}")
 
 
+def loopback_base(value: str, label: str) -> str:
+    parsed = urlparse(value)
+    if (
+        parsed.scheme != "http"
+        or parsed.hostname not in {"127.0.0.1", "localhost"}
+        or parsed.port is None
+        or parsed.path not in {"", "/"}
+        or parsed.params
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise RuntimeError(f"{label} must be an exact loopback HTTP origin")
+    return value.rstrip("/")
+
+
+def fetch_json(url: str) -> object:
+    with urlopen(url, timeout=10) as response:
+        if response.status != 200:
+            raise RuntimeError(f"read-only health request returned HTTP {response.status}")
+        return json.loads(response.read())
+
+
+def browser_manifest(evidence_root: Path) -> dict[str, object]:
+    evidence_root = evidence_root.expanduser().resolve()
+    candidates = sorted(
+        (path / "manifest.json" for path in evidence_root.glob("issue49-*") if path.is_dir()),
+        key=lambda path: path.stat().st_mtime if path.exists() else 0,
+    )
+    if not candidates or not candidates[-1].is_file():
+        raise RuntimeError("canonical browser acceptance evidence is missing")
+    value = json.loads(candidates[-1].read_text(encoding="utf-8"))
+    if value.get("outcome") != "COMPLIANCE_UI_PASS":
+        raise RuntimeError("canonical browser acceptance did not pass")
+    if value.get("tool_count") != 1 or value.get("action_count") != 0:
+        raise RuntimeError("sec2 must expose exactly one read-only tool and zero actions")
+    if value.get("browser_auth_exported") is not False or value.get("storage_state_exported") is not False:
+        raise RuntimeError("browser acceptance exported private authentication state")
+    results = value.get("results")
+    if not isinstance(results, list) or len(results) != 3:
+        raise RuntimeError("canonical three-prompt browser evidence is incomplete")
+    modes = {row.get("mode") for row in results if isinstance(row, dict)}
+    if modes != {"status", "explain", "plan"}:
+        raise RuntimeError("browser evidence modes do not match the canonical prompts")
+    if any(row.get("checks") != 8 or row.get("archived") is not True for row in results):
+        raise RuntimeError("browser evidence matrix or Archive cleanup is incomplete")
+    return value
+
+
+def validate_agent_files() -> None:
+    agent_path = ROOT / "integration" / "compliance_agent" / "librechat-agent.json"
+    agent = json.loads(agent_path.read_text(encoding="utf-8"))
+    expected_tool = "ask_compliance_agent_mcp_awsops_compliance_agent"
+    if agent.get("tools") != [expected_tool] or agent.get("actions") not in (None, []):
+        raise RuntimeError("agent definition must contain one read-only tool and zero actions")
+
+    server_path = ROOT / "integration" / "compliance_agent" / "mcp_server.py"
+    tree = ast.parse(server_path.read_text(encoding="utf-8"), filename=str(server_path))
+    tools = []
+    for node in tree.body:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for decorator in node.decorator_list:
+            call = decorator if isinstance(decorator, ast.Call) else None
+            function = call.func if call else decorator
+            if isinstance(function, ast.Attribute) and function.attr == "tool":
+                tools.append(node.name)
+    if tools != ["ask_compliance_agent"]:
+        raise RuntimeError("MCP server must expose exactly ask_compliance_agent")
+
+    yaml_path = ROOT / "integration" / "runtime" / "home" / "librechat.yaml.example"
+    lines = yaml_path.read_text(encoding="utf-8").splitlines()
+    try:
+        start = lines.index("mcpServers:") + 1
+    except ValueError as error:
+        raise RuntimeError("Home LibreChat MCP configuration is missing") from error
+    keys = []
+    for line in lines[start:]:
+        if line and not line.startswith(" "):
+            break
+        match = re.fullmatch(r"  ([a-zA-Z0-9_]+):", line)
+        if match:
+            keys.append(match.group(1))
+    if keys != ["awsops_compliance_agent"]:
+        raise RuntimeError("Home LibreChat must configure exactly one MCP server")
+
+
+def validate_runtime(
+    config2_base: str,
+    sec2_base: str,
+    evidence_root: Path,
+    *,
+    fetcher=fetch_json,
+) -> None:
+    config2 = loopback_base(config2_base, "config2 URL")
+    sec2 = loopback_base(sec2_base, "sec2 URL")
+    validate_agent_files()
+
+    health = fetcher(f"{config2}/api/health")
+    if not isinstance(health, dict) or health.get("mode") != "AWS_READ_ONLY" or health.get("remediation") is not False:
+        raise RuntimeError("config2 health is not the read-only contract")
+    if tuple(health.get("environments", ())) != ALIASES or set(health.get("controls", ())) != set(CONTROLS):
+        raise RuntimeError("config2 health matrix is not exactly four aliases by two controls")
+
+    diagnostics = fetcher(f"{config2}/api/diagnostics")
+    provider = diagnostics.get("components", {}).get("configProvider", {}) if isinstance(diagnostics, dict) else {}
+    if not isinstance(diagnostics, dict) or diagnostics.get("status") != "READY" or diagnostics.get("ready") is not True:
+        raise RuntimeError("config2 diagnostics are not READY")
+    if tuple(provider.get("aliases", ())) != ALIASES or provider.get("availableAccounts") != 4 or provider.get("totalAccounts") != 4:
+        raise RuntimeError("config2 diagnostics do not prove all four aliases")
+
+    controls = fetcher(f"{config2}/api/controls?environment=ALL&refresh=1")
+    if not isinstance(controls, dict) or controls.get("partial") is not False or controls.get("available") is not True:
+        raise RuntimeError("config2 evidence is partial or unavailable")
+    accounts = controls.get("accounts")
+    rules = controls.get("rules")
+    if not isinstance(accounts, list) or [row.get("alias") for row in accounts] != list(ALIASES):
+        raise RuntimeError("config2 evidence aliases are incomplete or reordered")
+    if not isinstance(rules, list) or len(rules) != 8:
+        raise RuntimeError("config2 evidence must contain exactly eight checks")
+    matrix = {(row.get("accountAlias"), row.get("ConfigRuleName")) for row in rules}
+    expected = {(alias, control) for alias in ALIASES for control in CONTROLS}
+    if matrix != expected:
+        raise RuntimeError("config2 evidence is not the exact four by two matrix")
+
+    sec2_config = fetcher(f"{sec2}/api/config")
+    if not isinstance(sec2_config, dict):
+        raise RuntimeError("sec2 application health is unavailable")
+    browser_manifest(evidence_root)
+    print("HOME_DEMO_VALIDATION_OK aliases=4 checks=8 controls=2 tools=1 actions=0 prompts=3 archived=3")
+
+
 def parser() -> argparse.ArgumentParser:
     value = argparse.ArgumentParser(description="awsops Home demo source bootstrap")
     sub = value.add_subparsers(dest="action", required=True)
     sub.add_parser("check", help="validate local prerequisites and committed runtime contract")
+    validate = sub.add_parser("validate", help="fail-closed read-only Home runtime validation")
+    validate.add_argument("--config2-url", default=CONFIG2_DEFAULT)
+    validate.add_argument("--sec2-url", default=SEC2_DEFAULT)
+    validate.add_argument("--browser-evidence", type=Path, default=BROWSER_EVIDENCE_DEFAULT)
     for action in ("prepare", "verify"):
         p = sub.add_parser(action)
         p.add_argument("target", type=Path)
@@ -123,6 +269,8 @@ def main() -> int:
             check_prerequisites()
         elif args.action == "prepare":
             prepare(args.target)
+        elif args.action == "validate":
+            validate_runtime(args.config2_url, args.sec2_url, args.browser_evidence)
         else:
             verify(args.target)
     except (RuntimeError, OSError, subprocess.CalledProcessError, json.JSONDecodeError) as error:
