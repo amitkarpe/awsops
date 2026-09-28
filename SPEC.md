@@ -1,6 +1,6 @@
 # Specification
 
-Status: ACTIVE - M2 live accepted; M3C integration, native canary still pending.
+Status: ACTIVE - Home read-only v1 supported; M3 live acceptance deferred; M4 unauthorized.
 
 ## Goal and layering
 
@@ -21,6 +21,23 @@ There is no generic model-facing AWS or decision API.
   supplies a frozen scope, provider policy, account ID, role or AWS operation.
 - Prepare rereads provider truth and expires within five minutes. Model input,
   JSON value types and digests are not authorization.
+
+
+## Supported Home read-only v1
+
+Home is the supported NEW runtime. The retained `amit` EC2 is stopped and is
+recovery state only. `python scripts/home_demo.py validate` is the canonical
+fail-closed local validation command. It performs loopback GETs only and requires:
+
+- config2 `READY`, `partial=false`, exactly four aliases, eight checks and two controls;
+- sec2 application health;
+- exactly one `ask_compliance_agent` MCP tool and zero actions;
+- the existing Status / Explain / no-change Plan browser evidence, rendered-output
+  binding and Archive cleanup.
+
+Owner-private configuration remains outside Git under the existing schemas.
+Cloudflare quick tunnel is optional demo transport, not permanent infrastructure.
+The validator creates no AWS capability and performs no cloud mutation.
 
 ## Durable native decisions
 
@@ -86,9 +103,8 @@ identity-system changes.
 
 ## Deployment and rollback
 
-Issue #11 records the approved isolated canary on the existing verified LAB
-host, separate files/chat/checkpoint/ledger state, loopback only and no changes
-to existing services. Preflight has run; no canary was launched. Source pins,
+Issue #11 / PR #13 remain deferred. Their isolated canary contract is preserved,
+but no canary may launch unless Amit explicitly reprioritizes M3 live acceptance. Source pins,
 capacity, normal native authentication and isolated writable state must all
 pass before a live run. New native auth account/session-secret provisioning
 requires its explicit gate; do not reuse the old database or extract its keys.
@@ -99,7 +115,8 @@ refuse startup; rollback only restores its exact files and never deletes audit.
 No existing service restart, auth bypass, public DNS/ingress/network, IAM/OIDC,
 new AWS resource, company/PROD or old-repository mutation is authorized.
 
-M3 overall requires REAL authenticated native Reject, durable receipt, fresh
-provider readback and cleanup. M4 mutation needs separate exact-canary authority.
+M3 repository work is complete, but REAL authenticated native Reject, durable
+receipt, fresh provider readback and cleanup remain DEFERRED. M4 is NOT STARTED
+and has no mutation authority while that priority remains deferred.
 Public proof uses aliases/digests, never private account/resource/native IDs,
 policies, login material or browser state.

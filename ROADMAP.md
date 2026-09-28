@@ -12,7 +12,7 @@ The corrected reader passed four verified LAB aliases and one fresh exact
 preparation/readback through the isolated SSM probe. Evidence is in
 `docs/evidence/M2_LAB_READ.json`. Temporary files were removed; services unchanged.
 
-## M3 - native Reject-only decision - IN PROGRESS
+## M3 - native Reject-only decision - REPOSITORY COMPLETE / LIVE ACCEPTANCE DEFERRED
 
 - M3A (#7 / #8): private durable ledger and runtime-neutral decision adapter.
 - M3B (#9 / #10): private receipt pipe, pinned resume seam and offline rollback.
@@ -20,8 +20,9 @@ preparation/readback through the isolated SSM probe. Evidence is in
   readiness, and bound post-Reject readback. Repository code is accepted.
 - Draft PR #13 owns the isolated real normal-auth browser acceptance.
 
-Require authenticated native Reject, durable receipt, zero dispatch, unchanged
-provider readback, supported Archive cleanup and retained-service protection.
+Repository contracts remain preserved. Real authenticated native Reject, durable
+receipt, zero dispatch, unchanged provider readback and Archive cleanup are deferred.
+Do not reactivate Issue #11 / PR #13 until Amit explicitly reprioritizes M3.
 
 ## Home cutover / EC2 cost reduction - COMPLETE (#56)
 
@@ -40,15 +41,25 @@ Mode: **one execution PR, many milestones; standing owner approval recorded
 - Lightsail remains DO NOT TOUCH. `vagent` has a newer owner exception: **STOP only** is authorized and tracked separately in `aws-platform` #107; all destructive/configuration changes remain prohibited.
 - The single execution tracker is `docs/current/HOME_CUTOVER_EXECUTION.md`.
 
+
+## Home Demo v1 productization - COMPLETE (#60)
+
+- One canonical `home_demo.py validate` command for the supported Home runtime.
+- Exact config2 four-alias x two-control and sec2 one-tool/zero-action contract.
+- Existing Status / Explain / no-change Plan browser harness remains canonical.
+- One KISS start -> status -> validate -> stop lifecycle.
+- Repository/current-state reconciliation complete; no AWS mutation or new infrastructure.
+- Validation is exact-head and latest-attempt bound: stale or superseded browser evidence fails closed.
+
 ## Operational hygiene - AWS resource ledger - IN PROGRESS (#14)
 
 - Canonical public Markdown ledger: `docs/current/AWS_RESOURCES.md`.
 - Canonical account aliases are `amit` and `vagent`; raw account IDs stay private.
 - Account-first cost watch uses Cost Explorer actual MTD plus explicit EST / USAGE-BASED / DIRECT-$0 / UNKNOWN labels.
 - EC2 / always-on compute has a separate high-visibility table.
-- `amit` retained host remains `t3.medium`; root gp3 expanded online 20 -> 30 GiB and ext4 usage dropped 92% -> 60% with retained services active.
+- `amit` retained host is stopped/recovery-only; its encrypted 30 GiB gp3 volume and Elastic IP remain retained.
 - `vagent` live read confirms one running expired-TTL `t3.small` learning host plus 109 S3 buckets total. **Owner decision 2026-09-27: the host is PROTECTED / DO NOT TOUCH.**
-- Home-first compute model is documented in `docs/architecture/DEV_COMPUTE_MODEL.md`: ordinary development stays local/GitHub, `amit` keeps the full M3 integration runtime, and `vagent` is reserved for a future lightweight AWS canary after an explicit repurpose gate.
+- Home-first compute is active: ordinary development and the NEW read-only demo stay on Home/GitHub; the stopped `amit` host is recovery-only and `vagent` remains separately governed.
 - EC2 Name tags are part of the canonical high-cost/resource ledger view.
 - **Legacy Lightsail and the retained `vagent` t3.small are PROTECTED / DO NOT TOUCH.** Read-only inspection is allowed; any stop/start/delete/resize/repurpose/tag/IAM/network change needs new exact authorization.
 - No auto-cleanup. Any other deletion/termination/repurpose is a separate exact mutation boundary.
@@ -68,10 +79,10 @@ Mode: **one execution PR, many milestones; standing owner approval recorded
 - Config2 remained READY/non-partial with four aliases, eight checks and two
   controls; NEW/OLD sec/ops/config regressions remained healthy and unchanged.
 
-## M4 - bounded remediation migration - NOT STARTED
+## M4 - bounded remediation migration - NOT STARTED / UNAUTHORIZED
 
-Only S3 BPA and restricted SSH on retained demo scope may be considered.
-Separate exact-canary authority is required before any live Approve or write.
+Do not begin M4 merely to bypass deferred M3. Any future S3 BPA or restricted
+SSH mutation requires a new exact authority and accepted prerequisite decision.
 Every new/retained M4 AWS resource must appear in the resource ledger.
 
 ## Old repository freeze / harvest - ACTIVE
@@ -82,6 +93,6 @@ Every new/retained M4 AWS resource must appear in the resource ledger.
 - PR #177 is also preserved in frozen `aws-secops/main`; do not port its persistent read-adapter merely for parity.
 - Old repository history/evidence remains readable until M5.
 
-## M5 - parity and cutover - NOT STARTED
+## M5 - parity and cutover - DEFERRED / DOWNSTREAM
 
 Parity/deferred list, deployment/runbook and explicit cutover. Close/supersede remaining old active PRs after their useful patterns are harvested. Preserve source history/evidence. Archive `aws-secops` only after explicit M5 cutover acceptance.

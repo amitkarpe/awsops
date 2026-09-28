@@ -6,9 +6,9 @@ paths rather than always-on endpoints. Delete nothing.
 
 ## 30-second precheck
 
-1. Confirm local config2 health on `http://127.0.0.1:4313/api/health`.
-2. Confirm the owner-private temporary HTTPS tunnel reaches Home sec2 without a
-   certificate warning.
+1. Run `python scripts/home_demo.py validate` and require `HOME_DEMO_VALIDATION_OK`.
+2. Confirm the owner-private optional HTTPS tunnel reaches Home sec2 without a
+   certificate warning when remote transport is needed.
 3. Have the existing private Home owner login ready. Never put credentials or
    the provider-assigned hostname in this file or a screen recording.
 

@@ -58,6 +58,7 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
 - Issue #56 M2 and M3 pass on the verified Home Ubuntu workstation: the pinned LibreChat source reconstructed from Git, isolated MongoDB and config2 run on loopback, read-only Config evidence is READY/non-partial at four aliases by two controls, and normal owner browser acceptance passed Status, Explain and no-change Plan. Exactly one read-only MCP tool and zero actions were present; all three test conversations were archived without exporting browser auth or storage state.
 - Issue #56 M4 passes through one provider-assigned temporary HTTPS tunnel from Home to the NEW sec2 loopback service. Remote Status, Explain and no-change Plan passed 3/3 with the same persisted/rendered evidence binding, one read-only MCP tool, zero actions and Archive readback. The tunnel hostname and evidence remain owner-private. No Route53, custom DNS, router forwarding or IAM changed.
 - Issue #56 M5 stopped exactly the retained `amit` `t3.medium` on 2026-09-28 after the final identity, EBS/EIP and Home-health gates passed. Provider readback is `stopped`; its encrypted 30 GiB gp3 volume remains attached and its Elastic IP remains associated. Home sec2 HTTPS, config2 READY/non-partial 4 x 2 evidence and the remote three-prompt proof remained healthy. Nothing was terminated, detached, released or deleted; Lightsail and `vagent` were untouched. Git/Home are the NEW demo source of truth and the stopped EBS is recovery state only.
+- Issue #60 completes Home Demo v1 productization: one repo-owned fail-closed read-only validation command and one start/status/validate/stop lifecycle. Validation is bound to the exact current Git head and the latest canonical browser attempt, so stale or superseded evidence cannot satisfy acceptance. The existing Compliance Agent browser harness remains the only browser acceptance path.
 - Issue #56 was the canonical stop-readiness gate and has now passed M1-M5.
   `integration/runtime/` records the public-safe host inventory, persistent
   service templates, private-input schemas, exact LibreChat pin and Home rebuild
@@ -174,12 +175,9 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
 
 ## Next
 
-1. Issue #56 M1-M5 are complete: Home rebuild, local and remote browser acceptance, temporary HTTPS tunnel, and the exact retained-`amit` EC2 stop all passed. EBS/EIP remain retained. Preserve the stopped recovery resources; any future restart, termination or cleanup needs separate authority.
-2. Issue #39 and Issue #49 are accepted: config2, sec2 owner access, the
-   read-only AWS Ops Compliance Agent, and its KISS table-first Status /
-   Explain / no-change Plan output are the current NEW demo path. Use
-   `docs/current/DEMO_DAY.md` for rehearsal.
-3. Issue #11 / PR #13 native Reject acceptance is explicitly DEFERRED by Amit and is non-blocking. Do not resume unless Amit re-prioritizes it.
-4. `aws-secops` PR #177 and PR #192 are now preserved in frozen `aws-secops/main`; do not port either merely for parity. Reuse only when a concrete `awsops` milestone needs the capability. Issue #14 remains independent and implies no cleanup mutation.
+1. Issue #60 Home Demo v1 productization is complete. Use `python scripts/home_demo.py validate` as the canonical fail-closed Home read-only validation path.
+2. Issue #56, Issue #39 and Issue #49 are accepted. Home config2 + sec2 AWS Ops Compliance Agent is the supported NEW read-only product; the retained `amit` EC2 remains stopped/recovery-only.
+3. Issue #11 / PR #13 native Reject acceptance is explicitly DEFERRED. M4 remediation remains NOT STARTED / UNAUTHORIZED; do not use it to bypass M3.
+4. Roadmap #1 has no further authorized implementation milestone beyond read-only productization until Amit explicitly reprioritizes M3 or grants a new bounded milestone. `aws-secops` remains frozen/reference only; Issue #14 remains independent.
 
 Do not create another roadmap or mistake code/CI acceptance for live completion.

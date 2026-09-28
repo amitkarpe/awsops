@@ -92,6 +92,7 @@ cookies, browser storage, owner passwords, raw private findings or tunnel secret
 stopped with recovery resources preserved, and the execution evidence is complete.
 Future restart, termination, deletion or cleanup is outside Issue #56 and requires
 separate authority.
+Issue #60 owns the supported Home Demo v1 validation and lifecycle contract.
 
 ## Final environment boundary
 
