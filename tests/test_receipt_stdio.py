@@ -144,9 +144,10 @@ class NativeNodeRehearsalTests(unittest.TestCase):
                                 cwd=ROOT, env=env, capture_output=True, text=True, timeout=180)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         if env.get('AWSOPS_REQUIRE_NATIVE_FIXTURE') == '1':
-            self.assertIn('# skipped 0', result.stdout, result.stdout)
+            self.assertRegex(result.stdout, r'(?m)^(?:#|ℹ) skipped 0$', result.stdout)
         summary = [line for line in result.stdout.splitlines()
-                   if line.startswith(('# tests ', '# pass ', '# fail ', '# skipped '))]
+                   if line.startswith(('# tests ', '# pass ', '# fail ', '# skipped ',
+                                       'ℹ tests ', 'ℹ pass ', 'ℹ fail ', 'ℹ skipped '))]
         print('Native Node rehearsal: ' + '; '.join(summary), flush=True)
 
 
