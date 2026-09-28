@@ -23,20 +23,19 @@ preparation/readback through the isolated SSM probe. Evidence is in
 Require authenticated native Reject, durable receipt, zero dispatch, unchanged
 provider readback, supported Archive cleanup and retained-service protection.
 
-## Home cutover / EC2 cost reduction - IN PROGRESS (#56)
+## Home cutover / EC2 cost reduction - ACCEPTED, MERGE PENDING (#56)
 
 Mode: **one execution PR, many milestones; standing owner approval recorded
 2026-09-27.**
 
 - M1 runtime preservation — COMPLETE in PR #57 / `14e004d1`.
-- M2 real Home bootstrap — prove fresh pinned LibreChat, local MongoDB, config2
-  and read-only provider wiring from Amit's Home Ubuntu system.
-- M3 Home browser acceptance — normal owner login and canonical
-  Status/Explain/no-change Plan with one read-only tool / zero actions.
-- M4 public NEW tunnel — one temporary provider-assigned HTTPS tunnel from Home;
+- M2 real Home bootstrap — COMPLETE.
+- M3 Home browser acceptance — COMPLETE with canonical Status/Explain/no-change
+  Plan, one read-only tool and zero actions.
+- M4 public NEW tunnel — COMPLETE with one provider-assigned HTTPS tunnel and
   no custom Route53 migration or home-router inbound forwarding.
-- M5 cost cutover — after M1-M4 PASS, stop exactly the retained `amit` EC2,
-  never terminate/delete it; retain EBS/EIP and verify Home NEW stays independent.
+- M5 cost cutover — COMPLETE: the exact retained `amit` EC2 is stopped, never
+  terminated; EBS/EIP remain retained and Home NEW stayed healthy.
 - Keep Issue #11 Reject-canary deferred and outside the Home read-only baseline.
 - Lightsail remains DO NOT TOUCH. `vagent` has a newer owner exception: **STOP only** is authorized and tracked separately in `aws-platform` #107; all destructive/configuration changes remain prohibited.
 - Home execution target is `dev@home` under `aws-platform` #99; Hermes #106 is separate. Bridge admission mismatch #109 currently blocks safe automatic mission admission.

@@ -63,15 +63,23 @@ conversations. Browser auth and storage state were not exported.
 
 ## M5 — cost cutover
 
-- [ ] Final read-only retained-host / EBS / EIP verification.
-- [ ] Home NEW demo independent of EC2.
-- [ ] Retained `amit` EC2 stopped, **not terminated**.
-- [ ] Stopped state verified.
-- [ ] EBS/EIP retained.
-- [ ] Lightsail untouched.
-- [ ] `vagent` stop-only action reconciled separately via `aws-platform` Issue #107; never terminate/delete/resize/retag or change its EBS/EIP/IAM/network/DNS.
-- [ ] Resource/cost ledger updated.
-- [ ] Cutover/recovery runbook updated.
+**Status: PASS.** The exact retained `amit` host reached `stopped`; it was not
+terminated. Git and the Home rebuild path are the NEW demo source of truth.
+
+- [x] Final read-only retained-host / EBS / EIP verification.
+- [x] Home NEW demo independent of EC2.
+- [x] Retained `amit` EC2 stopped, **not terminated**.
+- [x] Stopped state verified.
+- [x] Encrypted 30 GiB gp3 volume remains attached; Elastic IP remains associated.
+- [x] Lightsail untouched.
+- [x] `vagent` remained untouched in this execution; its separate boundary remains owned by `aws-platform` Issue #107.
+- [x] Resource/cost ledger updated.
+- [x] Cutover/recovery runbook updated.
+
+After the stop, the Home public HTTPS sec2 path returned 200 with TLS
+verification, config2 remained READY/non-partial with four aliases and eight
+checks, and the remote three-prompt acceptance remained PASS. The stopped host
+retains recovery data and address allocation; no resource was deleted.
 
 ## Evidence rule
 

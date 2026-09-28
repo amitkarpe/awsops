@@ -1,7 +1,7 @@
 # Development Compute Model
 
-Status: PLAN ACCEPTED FOR REPOSITORY DESIGN  
-Updated: 2026-09-25  
+Status: ACCEPTED AND ACTIVE
+Updated: 2026-09-28
 Owner: Issue #14 / roadmap #1
 
 ## Decision
@@ -23,7 +23,7 @@ Do not treat EC2 as the default developer workstation.
 
 | Account | EC2 name | Size | Role now | Decision |
 | --- | --- | --- | --- | --- |
-| `amit` | `agentcore-issue19-librechat-poc-r01` | `t3.medium` | full retained LibreChat + Ops + MongoDB integration runtime | **KEEP unchanged for current M3 acceptance** |
+| `amit` | `agentcore-issue19-librechat-poc-r01` | `t3.medium` | stopped recovery host; EBS/EIP retained | **RETAIN stopped; Home is NEW demo runtime** |
 | `vagent` | `seccop-project1-old-ami-host-r01` | `t3.small` | old SecCop / Inspector-to-SSM learning host | **candidate lightweight AWS canary after a separate repurpose gate** |
 
 ## Why home-first
@@ -52,25 +52,18 @@ This avoids paying for an EC2 instance merely to obtain a Linux shell or AWS-con
 
 ## `amit` runtime
 
-Keep `agentcore-issue19-librechat-poc-r01` on `t3.medium` for now.
+The retained `agentcore-issue19-librechat-poc-r01` reached `stopped` on
+2026-09-28 after Issue #56 proved the Home rebuild, local browser journey and
+temporary public tunnel. It was not terminated.
 
-Reasons:
+- Git and the Home rebuild path are the NEW demo source of truth.
+- The encrypted 30 GiB gp3 volume remains attached as recovery state.
+- The Elastic IP remains associated.
+- Active `t3.medium` compute accrual is stopped; retained storage/address costs remain.
+- Do not add ordinary development work to or mutate this stopped host.
 
-- it already hosts the retained LibreChat/Ops/MongoDB integration stack;
-- M3 native browser acceptance still depends on a complete AWS-hosted runtime;
-- current memory evidence does not justify `t3.small`;
-- the root volume has already been corrected from 20 to 30 GiB.
-
-Do not add ordinary development work to this host.
-
-Longer-term cost lever:
-
-1. finish M3;
-2. prove which components truly need 24x7 AWS hosting;
-3. move ordinary development to home/GitHub;
-4. then evaluate a **stop-when-idle** or retirement model for the `amit` EC2 runtime.
-
-Stopping or retiring the host is not authorized by this plan.
+Starting it again requires a separately approved recovery/demo action. Keep the
+instance type unchanged if that restart is approved.
 
 ## `vagent` canary evidence
 
@@ -170,7 +163,7 @@ Do not slowly transform the old AL2 learning host into an undocumented permanent
 | --- | --- |
 | Home workstation | preferred for normal development |
 | GitHub Actions | preferred for repeatable repository CI |
-| `amit` t3.medium | paid retained integration runtime; minimize 24x7 dependency after M3 |
+| `amit` t3.medium | stopped recovery host; EBS/EIP retained, active compute stopped |
 | `vagent` t3.small | currently credit-funded; use only for bounded AWS-hosted canaries |
 | New EC2 | avoid unless a concrete host/VPC-local requirement exists |
 
@@ -202,17 +195,18 @@ Move a workload only when all are true:
 
 ## Near-term sequence
 
-1. **Home first:** keep new source development and tests off EC2.
-2. **Finish M3 on `amit`:** do not destabilize the accepted full runtime mid-milestone.
-3. **Home workstation first:** use the Ubuntu 24.04 home system for normal Codex/development work; keep private hostnames/SSH aliases out of this public repo.
-4. **Prepare `vagent` only when needed:** define one exact lightweight canary workload; do not perform forensic sync of the old host.
-5. **Reassess `amit` after M3:** the largest savings comes from reducing its always-on duty cycle, not from moving ordinary coding between two EC2 hosts.
+1. **Home first:** keep new source development, tests and the NEW demo off EC2.
+2. **Git first:** preserve the reproducible runtime and validation contract in `awsops`.
+3. **Retain recovery state:** keep the stopped `amit` EBS/EIP; delete nothing.
+4. **Restart only when approved:** use the retained host only for a bounded recovery/demo need.
+5. **Keep `vagent` separate:** follow its independent owner boundary and never use it as a fallback.
 
 ## Stop gates
 
 Explicit approval remains required for:
 
-- stopping/starting/terminating either EC2;
+- starting or terminating the stopped `amit` EC2;
+- any `vagent` mutation outside its separately recorded boundary;
 - retagging/rebuilding the `vagent` host;
 - snapshot/AMI creation;
 - installing a new persistent runtime/service on `vagent`;

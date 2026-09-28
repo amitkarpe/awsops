@@ -3,7 +3,7 @@
 > KISS public ledger. **Canonical account names are `amit` and `vagent`.**
 > Raw AWS account IDs and provider identifiers stay out of this public repository.
 
-- Last verified: `2026-09-27T12:14:50+08:00`
+- Last verified: `2026-09-28T16:54:34+08:00` (resource state); cost figures retain their stated 2026-09-27 period
 - Scope: personal LAB / `ap-southeast-1`
 - Cost period: `2026-09-01..2026-09-27`
 - Current rule: **look at the red/high-cost tables first**
@@ -13,7 +13,7 @@
 
 | Priority | Account | Resource / service | State | Cost evidence | Action |
 | --- | --- | --- | --- | ---: | --- |
-| 🔴 **HIGH** | **amit** | **EC2 `agentcore-issue19-librechat-poc-r01` / `t3.medium`** | running | **USD 31.52 MTD actual**; ~**USD 38.54/mo** compute list-price | **KEEP `t3.medium`** |
+| ✅ **STOPPED** | **amit** | **EC2 `agentcore-issue19-librechat-poc-r01` / `t3.medium`** | stopped; EBS/EIP retained | **USD 31.52 MTD actual through prior period**; active compute accrual stopped | **RETAIN stopped; start only for approved recovery/demo** |
 | 🛡️ **PROTECTED** | **amit** | **Amazon Lightsail** | 1 running + 1 stopped legacy instance | **USD 8.28 MTD actual** | **DO NOT TOUCH** |
 | 🛡️ **PROTECTED** | **vagent** | **EC2 `seccop-project1-old-ami-host-r01` / `t3.small`** | running; old demo TTL expired | Cost Explorer reports **USD 0.00 MTD**; list-price/public-IPv4 exposure still exists | **DO NOT TOUCH** |
 
@@ -21,7 +21,7 @@
 
 | Account | Actual Cost Explorer MTD | Current inventory signal | What to check first |
 | --- | ---: | --- | --- |
-| **amit** | **USD 58.51** | 1 running EC2, 18 S3 buckets, 140 tagged resources | **EC2, Lightsail, VPC, Bedrock** |
+| **amit** | **USD 58.51** | 1 stopped retained EC2, 18 S3 buckets, 140 tagged resources | **retained EBS/EIP, Lightsail, VPC, Bedrock** |
 | **vagent** | **USD 0.00 reported** | 1 running EC2, 109 S3 buckets, 219 tagged resources | **protected EC2 + retained 100-bucket fleet** |
 
 > Cost Explorer is account/service billing evidence, not proof that every dollar belongs to `awsops` or `aws-secops`.
@@ -50,12 +50,12 @@ Always-on compute is intentionally separated because it is the first cost lever 
 
 | Account | EC2 name | Project | Compute | State | Age | Estimated monthly | Decision |
 | --- | --- | --- | --- | --- | --- | ---: | --- |
-| **amit** | **`agentcore-issue19-librechat-poc-r01`** | shared-runtime | **`t3.medium`** | running | 26d | **~USD 38.54 compute** | **RETAIN** |
+| **amit** | **`agentcore-issue19-librechat-poc-r01`** | shared-runtime | **`t3.medium`** | **stopped** | 26d at audit | **active compute stopped; EBS/EIP retained** | **RETAIN stopped** |
 | **vagent** | **`seccop-project1-old-ami-host-r01`** | Security Copilot | **`t3.small`** | running + public IPv4 | 27d | **~USD 19.27 compute list-price** | **RETAIN / DO NOT TOUCH** |
 
 ## `amit` retained host
 
-**KEEP `t3.medium`**.
+**STOPPED and retained as the recovery host.** Keep the `t3.medium` type unchanged for any separately approved restart.
 
 - 14-day CPU: **1.63% average**, **77.89% observed maximum**.
 - Memory snapshot: **3.74 GiB total**, **2.05 GiB available**, **no swap**.
@@ -84,11 +84,25 @@ Approximate incremental gp3 cost: **~USD 0.96/month**.
 
 Direct vagent host dependencies observed: **1 ENI, 1 security group, 1 instance profile / 1 role**. The ENI is untagged; no mutation or cleanup was performed.
 
+
+## ✅ 2026-09-28 Home cutover
+
+- The exact retained `amit` host was verified by account alias, Region, Name,
+  instance type and current provider state before the stop.
+- One encrypted 30 GiB gp3 volume remains attached and one Elastic IP remains
+  associated. Nothing was terminated, detached, released or deleted.
+- The instance reached `stopped`. Git plus the Home rebuild path are the NEW
+  demo source of truth; stopped EBS is recovery state only.
+- After the stop, the Home HTTPS sec2 tunnel remained healthy, config2 remained
+  READY/non-partial at four aliases and eight checks, and the accepted remote
+  Status / Explain / no-change Plan proof remained valid.
+- Legacy Lightsail and `vagent` were untouched.
+
 ## Full resource ledger
 
 | Project | Account | Name | Resource class | Qty | State | Age | Purpose | Cost | Decision | Evidence |
 | --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- |
-| shared-runtime | **amit** | `agentcore-issue19-librechat-poc-r01` | EC2 retained demo host | 1 | running | 26d | LibreChat + Ops retained personal-LAB runtime | EST ~USD 38.54/mo compute | RETAIN | LIVE |
+| shared-runtime | **amit** | `agentcore-issue19-librechat-poc-r01` | EC2 retained demo host | 1 | **stopped** | 26d at audit | recovery state; Home is NEW demo source of truth | EBS/EIP usage remains; active compute stopped | RETAIN STOPPED | LIVE |
 | aws-secops | **amit** | - | AWS Config rule | 2 | present | UNKNOWN | issue-88-config-evidence | USAGE-BASED | REVIEW | LIVE |
 | aws-secops | **amit** | - | AgentCore Gateway | 1 | present | 16d | governed-harmless-tool | USAGE-BASED | CLEANUP-CANDIDATE | LIVE |
 | aws-secops | **amit** | - | AgentCore Harness | 3 | present | UNKNOWN | compliance-agent-v1 | USAGE-BASED | RETAIN | LIVE |

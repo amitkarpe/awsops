@@ -22,5 +22,13 @@
     "to_gib": 30,
     "filesystem": "ext4",
     "result": "online grow completed; retained services remained active"
+  },
+  "resource_state_verified_at": "2026-09-28T16:54:34+08:00",
+  "instance_state": "stopped",
+  "retained_after_stop": {
+    "encrypted_gp3_volume_gib": 30,
+    "volume_attachment": "attached",
+    "elastic_ip": "associated",
+    "deletion_performed": false
   }
 }
