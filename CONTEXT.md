@@ -2,7 +2,7 @@
 
 Repository: `amitkarpe/awsops`
 Status: ACTIVE
-Updated: 2026-09-27
+Updated: 2026-09-28
 
 ## Authority
 
@@ -174,7 +174,7 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
 
 ## Next
 
-1. Issue #56 M1-M5 are technically complete in PR #58: Home rebuild, local and remote browser acceptance, temporary HTTPS tunnel, and the exact retained-`amit` EC2 stop all passed. EBS/EIP remain retained. Review and merge PR #58, then reconcile Issue #56; do not terminate or delete retained recovery resources.
+1. Issue #56 M1-M5 are complete: Home rebuild, local and remote browser acceptance, temporary HTTPS tunnel, and the exact retained-`amit` EC2 stop all passed. EBS/EIP remain retained. Preserve the stopped recovery resources; any future restart, termination or cleanup needs separate authority.
 2. Issue #39 and Issue #49 are accepted: config2, sec2 owner access, the
    read-only AWS Ops Compliance Agent, and its KISS table-first Status /
    Explain / no-change Plan output are the current NEW demo path. Use
