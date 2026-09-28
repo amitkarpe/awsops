@@ -192,6 +192,8 @@ python scripts/home_demo.py public-stop
 `public-start` runs the canonical read-only `validate` contract before it
 enables Funnel. It refuses any pre-existing unrelated Tailscale Serve/Funnel
 route and exposes only Home sec2 at `127.0.0.1:4311` through HTTPS port 443.
+Home requires existing noninteractive `sudo` permission for the exact Funnel
+route change; the script does not change Tailscale operator settings.
 `public-status` reads back the exact route and local sec2 health. `public-stop`
 turns off only that exact route; config2, sec2, MongoDB and Home-local URLs keep
 running. If status reports unhealthy, stop the public route and recover the

@@ -299,7 +299,7 @@ def exact_funnel(funnel: dict[str, object]) -> bool:
 def change_funnel(argv: list[str]) -> None:
     try:
         subprocess.run(
-            ["tailscale", "funnel", *argv],
+            ["sudo", "-n", "tailscale", "funnel", *argv],
             check=True,
             text=True,
             stdin=subprocess.DEVNULL,
