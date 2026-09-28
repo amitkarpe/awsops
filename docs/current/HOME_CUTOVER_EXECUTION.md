@@ -8,26 +8,28 @@ for `go` between routine steps. Stop only at Issue #56 hard gates.
 
 ## M2 — real Home bootstrap
 
-**Status: BLOCKED on Home execution access, not on code.** The current Bridge worker was verified as Amit's **office WSL (Ubuntu 24.04 on WSL2)** and is explicitly unsuitable for runtime installation. Docker/MongoDB/LibreChat/tunnel tooling must not be installed there. The intended Home execution target is **dev@home**, tracked by `aws-platform` Issue #99. Hermes/Issue #106 is a separate bridge path and is not required for the Home cutover. A new Bridge2 admission-state defect discovered while resuming #99 is tracked in `aws-platform` Issue #109.
+**Status: PASS on the verified Home Ubuntu workstation.** Execution used a separate clean PR #58 checkout; the unrelated Home checkout and office WSL worktree remained untouched.
 
-- [ ] Fresh `awsops/main` on Home Ubuntu.
-- [ ] `python scripts/home_demo.py check` PASS.
-- [ ] Pinned LibreChat prepare/verify PASS.
-- [ ] Isolated local MongoDB PASS.
-- [ ] Local config2 health PASS.
-- [ ] Live Config diagnostics READY/non-partial exact 4 x 2 when owner SSO is available.
-- [ ] No EC2 filesystem copied.
+- [x] Fresh PR #58 checkout on Home Ubuntu.
+- [x] `python scripts/home_demo.py check` PASS.
+- [x] Pinned LibreChat prepare/verify PASS.
+- [x] Isolated local MongoDB PASS on loopback.
+- [x] Local config2 health PASS on loopback.
+- [x] Existing owner-approved read-only AWS profile produced READY, non-partial exact 4 x 2 evidence.
+- [x] No retained-EC2 filesystem, database, environment, TLS, cookies, browser state, or secrets copied.
 
 ## M3 — Home browser acceptance
 
-- [ ] Normal owner login.
-- [ ] Canonical AWS Ops Compliance Agent registered/selected.
-- [ ] Exactly one read-only MCP tool / zero actions.
-- [ ] Status PASS.
-- [ ] Explain PASS.
-- [ ] No-change Plan PASS.
-- [ ] Persisted MCP output == persisted assistant text == rendered DOM contract.
-- [ ] Test conversations archived; no browser auth/storage export.
+- [x] Normal owner login.
+- [x] Canonical AWS Ops Compliance Agent registered/selected.
+- [x] Exactly one read-only MCP tool / zero actions.
+- [x] Status PASS.
+- [x] Explain PASS.
+- [x] No-change Plan PASS.
+- [x] Persisted MCP output == persisted assistant text == rendered DOM contract.
+- [x] Test conversations archived; no browser auth/storage export.
+
+Home browser acceptance passed all three exact prompts on 2026-09-28. The run exposed and fixed the Node 24 requirement, literal MCP command template, local browser origin, AWS profile propagation, and MCP timeout needed by the pinned runtime. Evidence remains owner-private; public proof records only structural counts and PASS/GAPS.
 
 ## M4 — public NEW tunnel
 

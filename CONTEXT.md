@@ -55,6 +55,7 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
 - Live `vagent` inventory confirms `seccop-project1-old-ami-host-r01` (`t3.small`) is SSM Online and almost idle (~0.13% 14-day CPU average), with ~1.59 GiB RAM available and ~10% root-disk use at the sampled point. It is Amazon Linux 2 with Python 3.7 and no Git/Node/Docker, so it is not a clean modern developer workstation. **Owner decision 2026-09-27: this `vagent` host is PROTECTED / DO NOT TOUCH.** No stop, terminate, delete, resize, repurpose, retag, IAM or network change is authorized; read-only inspection only unless Amit gives a new exact authorization.
 - Legacy Lightsail resources (one running, one stopped; created 2017/2018) are also **PROTECTED / DO NOT TOUCH** by Amit's 2026-09-27 decision. Read-only inspection is allowed; no stop/start/delete/resize/rebuild/tag/IAM/network mutation without new explicit authorization.
 - `docs/architecture/DEV_COMPUTE_MODEL.md` defines the accepted design: home workstation for normal development, GitHub Actions for repeatable CI, `amit` `t3.medium` only for the current full LibreChat/Ops/MongoDB integration path, and `vagent` only as a future lightweight AWS canary after an explicit repurpose gate.
+- Issue #56 M2 and M3 now pass on the verified Home Ubuntu workstation: the pinned LibreChat source reconstructed from Git, isolated MongoDB and config2 run on loopback, read-only Config evidence is READY/non-partial at four aliases by two controls, and normal owner browser acceptance passed Status, Explain and no-change Plan. Exactly one read-only MCP tool and zero actions were present; all three test conversations were archived without exporting browser auth or storage state. M4 temporary tunnel work is next and has not started.
 - Issue #56 is now the canonical stop-readiness gate. The retained-host audit
   proved config2/Compliance Agent source is preserved, but config2's persistent
   unit and sec2 transient db/app/model launch knowledge needed versioning before
@@ -172,11 +173,7 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
 
 ## Next
 
-1. Issue #56 is the active one-PR Home cutover execution. PR #57 completed
-   M1 runtime preservation. The single remaining execution PR owns M2 real Home
-   bootstrap, M3 Home browser acceptance, M4 NEW-only temporary tunnel and M5
-   retained-`amit` EC2 stop/cost cutover. No repeated Amit approval is required
-   between those milestones unless an Issue #56 hard stop is reached.
+1. Issue #56 is the active one-PR Home cutover execution. PR #57 completed M1, and    PR #58 now contains passing M2 Home bootstrap and M3 browser acceptance. M4 NEW-only    temporary tunnel and M5 retained-`amit` EC2 stop/cost cutover remain. No repeated Amit    approval is required unless an Issue #56 hard stop is reached.
 2. Issue #39 and Issue #49 are accepted: config2, sec2 owner access, the
    read-only AWS Ops Compliance Agent, and its KISS table-first Status /
    Explain / no-change Plan output are the current NEW demo path. Use

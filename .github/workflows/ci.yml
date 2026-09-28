@@ -21,7 +21,7 @@ jobs:
           python-version: "3.12"
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
       - name: Fetch and verify immutable upstream test fixture
         run: python scripts/fetch_native_fixture.py
       - name: Run tests

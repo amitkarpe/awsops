@@ -111,6 +111,7 @@ installed below its private `app/` runtime. `manifest.json` must be mode `0600`:
 ```
 
 For `launch`, private `state/login.json` supplies the existing NEW owner login. On the retained AWS demo host, set `loopback_origin: true` so Chromium resolves only `sec2.astromedicomp.org` to the local Nginx listener while preserving the public hostname/TLS contract. Leave it false/absent on normal external clients.
+For Home acceptance, set `base_url` to the exact loopback HTTP origin and leave `loopback_origin` false. Only loopback HTTP origins and the canonical public sec2 origin are accepted.
 For an already-authenticated browser, set `browser_mode` to `cdp` and add a
 loopback-only `cdp_endpoint`; the harness attaches without exporting browser
 state and closes only its own page. Run from the reviewed checkout:

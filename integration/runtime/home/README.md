@@ -12,7 +12,7 @@ Required locally:
 
 - Git;
 - Python 3.12+;
-- Node.js 22+ and npm;
+- Node.js 24+ and npm;
 - Docker with Compose support;
 - an existing approved AWS SSO/profile when live Config/Harness reads are needed.
 
@@ -94,10 +94,10 @@ cp .env.example .env
 # ~/.config/awsops/home-demo.env before starting.
 npm ci
 npm run frontend
-npm run backend
+PATH="$(dirname "$AWSOPS_HOME_PYTHON"):$PATH" npm run backend
 ```
 
-The repo-owned YAML exposes exactly one MCP server key:
+The venv directory must be first on `PATH` because LibreChat does not expand environment variables in an MCP stdio `command` field. The repo-owned YAML therefore uses `python3` and exposes exactly one MCP server key:
 `awsops_compliance_agent`. It runs
 `python -m integration.compliance_agent.mcp_server` from the Home `awsops`
 checkout and points it at local config2.

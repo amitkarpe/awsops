@@ -5,7 +5,7 @@ const path = require('node:path');
 const contract = require('./browser_contract.cjs');
 
 const PURPOSE = 'awsops-issue49-compliance-agent-browser';
-const BASE = 'https://sec2.astromedicomp.org';
+const DEFAULT_BASE = 'https://sec2.astromedicomp.org';
 const AGENT = 'AWS Ops Compliance Agent';
 
 function privateJson(file) {
@@ -21,7 +21,7 @@ function privateRoot(root) {
     throw Error('PRIVATE_ROOT_REQUIRED');
   return root;
 }
-function localRoute(url) { try { return new URL(url).origin === BASE; } catch { return false; } }
+function localRoute(url, base = DEFAULT_BASE) { try { return new URL(url).origin === base; } catch { return false; } }
 function writePrivate(file, value) {
   const staged = `${file}.stage`;
   fs.writeFileSync(staged, JSON.stringify(value, null, 2) + '\n', {mode: 0o600, flag: 'wx'});
@@ -59,20 +59,20 @@ async function api(page, urlPath, method = 'GET', body) {
   }, {urlPath, method, body});
 }
 
-async function authenticate(page, root, mode) {
+async function authenticate(page, root, mode, base) {
   if (mode === 'cdp') {
-    await page.goto(`${BASE}/c/new`, {waitUntil: 'domcontentloaded'});
+    await page.goto(`${base}/c/new`, {waitUntil: 'domcontentloaded'});
   } else {
     const login = privateJson(path.join(root, 'state/login.json'));
     try {
-      await page.goto(`${BASE}/login`, {waitUntil: 'domcontentloaded'});
+      await page.goto(`${base}/login`, {waitUntil: 'domcontentloaded'});
       await page.getByLabel('Email', {exact: true}).fill(login.email);
       await page.getByLabel('Password', {exact: true}).fill(login.password);
       const accepted = page.waitForResponse((response) =>
         new URL(response.url()).pathname === '/api/auth/login' && response.status() === 200);
       await page.getByTestId('login-button').click();
       await accepted;
-      await page.waitForURL(`${BASE}/c/new`);
+      await page.waitForURL(`${base}/c/new`);
     } finally { login.password = ''; }
   }
   const user = await api(page, '/api/user');
@@ -99,9 +99,9 @@ async function exactAgent(page) {
   return agent;
 }
 
-async function selectAgent(page) {
+async function selectAgent(page, base) {
   if (new URL(page.url()).pathname !== '/c/new') {
-    await page.goto(`${BASE}/c/new`, {waitUntil: 'domcontentloaded'});
+    await page.goto(`${base}/c/new`, {waitUntil: 'domcontentloaded'});
   }
   const selector = page.getByTestId('model-selector-button');
   await requireVisible(selector, 'MODEL_SELECTOR_REQUIRED');
@@ -143,8 +143,8 @@ async function renderedSnapshot(page) {
     streaming: await assistant.locator('.result-streaming').count()};
 }
 
-async function acceptPrompt(page, mode, evidenceDir, gitHead, registerConversation) {
-  await selectAgent(page);
+async function acceptPrompt(page, mode, evidenceDir, gitHead, registerConversation, base) {
+  await selectAgent(page, base);
   const input = page.getByRole('textbox', {name: 'Message input'});
   await requireVisible(input, 'MESSAGE_INPUT_REQUIRED');
   await input.fill(contract.MODES[mode]);
@@ -200,7 +200,9 @@ async function acceptPrompt(page, mode, evidenceDir, gitHead, registerConversati
 async function run(root) {
   root = privateRoot(root);
   const manifest = privateJson(path.join(root, 'manifest.json'));
-  if (manifest.purpose !== PURPOSE || manifest.base_url !== BASE || manifest.agent_name !== AGENT ||
+  let base; try { base = new URL(manifest.base_url).origin; } catch { throw Error('BROWSER_MANIFEST_REQUIRED'); }
+  const allowedBase = base === DEFAULT_BASE || /^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d{2,5})?$/.test(base);
+  if (manifest.purpose !== PURPOSE || manifest.base_url !== base || !allowedBase || manifest.agent_name !== AGENT ||
       typeof manifest.git_head !== 'string' || !/^[a-f0-9]{40}$/.test(manifest.git_head) ||
       !['launch', 'cdp'].includes(manifest.browser_mode) ||
       ![undefined, true, false].includes(manifest.loopback_origin)) throw Error('BROWSER_MANIFEST_REQUIRED');
@@ -219,12 +221,15 @@ async function run(root) {
       context = browser.contexts()[0]; if (!context) throw Error('CDP_CONTEXT_REQUIRED');
     } else {
       const launchArgs = ['--no-sandbox', '--disable-dev-shm-usage'];
-      if (manifest.loopback_origin === true) launchArgs.push('--host-resolver-rules=MAP sec2.astromedicomp.org 127.0.0.1');
+      if (manifest.loopback_origin === true) {
+        if (base !== DEFAULT_BASE) throw Error('LOOPBACK_ORIGIN_REQUIRES_DEFAULT_BASE');
+        launchArgs.push('--host-resolver-rules=MAP sec2.astromedicomp.org 127.0.0.1');
+      }
       browser = await playwright.chromium.launch({headless: true, args: launchArgs});
       context = await browser.newContext();
     }
     page = await context.newPage(); page.setDefaultTimeout(30000);
-    await page.route('**/*', (route) => localRoute(route.request().url()) ? route.continue() : route.abort());
+    await page.route('**/*', (route) => localRoute(route.request().url(), base) ? route.continue() : route.abort());
     page.on('console', (message) => {
       if (consoleTypes.length < 16 && ['warning', 'error'].includes(message.type())) consoleTypes.push(message.type());
     });
@@ -233,18 +238,18 @@ async function run(root) {
     });
     page.on('request', (request) => {
       const row = contract.safeDiagnostic({stage, method: request.method(), url: request.url(), status: null,
-        headerNames: Object.keys(request.headers()), base: BASE});
+        headerNames: Object.keys(request.headers()), base});
       contract.recordDiagnostic(diagnostics, row); diagnosticByRequest.set(request, row);
     });
     page.on('response', (response) => {
       const row = diagnosticByRequest.get(response.request()); if (row) row.status = response.status();
     });
-    stage = 'authenticate'; await authenticate(page, root, manifest.browser_mode);
+    stage = 'authenticate'; await authenticate(page, root, manifest.browser_mode, base);
     stage = 'agent_contract'; await exactAgent(page);
     const results = [];
     for (const mode of Object.keys(contract.MODES)) {
       stage = mode; const result = await acceptPrompt(page, mode, runDir, manifest.git_head,
-        (conversationId) => conversations.push(conversationId));
+        (conversationId) => conversations.push(conversationId), base);
       results.push(result);
     }
     const evidence = {version: 1, outcome: 'COMPLIANCE_UI_PASS', git_head: manifest.git_head,
@@ -277,4 +282,4 @@ if (require.main === module) {
     if (result.outcome !== 'COMPLIANCE_UI_PASS') process.exitCode = 2; })
     .catch(() => { console.log('{"outcome":"COMPLIANCE_UI_BLOCKED","stage":"private_config"}'); process.exitCode = 2; });
 }
-module.exports = {AGENT, BASE, PURPOSE, api, localRoute, privateJson, run};
+module.exports = {AGENT, BASE: DEFAULT_BASE, PURPOSE, api, localRoute, privateJson, run};
