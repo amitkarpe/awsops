@@ -2,6 +2,7 @@
 // Authenticated NEW sec2 UI acceptance. Tokens and browser state never leave page.evaluate.
 const fs = require('node:fs');
 const path = require('node:path');
+const {execFileSync} = require('node:child_process');
 const contract = require('./browser_contract.cjs');
 
 const PURPOSE = 'awsops-issue49-compliance-agent-browser';
@@ -32,6 +33,12 @@ function ensurePrivateDir(directory) {
   const stat = fs.statSync(directory);
   if (!stat.isDirectory() || (stat.mode & 0o077) !== 0 || (process.getuid && stat.uid !== process.getuid()))
     throw Error('PRIVATE_EVIDENCE_DIR_REQUIRED');
+}
+function currentGitHead() {
+  const root = path.resolve(__dirname, '../..');
+  const head = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], {encoding: 'utf8'}).trim();
+  if (!/^[a-f0-9]{40}$/.test(head)) throw Error('CURRENT_GIT_HEAD_REQUIRED');
+  return head;
 }
 
 async function requireVisible(locator, code, timeout = 30000) {
@@ -208,6 +215,7 @@ async function run(root) {
       typeof manifest.git_head !== 'string' || !/^[a-f0-9]{40}$/.test(manifest.git_head) ||
       !['launch', 'cdp'].includes(manifest.browser_mode) ||
       ![undefined, true, false].includes(manifest.loopback_origin)) throw Error('BROWSER_MANIFEST_REQUIRED');
+  if (manifest.git_head !== currentGitHead()) throw Error('BROWSER_GIT_HEAD_MISMATCH');
   const playwright = require(path.join(root, 'app/node_modules/playwright'));
   const evidenceRoot = path.join(root, 'evidence'); ensurePrivateDir(evidenceRoot);
   const runDir = path.join(evidenceRoot, `issue49-${Date.now()}`);
@@ -269,10 +277,12 @@ async function run(root) {
     }
     const reason = typeof error?.message === 'string' && /^[A-Z0-9_]{3,80}$/.test(error.message)
       ? error.message : error?.name === 'TimeoutError' ? 'BROWSER_TIMEOUT' : 'BROWSER_RUNTIME_BLOCKED';
-    return {version: 1, outcome: 'COMPLIANCE_UI_BLOCKED', stage, reason,
+    const evidence = {version: 1, outcome: 'COMPLIANCE_UI_BLOCKED', git_head: manifest.git_head, stage, reason,
       browser_auth_exported: false, storage_state_exported: false,
       conversations_created: conversations.length, console_types: consoleTypes,
       page_error_types: pageErrorTypes, diagnostics};
+    writePrivate(path.join(runDir, 'manifest.json'), evidence);
+    return evidence;
   } finally {
     if (page) await page.close().catch(() => {});
     if (browser && !attached) await browser.close().catch(() => {});

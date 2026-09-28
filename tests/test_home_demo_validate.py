@@ -14,6 +14,7 @@ SPEC.loader.exec_module(home_demo)
 
 class HomeDemoValidateTests(unittest.TestCase):
     def setUp(self):
+        self.git_head = "a" * 40
         self.temp = tempfile.TemporaryDirectory()
         self.evidence = Path(self.temp.name)
         run = self.evidence / "issue49-live"
@@ -23,6 +24,7 @@ class HomeDemoValidateTests(unittest.TestCase):
             json.dumps(
                 {
                     "outcome": "COMPLIANCE_UI_PASS",
+                    "git_head": self.git_head,
                     "tool_count": 1,
                     "action_count": 0,
                     "browser_auth_exported": False,
@@ -81,6 +83,7 @@ class HomeDemoValidateTests(unittest.TestCase):
             "http://127.0.0.1:4311",
             self.evidence,
             fetcher=self.fetch,
+            expected_git_head=self.git_head,
         )
 
     def test_exact_read_only_contract_passes(self):
@@ -98,6 +101,13 @@ class HomeDemoValidateTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "one read-only tool and zero actions"):
             self.validate()
 
+    def test_stale_or_unbound_browser_evidence_fails_closed(self):
+        value = json.loads(self.manifest.read_text(encoding="utf-8"))
+        value["git_head"] = "b" * 40
+        self.manifest.write_text(json.dumps(value), encoding="utf-8")
+        with self.assertRaisesRegex(RuntimeError, "stale or unbound"):
+            self.validate()
+
     def test_non_loopback_runtime_is_refused(self):
         with self.assertRaisesRegex(RuntimeError, "exact loopback HTTP origin"):
             home_demo.validate_runtime(
@@ -105,6 +115,7 @@ class HomeDemoValidateTests(unittest.TestCase):
                 "http://127.0.0.1:4311",
                 self.evidence,
                 fetcher=self.fetch,
+                expected_git_head=self.git_head,
             )
 
 

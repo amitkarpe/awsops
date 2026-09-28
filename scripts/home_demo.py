@@ -139,7 +139,16 @@ def fetch_json(url: str) -> object:
         return json.loads(response.read())
 
 
-def browser_manifest(evidence_root: Path) -> dict[str, object]:
+def current_git_head() -> str:
+    head = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+    ).strip()
+    if not COMMIT_RE.fullmatch(head):
+        raise RuntimeError("current Git head is unavailable")
+    return head
+
+
+def browser_manifest(evidence_root: Path, expected_git_head: str) -> dict[str, object]:
     evidence_root = evidence_root.expanduser().resolve()
     candidates = sorted(
         (path / "manifest.json" for path in evidence_root.glob("issue49-*") if path.is_dir()),
@@ -150,6 +159,8 @@ def browser_manifest(evidence_root: Path) -> dict[str, object]:
     value = json.loads(candidates[-1].read_text(encoding="utf-8"))
     if value.get("outcome") != "COMPLIANCE_UI_PASS":
         raise RuntimeError("canonical browser acceptance did not pass")
+    if value.get("git_head") != expected_git_head:
+        raise RuntimeError("canonical browser acceptance is stale or unbound")
     if value.get("tool_count") != 1 or value.get("action_count") != 0:
         raise RuntimeError("sec2 must expose exactly one read-only tool and zero actions")
     if value.get("browser_auth_exported") is not False or value.get("storage_state_exported") is not False:
@@ -209,6 +220,7 @@ def validate_runtime(
     evidence_root: Path,
     *,
     fetcher=fetch_json,
+    expected_git_head: str | None = None,
 ) -> None:
     config2 = loopback_base(config2_base, "config2 URL")
     sec2 = loopback_base(sec2_base, "sec2 URL")
@@ -244,7 +256,7 @@ def validate_runtime(
     sec2_config = fetcher(f"{sec2}/api/config")
     if not isinstance(sec2_config, dict):
         raise RuntimeError("sec2 application health is unavailable")
-    browser_manifest(evidence_root)
+    browser_manifest(evidence_root, expected_git_head or current_git_head())
     print("HOME_DEMO_VALIDATION_OK aliases=4 checks=8 controls=2 tools=1 actions=0 prompts=3 archived=3")
 
 
