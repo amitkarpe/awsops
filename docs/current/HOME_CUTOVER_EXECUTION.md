@@ -33,12 +33,33 @@ Home browser acceptance passed all three exact prompts on 2026-09-28. The run ex
 
 ## M4 — public NEW tunnel
 
-- [ ] One NEW-only temporary tunnel from Home.
-- [ ] Provider-assigned HTTPS hostname first; no Route53/custom DNS change.
-- [ ] No home-router inbound forwarding.
-- [ ] Remote Status/Explain/Plan PASS.
-- [ ] Restart/stop commands documented.
-- [ ] No new material recurring paid infrastructure.
+**Status: PASS.** One Cloudflare quick tunnel exposed only Home sec2 loopback.
+The provider-assigned hostname and browser evidence remain owner-private.
+
+- [x] One NEW-only temporary tunnel from Home.
+- [x] Provider-assigned HTTPS hostname; no Route53/custom DNS change.
+- [x] No home-router inbound forwarding.
+- [x] Remote Status/Explain/Plan PASS.
+- [x] Restart/stop commands documented.
+- [x] No new material recurring paid infrastructure.
+
+Start the temporary tunnel from Home after the local sec2 service is healthy:
+
+```text
+cloudflared tunnel --no-autoupdate --url http://127.0.0.1:4311
+```
+
+Keep the assigned hostname in the private owner manifest. Set LibreChat's
+private client/server origins to that exact HTTPS origin, restart only the Home
+LibreChat process, and run the canonical compliance-agent browser acceptance.
+To stop, terminate only that `cloudflared` process and restore the private
+client/server origins to the loopback Home value before restarting the local
+LibreChat process. This procedure does not alter DNS, the retained EC2 host or
+OLD services.
+
+Remote acceptance produced the exact three mode results, one read-only tool,
+zero actions, eight checks per result, and Archive readback for all three test
+conversations. Browser auth and storage state were not exported.
 
 ## M5 — cost cutover
 
