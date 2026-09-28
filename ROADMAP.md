@@ -53,14 +53,21 @@ Mode: **one execution PR, many milestones; standing owner approval recorded
 
 ## Roadmap v2 - ACTIVE (#62)
 
-- M1 / F1 stable Home HTTPS route: LIVE VALIDATED in Issue #63 / PR #64;
+- M1 / F1 stable Home HTTPS route: COMPLETE in Issue #63 / merged PR #64;
   one NEW-only Tailscale Funnel route passed public TLS/login, sec2 restart,
-  stop/public-off and local-health checks. PR review/merge remains.
+  stop/public-off and local-health checks. M3 does not change that route.
 - M2 / F2 demo cockpit: Issue #65 / merged PR #66 adds a config2 READY/DEGRADED
   page from the existing exact 4 x 2 evidence and last actual Harness call.
   Unknown route or stale/failed Harness state is reported honestly. The
   Compliance Agent remains one read-only tool with zero actions.
-- M3 / F3+F6 broader read-only coverage: NOT STARTED.
+- M3 / F3+F6 (#68): repository implementation in review. Read-only discovery
+  found exactly two common managed rules across all four LAB aliases, for S3
+  bucket public access and restricted SSH (eight checks total). The dashboard
+  now uses one versioned allowlist and a bounded, masked affected-resource
+  drill-down. The requested 6-8 distinct controls cannot be claimed from
+  current Config evidence; any additional S3, EC2/EBS or RDS rule belongs to
+  a separately authorized M4 AWS change. No green status is inferred for
+  missing/stale/partial evidence.
 - M4 / F4 Conformance Pack and M5 / F5 remediation canary: repository planning
   may proceed under #62; live AWS writes remain UNAUTHORIZED until its exact
   mutation gate is granted. Issue #11 / PR #13 remain deferred.

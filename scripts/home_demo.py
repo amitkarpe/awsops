@@ -27,11 +27,9 @@ HOME_FILES = (
     ROOT / "integration" / "runtime" / "home" / "home-demo.env.example",
 )
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
-ALIASES = ("lab-dev", "lab-poc", "lab-qa", "lab-sec")
-CONTROLS = (
-    "s3-bucket-level-public-access-prohibited",
-    "restricted-ssh",
-)
+_REGISTRY = json.loads((ROOT / "integration" / "config_dashboard" / "control-registry.json").read_text(encoding="utf-8"))
+ALIASES = tuple(_REGISTRY["aliases"])
+CONTROLS = tuple(item["id"] for item in _REGISTRY["controls"])
 CONFIG2_DEFAULT = "http://127.0.0.1:4313"
 SEC2_DEFAULT = "http://127.0.0.1:4311"
 BROWSER_EVIDENCE_DEFAULT = Path.home() / ".config" / "awsops" / "browser" / "evidence"

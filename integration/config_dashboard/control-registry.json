@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "region": "ap-southeast-1",
+  "aliases": ["lab-dev", "lab-poc", "lab-qa", "lab-sec"],
+  "controls": [
+    {
+      "id": "s3-bucket-level-public-access-prohibited",
+      "sourceIdentifier": "S3_BUCKET_LEVEL_PUBLIC_ACCESS_PROHIBITED",
+      "category": "S3",
+      "resourceType": "AWS::S3::Bucket",
+      "resourceLabel": "S3 bucket"
+    },
+    {
+      "id": "restricted-ssh",
+      "sourceIdentifier": "INCOMING_SSH_DISABLED",
+      "category": "Security Groups",
+      "resourceType": "AWS::EC2::SecurityGroup",
+      "resourceLabel": "Security group"
+    }
+  ]
+}

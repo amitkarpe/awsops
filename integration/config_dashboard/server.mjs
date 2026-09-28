@@ -2,27 +2,29 @@ import http from "node:http";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { createOrgAggregatorProvider } from "./org-aggregator.mjs";
+import { ACCOUNT_ALIASES, CONTROLS, REGION, REGISTRY, createOrgAggregatorProvider } from "./org-aggregator.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_HOST = "config2.astromedicomp.org";
-const LAB_ALIASES = Object.freeze(["lab-dev", "lab-poc", "lab-qa", "lab-sec"]);
-const CONTROLS = Object.freeze([
-  "s3-bucket-level-public-access-prohibited",
-  "restricted-ssh",
-]);
+const LAB_ALIASES = ACCOUNT_ALIASES;
 const TELEMETRY_MAX_AGE_MS = 15 * 60 * 1000;
 
 function exactMatrix(snapshot) {
   const rules = Array.isArray(snapshot.rules) ? snapshot.rules : [];
+  const fetchedAt = Date.parse(snapshot.fetchedAt);
+  const fresh = Number.isFinite(fetchedAt) && fetchedAt <= Date.now() + 60000 &&
+    Date.now() - fetchedAt <= 5 * 60 * 1000;
   const seen = new Set(rules.map((rule) => `${rule.accountAlias}:${rule.ConfigRuleName}`));
   const expected = new Set(
     LAB_ALIASES.flatMap((alias) => CONTROLS.map((control) => `${alias}:${control}`)),
   );
-  return rules.length === expected.size && seen.size === expected.size &&
+  return fresh && rules.length === expected.size && seen.size === expected.size &&
     [...expected].every((key) => seen.has(key)) &&
+    rules.every((rule) => ["COMPLIANT", "NON_COMPLIANT"].includes(rule.status) &&
+      Number.isInteger(rule.count) && rule.count >= 0 &&
+      (rule.status !== "COMPLIANT" || rule.count === 0)) &&
     snapshot.available === true && snapshot.partial === false &&
-    snapshot.availableAccounts === 4 && snapshot.totalAccounts === 4;
+    snapshot.availableAccounts === LAB_ALIASES.length && snapshot.totalAccounts === LAB_ALIASES.length;
 }
 
 async function harnessTelemetry() {
@@ -152,10 +154,11 @@ export function createServer(provider) {
       if (url.pathname === "/api/health") {
         return json(200, {
           mode: "AWS_READ_ONLY",
-          region: "ap-southeast-1",
+          region: REGION,
           environments: LAB_ALIASES,
           allAccounts: true,
           controls: CONTROLS,
+          registryVersion: REGISTRY.version,
           remediation: false,
         });
       }
@@ -186,7 +189,7 @@ export function createServer(provider) {
             configProvider: {
               status: ready ? "READY" : "DEGRADED",
               availableAccounts: Number(snapshot.availableAccounts) || 0,
-              totalAccounts: 4,
+              totalAccounts: LAB_ALIASES.length,
               aliases: LAB_ALIASES,
               fetchedAt: snapshot.fetchedAt || null,
               ...(ready
@@ -235,6 +238,41 @@ export function createServer(provider) {
           url.searchParams.get("refresh") === "1",
         );
         return json(200, safeSnapshot(snapshot));
+      }
+
+      if (url.pathname === "/api/resources") {
+        if ([...url.searchParams.keys()].sort().join(",") !== "alias,control")
+          return json(400, { error: "Exactly one registered alias and control are required" });
+        const alias = url.searchParams.get("alias");
+        const control = url.searchParams.get("control");
+        if (!LAB_ALIASES.includes(alias) || !CONTROLS.includes(control))
+          return json(400, { error: "Unknown registered account/control" });
+        if (typeof provider.details !== "function")
+          return json(503, { error: "Affected-resource evidence is unavailable" });
+        const result = await provider.details(alias, control);
+        const metadata = REGISTRY.controls.find((item) => item.id === control);
+        if (result?.alias !== alias || result?.control !== control ||
+            !["COMPLIANT", "NON_COMPLIANT"].includes(result.status) ||
+            !Number.isInteger(result.affectedCount) || result.affectedCount < 0 ||
+            typeof result.truncated !== "boolean" ||
+            !Number.isFinite(Date.parse(result.fetchedAt)) ||
+            !Array.isArray(result.resources) || result.resources.length > 10 ||
+            result.resources.some((row, index) =>
+              row?.reference !== `resource-${String(index + 1).padStart(2, "0")}` ||
+              row?.type !== metadata.resourceLabel || row?.status !== "NON_COMPLIANT" ||
+              !Number.isFinite(Date.parse(row?.lastEvaluatedAt))))
+          throw Error("Affected-resource evidence is invalid");
+        return json(200, {
+          registryVersion: REGISTRY.version,
+          alias, control, status: result.status,
+          affectedCount: result.affectedCount,
+          fetchedAt: result.fetchedAt,
+          truncated: result.truncated,
+          resources: result.resources.map((row) => ({
+            reference: row.reference, type: row.type, status: row.status,
+            lastEvaluatedAt: row.lastEvaluatedAt,
+          })),
+        });
       }
 
       if (url.pathname.startsWith("/api/"))

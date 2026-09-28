@@ -18,7 +18,7 @@ test("cockpit fails closed and exposes only bounded public fields", async () => 
     fetchedAt: new Date().toISOString(),
     private_account_id: "private-marker",
     rules: aliases.flatMap((accountAlias) => controls.map((ConfigRuleName) =>
-      ({ accountAlias, ConfigRuleName, status: "COMPLIANT", private_id: "private-marker" }))),
+      ({ accountAlias, ConfigRuleName, status: "COMPLIANT", count: 0, private_id: "private-marker" }))),
   }) };
   const server = createServer(provider);
   try {
@@ -51,5 +51,53 @@ test("cockpit fails closed and exposes only bounded public fields", async () => 
     if (previous === undefined) delete process.env.AWSOPS_HARNESS_TELEMETRY_FILE;
     else process.env.AWSOPS_HARNESS_TELEMETRY_FILE = previous;
     await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("affected-resource drill-down masks identifiers and rejects mismatched evidence", async () => {
+  const { createOrgAggregatorProvider } = await import("../integration/config_dashboard/org-aggregator.mjs");
+  const { createServer } = await import("../integration/config_dashboard/server.mjs");
+  const targets = new Map(aliases.map((alias, index) => [alias, String(index + 1).repeat(12)]));
+  const privateId = "private-resource-marker";
+  let mismatch = false;
+  let stale = false;
+  const run = async (args) => {
+    if (args[1] === "describe-aggregate-compliance-by-config-rules")
+      return { AggregateComplianceByConfigRules: aliases.flatMap((alias) => controls.map((control) => ({
+        AccountId: targets.get(alias), AwsRegion: "ap-southeast-1", ConfigRuleName: control,
+        Compliance: { ComplianceType: "NON_COMPLIANT",
+          ComplianceContributorCount: { CappedCount: 1, CapExceeded: false } },
+      }))) };
+    assert.equal(args[1], "get-aggregate-compliance-details-by-config-rule");
+    assert.equal(args.at(-2), "--max-items");
+    assert.equal(args.at(-1), "11");
+    return { AggregateEvaluationResults: [{
+      AccountId: mismatch ? "999999999999" : targets.get("lab-dev"),
+      AwsRegion: "ap-southeast-1", ComplianceType: "NON_COMPLIANT",
+      ResultRecordedTime: new Date(Date.now() - (stale ? 31 * 24 * 60 * 60 * 1000 : 0)).toISOString(),
+      EvaluationResultIdentifier: { EvaluationResultQualifier: {
+        ConfigRuleName: controls[0], ResourceType: "AWS::S3::Bucket", ResourceId: privateId,
+      } },
+    }] };
+  };
+  const server = createServer(createOrgAggregatorProvider({ run, targets, aggregator: "test" }));
+  try {
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const url = `http://127.0.0.1:${server.address().port}/api/resources?alias=lab-dev&control=${controls[0]}`;
+    const response = await fetch(url);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.resources[0].reference, "resource-01");
+    assert.equal(body.resources[0].type, "S3 bucket");
+    assert.equal(JSON.stringify(body).includes(privateId), false);
+    assert.equal(JSON.stringify(body).includes(targets.get("lab-dev")), false);
+    mismatch = true;
+    assert.equal((await fetch(url)).status, 502);
+    mismatch = false;
+    stale = true;
+    assert.equal((await fetch(url)).status, 502);
+    assert.equal((await fetch(url + "&account_id=anything")).status, 400);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
   }
 });

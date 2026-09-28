@@ -2,15 +2,14 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
-ALIASES = ("lab-dev", "lab-poc", "lab-qa", "lab-sec")
-CONTROLS = (
-    "s3-bucket-level-public-access-prohibited",
-    "restricted-ssh",
-)
+_REGISTRY = json.loads((Path(__file__).resolve().parents[1] / "config_dashboard" / "control-registry.json").read_text(encoding="utf-8"))
+ALIASES = tuple(_REGISTRY["aliases"])
+CONTROLS = tuple(item["id"] for item in _REGISTRY["controls"])
 STATUSES = {"COMPLIANT", "NON_COMPLIANT", "INSUFFICIENT_DATA", "NOT_APPLICABLE"}
 MAX_BACKEND_BYTES = 256 * 1024
 
@@ -81,8 +80,8 @@ def current_evidence(base_url: str = "http://127.0.0.1:4313") -> dict[str, Any]:
         raise BackendEvidenceError("Config aliases do not match the registered LAB scope")
 
     rules = snapshot.get("rules")
-    if not isinstance(rules, list) or len(rules) != 8:
-        raise BackendEvidenceError("expected exactly eight account/control checks")
+    if not isinstance(rules, list) or len(rules) != len(ALIASES) * len(CONTROLS):
+        raise BackendEvidenceError("expected the exact registered account/control checks")
 
     seen: set[tuple[str, str]] = set()
     checks: list[dict[str, Any]] = []

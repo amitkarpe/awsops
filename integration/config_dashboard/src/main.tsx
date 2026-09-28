@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Refine, useOne, type DataProvider } from "@refinedev/core";
-import { Button, ThemeToggle } from "./ui";
+import { Button, Sheet, ThemeToggle } from "./ui";
+import registry from "../control-registry.json";
 import { Icon, categoryIcon } from "./icons";
 import "./style.css";
 
@@ -45,9 +46,14 @@ type Cockpit = {
   stableRoute: { status: string };
   guardrail: string;
 };
+type ResourceDetails = {
+  alias: string; control: string; status: string; affectedCount: number;
+  fetchedAt: string; truncated: boolean;
+  resources: { reference: string; type: string; status: string; lastEvaluatedAt: string }[];
+};
 
-const LAB_ACCOUNTS = ["lab-dev", "lab-poc", "lab-qa", "lab-sec"];
-const CATEGORIES = ["S3", "Security Groups"];
+const LAB_ACCOUNTS = registry.aliases;
+const CATEGORIES = registry.controls.map((item) => item.category);
 
 async function jsonBody(response: Response, fallback: string) {
   const contentType = response.headers.get("content-type") || "";
@@ -99,6 +105,10 @@ function App() {
   const [section, setSection] = useState<"dashboard" | "controls" | "accounts">("dashboard");
   const [mode, setMode] = useState("Checking mode");
   const [cockpit, setCockpit] = useState<Cockpit | null>(null);
+  const [detailRule, setDetailRule] = useState<Rule | null>(null);
+  const [details, setDetails] = useState<ResourceDetails | null>(null);
+  const [detailError, setDetailError] = useState("");
+  const [detailLoading, setDetailLoading] = useState(false);
   const [dashboard, setDashboard] = useState<"management" | "security" | "operations">(() => {
     try {
       const saved = localStorage.getItem("awsops-config2-dashboard");
@@ -172,6 +182,22 @@ function App() {
     }
   };
 
+  const showDetails = (rule: Rule) => {
+    setDetailRule(rule);
+    setDetails(null);
+    setDetailError("");
+    setDetailLoading(true);
+    request(`/api/resources?alias=${encodeURIComponent(rule.accountAlias)}&control=${encodeURIComponent(rule.ConfigRuleName)}`)
+      .then((value: ResourceDetails) => {
+        if (value.alias !== rule.accountAlias || value.control !== rule.ConfigRuleName ||
+            value.status !== "NON_COMPLIANT" || !Array.isArray(value.resources))
+          throw Error("Affected-resource evidence does not match this control");
+        setDetails(value);
+      })
+      .catch(() => setDetailError("Affected-resource evidence is unavailable or stale."))
+      .finally(() => setDetailLoading(false));
+  };
+
   const rules = hasEvidence ? snapshot?.rules || [] : [];
   const filtered = rules
     .filter(
@@ -216,10 +242,7 @@ function App() {
       noncompliant: group.filter((rule) => rule.status === "NON_COMPLIANT").length,
     };
   });
-  const controlGroups = [
-    "s3-bucket-level-public-access-prohibited",
-    "restricted-ssh",
-  ].map((name) => {
+  const controlGroups = registry.controls.map(({ id: name }) => {
     const group = rules.filter((rule) => rule.ConfigRuleName === name);
     return {
       name,
@@ -446,19 +469,34 @@ function App() {
           </div>
           <div className="table-scroll" role="region" aria-label="Scrollable controls table" tabIndex={0}>
             <table>
-              <thead><tr><th>Status</th><th>Account</th><th>Control</th><th>Category</th><th>Non-compliant</th></tr></thead>
+              <thead><tr><th>Status</th><th>Account</th><th>Control</th><th>Category</th><th>Non-compliant</th><th>Evidence</th></tr></thead>
               <tbody>{filtered.map((rule) => <tr key={`${rule.accountAlias}:${rule.ConfigRuleName}`}>
                 <td><Status value={rule.status} /></td>
                 <td><span className="account-tag">{rule.accountAlias}</span></td>
                 <td>{rule.ConfigRuleName}</td>
                 <td><span className="category-cell"><Icon name={categoryIcon[rule.category]} size={15} />{rule.category}</span></td>
                 <td className="numeric">{rule.count == null ? "--" : `${rule.count}${rule.capped ? "+" : ""}`}</td>
+                <td>{rule.status === "NON_COMPLIANT" ?
+                  <button onClick={() => showDetails(rule)} aria-label={`View affected resources for ${rule.accountAlias} ${rule.ConfigRuleName}`}>View affected</button> : "—"}</td>
               </tr>)}</tbody>
             </table>
             {!filtered.length && !query.isFetching && <p className="empty-state"><Icon name="search" size={28} />{!hasEvidence ? "Inventory unavailable" : "No matching controls"}</p>}
           </div>
           <footer className="table-footer">{hasEvidence ? `${filtered.length} of ${rules.length}` : "No current"} account/control checks. Partial or unavailable accounts are never counted as compliant.</footer>
         </section>
+
+        <Sheet open={detailRule !== null} onOpenChange={(open) => { if (!open) setDetailRule(null); }}
+          title={detailRule ? `${detailRule.accountAlias} · ${detailRule.ConfigRuleName}` : "Affected resources"}
+          description="Read-only affected-resource evidence. References are masked and limited to ten; no change action is available.">
+          {detailLoading && <p>Loading current Config evidence…</p>}
+          {detailError && <p role="alert">{detailError}</p>}
+          {details && <div>
+            <p>{details.affectedCount} affected · fetched {date(details.fetchedAt)}{details.truncated ? " · showing first 10 only" : ""}</p>
+            <ul>{details.resources.map((item) => <li key={item.reference}>
+              <b>{item.reference}</b> · {item.type} · {item.status.replaceAll("_", " ")} · evaluated {date(item.lastEvaluatedAt)}
+            </li>)}</ul>
+          </div>}
+        </Sheet>
 
         <p className="page-footer"><Icon name="shield" size={14} />Read-only Config evidence. No remediation, re-arm, preview, confirmation, or generic AWS action exists in config2.</p>
       </main>
