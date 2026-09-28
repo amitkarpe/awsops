@@ -53,8 +53,8 @@ Mode: **one execution PR, many milestones; standing owner approval recorded
 
 ## Roadmap v2 - ACTIVE (#62)
 
-- M1 / F1 stable Home HTTPS route: BLOCKED on owner-side Tailscale Funnel
-  enablement; Issue #63 / PR #64 own that route and remain untouched by M2.
+- M1 / F1 stable Home HTTPS route: Issue #63 / PR #64 own one NEW-only
+  Tailscale Funnel route, gated by exact-head Home validation.
 - M2 / F2 demo cockpit: Issue #65 implementation adds a config2 READY/DEGRADED
   page from the existing exact 4 x 2 evidence and last actual Harness call.
   Unknown route or stale/failed Harness state is reported honestly. The

@@ -11,7 +11,7 @@ Use one KISS flow from the `awsops` checkout. Keep all private values under the
 existing owner-only configuration boundary.
 
 1. **Start:** follow sections 4-6 to start MongoDB, config2 and LibreChat on
-   loopback. Start the optional quick tunnel only for a remote demo.
+   loopback. Start the optional public route only for a remote demo.
 2. **Status:** confirm `http://127.0.0.1:4313/api/health` and
    `http://127.0.0.1:4311/api/config` return HTTP 200.
 3. **Validate:** run:
@@ -25,7 +25,7 @@ existing owner-only configuration boundary.
    fails closed unless config2 is READY/non-partial with four aliases, eight
    checks and two controls, and sec2 has one read-only tool, zero actions and
    the three archived canonical prompt results.
-4. **Stop:** stop the optional tunnel first, stop the foreground/local config2
+4. **Stop:** stop the optional public route first, stop the foreground/local config2
    and LibreChat processes, then stop only Home MongoDB:
 
    ```bash
@@ -170,9 +170,36 @@ docker compose -f integration/runtime/home/docker-compose.yaml down
 To rebuild LibreChat, preserve anything you intentionally need, then choose a new
 empty Home target and rerun `home_demo.py prepare`. Git remains source truth.
 
-## Public demo/tunnel
+## One stable public route (Roadmap v2 M1 / Issue #63)
 
-A Cloudflare quick tunnel is optional demo transport only. Use a provider-assigned
-hostname, expose only the required Home loopback service, and stop the tunnel when
-the demo ends. It is not permanent infrastructure: do not open the home router or
-change Route53/custom DNS for this baseline.
+The first choice, an owner-controlled stable Cloudflare tunnel, has no local
+Cloudflare origin certificate, tunnel token or named-tunnel configuration on
+Home. Tailscale is installed and authenticated and supplies a stable Home
+`*.ts.net` name. Funnel is the selected second choice. **Activation is pending
+the owner's tailnet Funnel enablement**; the CLI currently refuses with
+`Funnel is not enabled on your tailnet.` No public route was created by that
+attempt. Ngrok has no local auth configuration and is not a fallback here.
+
+From the exact Home `awsops` release checkout, after the local lifecycle above
+is healthy and current-head browser acceptance has passed:
+
+```bash
+python scripts/home_demo.py public-start
+python scripts/home_demo.py public-status
+python scripts/home_demo.py public-stop
+```
+
+`public-start` runs the canonical read-only `validate` contract before it
+enables Funnel. It refuses any pre-existing unrelated Tailscale Serve/Funnel
+route and exposes only Home sec2 at `127.0.0.1:4311` through HTTPS port 443.
+`public-status` reads back the exact route and local sec2 health. `public-stop`
+turns off only that exact route; config2, sec2, MongoDB and Home-local URLs keep
+running. If status reports unhealthy, stop the public route and recover the
+local services before starting it again. The stable URL is printed locally by
+the commands; keep owner-private tunnel details outside Git. No router
+forwarding, Route53 change, wildcard DNS or retained EC2 is involved.
+
+If `validate` reports stale or unbound browser evidence after a release change,
+rerun the existing canonical browser acceptance from that exact release head;
+do not bypass or weaken the validator. A prior Cloudflare quick tunnel remains
+an optional temporary transport and is not the stable M1 route.
