@@ -11,7 +11,7 @@ Use one KISS flow from the `awsops` checkout. Keep all private values under the
 existing owner-only configuration boundary.
 
 1. **Start:** follow sections 4-6 to start MongoDB, config2 and LibreChat on
-   loopback. Start the optional quick tunnel only for a remote demo.
+   loopback. Start the optional public route only for a remote demo.
 2. **Status:** confirm `http://127.0.0.1:4313/api/health` and
    `http://127.0.0.1:4311/api/config` return HTTP 200.
 3. **Validate:** run:
@@ -25,7 +25,7 @@ existing owner-only configuration boundary.
    fails closed unless config2 is READY/non-partial with four aliases, eight
    checks and two controls, and sec2 has one read-only tool, zero actions and
    the three archived canonical prompt results.
-4. **Stop:** stop the optional tunnel first, stop the foreground/local config2
+4. **Stop:** stop the optional public route first, stop the foreground/local config2
    and LibreChat processes, then stop only Home MongoDB:
 
    ```bash
@@ -170,9 +170,38 @@ docker compose -f integration/runtime/home/docker-compose.yaml down
 To rebuild LibreChat, preserve anything you intentionally need, then choose a new
 empty Home target and rerun `home_demo.py prepare`. Git remains source truth.
 
-## Public demo/tunnel
+## One stable public route (Roadmap v2 M1 / Issue #63)
 
-A Cloudflare quick tunnel is optional demo transport only. Use a provider-assigned
-hostname, expose only the required Home loopback service, and stop the tunnel when
-the demo ends. It is not permanent infrastructure: do not open the home router or
-change Route53/custom DNS for this baseline.
+Tailscale Funnel is the canonical M1 route for the NEW sec2 service. It uses
+`https://home.tail0e0c85.ts.net/`, with no visible port, and proxies only to
+`127.0.0.1:4311`. The owner-enabled Funnel route passed public TLS/login and
+browser checks; it survived a sec2 backend restart. A prior owner-disposable
+test route was removed. Cloudflare's named-tunnel hostname/origin was not
+verified, and its prior random quick tunnel was stopped; neither is the
+supported stable route. No app listener port was changed.
+
+From the exact Home `awsops` release checkout, after the local lifecycle above
+is healthy and current-head browser acceptance has passed:
+
+```bash
+python scripts/home_demo.py public-start
+python scripts/home_demo.py public-status
+python scripts/home_demo.py public-stop
+```
+
+`public-start` runs the canonical read-only `validate` contract before it
+enables Funnel. It refuses any pre-existing unrelated Tailscale Serve/Funnel
+route and exposes only Home sec2 at `127.0.0.1:4311` through HTTPS port 443.
+Home requires existing noninteractive `sudo` permission for the exact Funnel
+route change; the script does not change Tailscale operator settings.
+`public-status` reads back the exact route and local sec2 health. `public-stop`
+turns off only that exact route; config2, sec2, MongoDB and Home-local URLs keep
+running. The public URL is unreachable while off and returns to the same
+hostname after a validated `public-start`. If status reports unhealthy, stop
+the public route and recover the local services before starting it again. No router
+forwarding, Route53 change, wildcard DNS or retained EC2 is involved.
+
+If `validate` reports stale or unbound browser evidence after a release change,
+rerun the existing canonical browser acceptance from that exact release head;
+do not bypass or weaken the validator. The quick tunnel is not part of the
+supported M1 lifecycle.

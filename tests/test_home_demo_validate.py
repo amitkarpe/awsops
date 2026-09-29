@@ -1,8 +1,10 @@
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -117,6 +119,24 @@ class HomeDemoValidateTests(unittest.TestCase):
                 fetcher=self.fetch,
                 expected_git_head=self.git_head,
             )
+
+    def test_public_route_refuses_unrelated_tailscale_config(self):
+        status = {"BackendState": "Running", "Self": {"Online": True, "DNSName": "home.example.ts.net."}}
+        unrelated = {"Web": {"other.example.ts.net:443": {"Handlers": {"/": {"Proxy": "http://127.0.0.1:9999"}}}}}
+        with mock.patch.object(home_demo, "tailscale_state", return_value=(status, unrelated)), \
+             mock.patch.object(home_demo, "validate_runtime"), \
+             mock.patch.object(home_demo, "run") as command:
+            with self.assertRaisesRegex(RuntimeError, "existing Tailscale route"):
+                home_demo.public_start()
+            command.assert_not_called()
+
+    def test_disabled_tailnet_reports_exact_gate(self):
+        error = subprocess.CalledProcessError(
+            1, ["tailscale", "funnel"], stderr="Funnel is not enabled on your tailnet"
+        )
+        with mock.patch.object(home_demo.subprocess, "run", side_effect=error):
+            with self.assertRaisesRegex(RuntimeError, "owner tailnet enablement"):
+                home_demo.change_funnel(["--bg", "--yes", home_demo.SEC2_DEFAULT])
 
 
 if __name__ == "__main__":

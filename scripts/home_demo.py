@@ -260,6 +260,105 @@ def validate_runtime(
     print("HOME_DEMO_VALIDATION_OK aliases=4 checks=8 controls=2 tools=1 actions=0 prompts=3 archived=3")
 
 
+def tailscale_state() -> tuple[dict[str, object], dict[str, object]]:
+    if shutil.which("tailscale") is None:
+        raise RuntimeError("Tailscale CLI is unavailable")
+    status = json.loads(run(["tailscale", "status", "--json"]))
+    if status.get("BackendState") != "Running" or status.get("Self", {}).get("Online") is not True:
+        raise RuntimeError("Tailscale is not online")
+    funnel = json.loads(run(["tailscale", "funnel", "status", "--json"]))
+    return status, funnel
+
+
+def funnel_url(status: dict[str, object]) -> str:
+    dns_name = status.get("Self", {}).get("DNSName")
+    if not isinstance(dns_name, str) or not dns_name.endswith(".ts.net."):
+        raise RuntimeError("stable Tailscale DNS name is unavailable")
+    return f"https://{dns_name.rstrip('.')}"
+
+
+def exact_funnel(funnel: dict[str, object]) -> bool:
+    web = funnel.get("Web", {})
+    ports = funnel.get("TCP", {})
+    allowed = funnel.get("AllowFunnel", {})
+    if not isinstance(web, dict) or len(web) != 1 or not isinstance(ports, dict) or len(ports) != 1:
+        return False
+    if not isinstance(allowed, dict) or len(allowed) != 1 or next(iter(allowed.values())) is not True:
+        return False
+    if str(next(iter(ports))) != "443":
+        return False
+    host_port = next(iter(web))
+    if not isinstance(host_port, str) or not host_port.endswith(":443") or host_port not in allowed:
+        return False
+    site = next(iter(web.values()))
+    handlers = site.get("Handlers", {}) if isinstance(site, dict) else {}
+    return (isinstance(handlers, dict) and len(handlers) == 1 and
+            next(iter(handlers.values()), {}).get("Proxy") == SEC2_DEFAULT)
+
+
+def change_funnel(argv: list[str]) -> None:
+    try:
+        subprocess.run(
+            ["sudo", "-n", "tailscale", "funnel", *argv],
+            check=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=20,
+        )
+    except subprocess.CalledProcessError as error:
+        output = (error.stdout or "") + (error.stderr or "")
+        if "Funnel is not enabled on your tailnet" in output:
+            raise RuntimeError("Tailscale Funnel requires owner tailnet enablement") from error
+        raise RuntimeError("Tailscale Funnel route change failed") from error
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError("Tailscale Funnel route change timed out; check tailnet enablement") from error
+
+
+def public_start() -> None:
+    status, funnel = tailscale_state()
+    validate_runtime(CONFIG2_DEFAULT, SEC2_DEFAULT, BROWSER_EVIDENCE_DEFAULT)
+    if funnel:
+        if exact_funnel(funnel):
+            print(f"HOME_DEMO_PUBLIC_READY {funnel_url(status)}")
+            return
+        raise RuntimeError("an existing Tailscale route must be preserved")
+    serve = json.loads(run(["tailscale", "serve", "status", "--json"]))
+    if serve:
+        raise RuntimeError("an existing Tailscale Serve route must be preserved")
+    change_funnel(["--bg", "--yes", SEC2_DEFAULT])
+    status, funnel = tailscale_state()
+    if not exact_funnel(funnel):
+        raise RuntimeError("Tailscale did not install the exact sec2-only route")
+    print(f"HOME_DEMO_PUBLIC_READY {funnel_url(status)}")
+
+
+def public_status() -> None:
+    status, funnel = tailscale_state()
+    if not funnel:
+        print("HOME_DEMO_PUBLIC_OFF")
+        return
+    if not exact_funnel(funnel):
+        raise RuntimeError("Tailscale route differs from the sec2-only contract")
+    fetch_json(f"{SEC2_DEFAULT}/api/config")
+    print(f"HOME_DEMO_PUBLIC_READY {funnel_url(status)}")
+
+
+def public_stop() -> None:
+    _, funnel = tailscale_state()
+    if not funnel:
+        print("HOME_DEMO_PUBLIC_OFF")
+        return
+    if not exact_funnel(funnel):
+        raise RuntimeError("refusing to stop an unrelated Tailscale route")
+    change_funnel(["--https=443", "--yes", "off"])
+    _, remaining = tailscale_state()
+    if remaining:
+        raise RuntimeError("Tailscale public route remains active")
+    print("HOME_DEMO_PUBLIC_OFF")
+
+
 def parser() -> argparse.ArgumentParser:
     value = argparse.ArgumentParser(description="awsops Home demo source bootstrap")
     sub = value.add_subparsers(dest="action", required=True)
@@ -268,6 +367,9 @@ def parser() -> argparse.ArgumentParser:
     validate.add_argument("--config2-url", default=CONFIG2_DEFAULT)
     validate.add_argument("--sec2-url", default=SEC2_DEFAULT)
     validate.add_argument("--browser-evidence", type=Path, default=BROWSER_EVIDENCE_DEFAULT)
+    sub.add_parser("public-start", help="validate Home and expose only sec2 through Tailscale Funnel")
+    sub.add_parser("public-status", help="read back the exact sec2-only Tailscale route")
+    sub.add_parser("public-stop", help="disable only the exact sec2-only Tailscale route")
     for action in ("prepare", "verify"):
         p = sub.add_parser(action)
         p.add_argument("target", type=Path)
@@ -283,6 +385,12 @@ def main() -> int:
             prepare(args.target)
         elif args.action == "validate":
             validate_runtime(args.config2_url, args.sec2_url, args.browser_evidence)
+        elif args.action == "public-start":
+            public_start()
+        elif args.action == "public-status":
+            public_status()
+        elif args.action == "public-stop":
+            public_stop()
         else:
             verify(args.target)
     except (RuntimeError, OSError, subprocess.CalledProcessError, json.JSONDecodeError) as error:
