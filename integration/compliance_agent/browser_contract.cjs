@@ -2,11 +2,9 @@
 
 const crypto = require('node:crypto');
 
-const ALIASES = ['lab-dev', 'lab-poc', 'lab-qa', 'lab-sec'];
-const CONTROLS = [
-  's3-bucket-level-public-access-prohibited',
-  'restricted-ssh',
-];
+const registry = require('../config_dashboard/control-registry.json');
+const ALIASES = registry.aliases;
+const CONTROLS = registry.controls.map((item) => item.id);
 const TOOL = 'ask_compliance_agent_mcp_awsops_compliance_agent';
 const LOGICAL_TOOL = 'ask_compliance_agent';
 const GUARDRAIL = '🛡️ **Read-only:** No AWS changes executed.';

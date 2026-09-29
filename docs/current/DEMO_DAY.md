@@ -14,7 +14,7 @@ paths rather than always-on endpoints. Delete nothing.
 
 | Demo | Click sequence | Say/show | Expected result |
 | --- | --- | --- | --- |
-| Home config2 | Open local config2; select one finding and observe its status and freshness. | “This is the isolated read-only four-environment Config view. It reports S3 Block Public Access and restricted SSH evidence.” | READY, non-partial evidence for four aliases and eight checks. No action or remediation control is available. |
+| Home config2 | Open local config2; select one noncompliant account/control, then **View affected**. | “This is the isolated read-only four-environment Config view. It reports S3 bucket public access and restricted SSH evidence; affected resources are masked.” | READY, non-partial evidence for four aliases and eight checks from two distinct controls. The detail list shows at most ten masked references and its evaluation time; incomplete or stale evidence is shown as unavailable. No action or remediation control is available. |
 | Home sec2 | Open the owner-private temporary HTTPS URL; sign in with the Home owner account; select **AWS Ops Compliance Agent**; ask **Status**, **Explain what needs attention**, then **Give me a remediation plan without making changes**. | “The dashboard and agent use the same evidence. The agent explains and plans but cannot change AWS.” | Each answer starts with the compact **4-account × 2-control** Markdown table. Explain adds only the attention table; Plan adds only the suggested-change table with **🚫 Not executed**. Every answer ends exactly **🛡️ Read-only: No AWS changes executed.** |
 
 The Playwright acceptance harness verifies persisted-tool to rendered-output

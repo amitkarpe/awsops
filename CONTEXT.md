@@ -2,7 +2,7 @@
 
 Repository: `amitkarpe/awsops`
 Status: ACTIVE
-Updated: 2026-09-28
+Updated: 2026-09-29
 
 ## Authority
 
@@ -24,17 +24,21 @@ Lightsail mutation is authorized. Amit separately authorized **STOP only** for
 the `vagent` EC2 on 2026-09-28; terminate/delete/resize/retag/EBS/EIP/IAM/network/DNS
 changes remain unauthorized.
 
-Roadmap v2 Issue #62 is active for the read-only Home demo. M1 stable HTTPS
-route is live-validated in Issue #63 / PR #64. Issue #65 implements the
-independent M2 cockpit in config2:
+Roadmap v2 Issue #62 is active for the read-only Home demo. M1's stable Home
+HTTPS Tailscale Funnel route and authenticated owner login are accepted in
+Issue #63 / merged PR #64. Issue #65 / merged PR #66 supplies the M2 cockpit
+in config2:
 the exact normalized four-alias/two-control evidence and the last real
 Compliance Agent Harness result determine visible READY/DEGRADED state. Missing,
 failed or stale Harness telemetry degrades; unverified stable-route state is
-NOT_REPORTED. This work adds no model-facing tool or AWS action. M3 broader
-read-only coverage and M4/M5 live AWS mutation have not started; the latter
-still require the explicit Issue #62 mutation gate. Issue #11 / PR #13 remain
-deferred. Issue #63 authorizes only one NEW-only stable Home HTTPS route;
-M4/M5 live AWS writes remain behind the separate Issue #62 gate.
+NOT_REPORTED. This work adds no model-facing tool or AWS action. Issue #68 M3
+read-only discovery found only two common existing Config rules across the
+four LAB aliases: S3 bucket public access and restricted SSH. Its repository
+branch adds a fixed versioned allowlist and bounded masked affected-resource
+drill-down; 6-8 distinct controls are not currently available without an
+additional authorized M4 Config-rule change. M4/M5 live AWS mutation has not
+started and still requires the explicit Issue #62 mutation gate. Issue #11 /
+PR #13 remain deferred. M1 authorizes only one NEW-only stable Home HTTPS route.
 
 Issue #14 owns operational hygiene: the public-safe AWS resource/cost ledger,
 account-level cost visibility and retained-host capacity evidence. Amit explicitly
@@ -71,7 +75,8 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
 - Issue #56 M4 passes through one provider-assigned temporary HTTPS tunnel from Home to the NEW sec2 loopback service. Remote Status, Explain and no-change Plan passed 3/3 with the same persisted/rendered evidence binding, one read-only MCP tool, zero actions and Archive readback. The tunnel hostname and evidence remain owner-private. No Route53, custom DNS, router forwarding or IAM changed.
 - Issue #56 M5 stopped exactly the retained `amit` `t3.medium` on 2026-09-28 after the final identity, EBS/EIP and Home-health gates passed. Provider readback is `stopped`; its encrypted 30 GiB gp3 volume remains attached and its Elastic IP remains associated. Home sec2 HTTPS, config2 READY/non-partial 4 x 2 evidence and the remote three-prompt proof remained healthy. Nothing was terminated, detached, released or deleted; Lightsail and `vagent` were untouched. Git/Home are the NEW demo source of truth and the stopped EBS is recovery state only.
 - Issue #60 completes Home Demo v1 productization: one repo-owned fail-closed read-only validation command and one start/status/validate/stop lifecycle. Validation is bound to the exact current Git head and the latest canonical browser attempt, so stale or superseded evidence cannot satisfy acceptance. The existing Compliance Agent browser harness remains the only browser acceptance path.
-- Issue #63 M1 uses Tailscale Funnel for one stable NEW Home sec2 HTTPS URL. After owner enablement, the owner-confirmed disposable test route to an unused port was replaced by the exact sec2 loopback route. Public `/login` and `/api/config` returned 200 with verified TLS, and a real browser loaded the login form without a same-origin error. The URL survived a sec2 backend restart. `public-stop` removed public reachability while local sec2/config2 stayed healthy; `public-start` can restore the same URL after exact-head validation. The prior Cloudflare quick tunnel was stopped; its named-tunnel hostname was not verified and is not the M1 route. PR #64 remains for G review.
+- Issue #63 M1 uses Tailscale Funnel for one stable NEW Home sec2 HTTPS URL. After owner enablement, the owner-confirmed disposable test route to an unused port was replaced by the exact sec2 loopback route. Public `/login` and `/api/config` returned 200 with verified TLS, and a real browser loaded the login form without a same-origin error. The URL survived a sec2 backend restart. `public-stop` removed public reachability while local sec2/config2 stayed healthy; `public-start` can restore the same URL after exact-head validation. The prior Cloudflare quick tunnel was stopped; its named-tunnel hostname was not verified and is not the M1 route. PR #64 is merged.
+- Issue #68 M3 repository implementation is in review: the existing two-rule four-alias Config matrix is centralized in `integration/config_dashboard/control-registry.json`, and the dashboard can show at most ten masked, read-only affected-resource rows for an exact account/control pair. Live discovery found no other Config rules in the current aggregator, so broader control coverage is an explicit M4 gap. The Compliance Agent still has one read-only tool and no actions.
 - Issue #56 was the canonical stop-readiness gate and has now passed M1-M5.
   `integration/runtime/` records the public-safe host inventory, persistent
   service templates, private-input schemas, exact LibreChat pin and Home rebuild

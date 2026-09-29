@@ -1,24 +1,16 @@
 import { execFile } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { promisify } from "node:util";
 
 const exec = promisify(execFile);
-export const ACCOUNT_ALIASES = Object.freeze(["lab-dev", "lab-poc", "lab-qa", "lab-sec"]);
-export const REGION = "ap-southeast-1";
-export const CONTROLS = Object.freeze([
-  "s3-bucket-level-public-access-prohibited",
-  "restricted-ssh",
-]);
+export const REGISTRY = Object.freeze(JSON.parse(readFileSync(new URL("./control-registry.json", import.meta.url), "utf8")));
+export const ACCOUNT_ALIASES = Object.freeze(REGISTRY.aliases);
+export const REGION = REGISTRY.region;
+export const CONTROLS = Object.freeze(REGISTRY.controls.map((control) => control.id));
 const STATES = new Set(["COMPLIANT", "NON_COMPLIANT", "INSUFFICIENT_DATA", "NOT_APPLICABLE"]);
-const CONTROL_METADATA = new Map([
-  ["s3-bucket-level-public-access-prohibited", {
-    sourceIdentifier: "S3_BUCKET_LEVEL_PUBLIC_ACCESS_PROHIBITED",
-    category: "S3",
-  }],
-  ["restricted-ssh", {
-    sourceIdentifier: "INCOMING_SSH_DISABLED",
-    category: "Security Groups",
-  }],
-]);
+const CONTROL_METADATA = new Map(REGISTRY.controls.map((control) => [control.id, control]));
+const DETAIL_LIMIT = 10;
+const DETAIL_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 function requiredText(name, value) {
   if (typeof value !== "string" || !value.trim()) throw Error(`${name} is required`);
@@ -159,6 +151,7 @@ export function createOrgAggregatorProvider({
       throw Error("unexpected aggregate compliance response");
 
     const byAlias = new Map(ACCOUNT_ALIASES.map((alias) => [alias, new Map()]));
+    const rawNames = new Map();
     for (const row of rows) {
       const alias = reverse.get(row?.AccountId);
       const rawName = row?.ConfigRuleName;
@@ -170,6 +163,7 @@ export function createOrgAggregatorProvider({
       const account = byAlias.get(alias);
       if (account.has(name)) throw Error("duplicate account/control evidence");
       account.set(name, publicRule(alias, name, status, row?.Compliance?.ComplianceContributorCount));
+      rawNames.set(`${alias}:${name}`, rawName);
     }
 
     const fetchedAt = new Date(now()).toISOString();
@@ -188,7 +182,7 @@ export function createOrgAggregatorProvider({
       };
     });
 
-    const value = { fetchedAt, accounts };
+    const value = { fetchedAt, accounts, rawNames };
     cache = { at: now(), value };
     return value;
   }
@@ -231,6 +225,60 @@ export function createOrgAggregatorProvider({
         rules: available.flatMap((account) => account.rules),
         recorders: [],
       };
+    },
+
+    async details(alias, control) {
+      if (!ACCOUNT_ALIASES.includes(alias) || !CONTROLS.includes(control))
+        throw Error("Unknown registered account/control");
+      const source = await load(false);
+      const account = source.accounts.find((row) => row.alias === alias);
+      const rule = account?.rules.find((row) => row.ConfigRuleName === control);
+      const rawName = source.rawNames.get(`${alias}:${control}`);
+      if (!account?.available || !rule || !rawName ||
+          !Number.isFinite(Date.parse(account.fetchedAt)) ||
+          now() - Date.parse(account.fetchedAt) > 5 * 60 * 1000 ||
+          !["COMPLIANT", "NON_COMPLIANT"].includes(rule.status) ||
+          !Number.isInteger(rule.count) || rule.count < 0)
+        throw Error("Account/control detail evidence is unavailable");
+      if (rule.status === "COMPLIANT") {
+        if (rule.count !== 0) throw Error("Compliant count mismatch");
+        return { alias, control, status: rule.status, affectedCount: 0,
+          fetchedAt: source.fetchedAt, truncated: false, resources: [] };
+      }
+      const response = await run([
+        "configservice", "get-aggregate-compliance-details-by-config-rule",
+        "--configuration-aggregator-name", aggregator,
+        "--config-rule-name", rawName,
+        "--account-id", targets.get(alias),
+        "--aws-region", REGION,
+        "--compliance-type", "NON_COMPLIANT",
+        "--max-items", String(DETAIL_LIMIT + 1),
+      ]);
+      const rows = response.AggregateEvaluationResults;
+      if (!Array.isArray(rows) || rows.length > DETAIL_LIMIT + 1 ||
+          rows.length === 0 ||
+          (rule.count < rows.length && !rule.capped) ||
+          (rule.count > rows.length && !response.NextToken && !rule.capped))
+        throw Error("Affected-resource evidence is incomplete");
+      const metadata = CONTROL_METADATA.get(control);
+      const resources = rows.slice(0, DETAIL_LIMIT).map((row, index) => {
+        const qualifier = row?.EvaluationResultIdentifier?.EvaluationResultQualifier;
+        const evaluated = Date.parse(row?.ResultRecordedTime);
+        if (row?.AccountId !== targets.get(alias) || row?.AwsRegion !== REGION ||
+            row?.ComplianceType !== "NON_COMPLIANT" || qualifier?.ConfigRuleName !== rawName ||
+            qualifier?.ResourceType !== metadata.resourceType ||
+            typeof qualifier?.ResourceId !== "string" || !qualifier.ResourceId ||
+            !Number.isFinite(evaluated) || evaluated > now() + 60000 ||
+            now() - evaluated > DETAIL_MAX_AGE_MS)
+          throw Error("Affected-resource evidence is stale or mismatched");
+        return { reference: `resource-${String(index + 1).padStart(2, "0")}`,
+          type: metadata.resourceLabel, status: "NON_COMPLIANT",
+          lastEvaluatedAt: new Date(evaluated).toISOString() };
+      });
+      return { alias, control, status: rule.status, affectedCount: rule.count,
+        fetchedAt: source.fetchedAt,
+        truncated: rule.capped || rows.length > DETAIL_LIMIT || Boolean(response.NextToken) || rule.count > DETAIL_LIMIT,
+        resources };
     },
   };
 }

@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
-from .config_backend import current_evidence
+from .config_backend import ALIASES, CONTROLS, current_evidence
 from .harness_client import invoke
 
 
@@ -135,9 +135,7 @@ MODE_LAYOUT:
 """
 
 
-ALIASES = ("lab-dev", "lab-poc", "lab-qa", "lab-sec")
-CONTROL_S3 = "s3-bucket-level-public-access-prohibited"
-CONTROL_SSH = "restricted-ssh"
+CONTROL_S3, CONTROL_SSH = CONTROLS
 
 
 def _status_text(check: dict[str, Any]) -> str:

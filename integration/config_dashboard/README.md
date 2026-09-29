@@ -54,6 +54,21 @@ The config2 API exposes only read-only GET/HEAD routes:
 - `/api/diagnostics`
 - `/api/controls?environment=ALL&refresh=1`
 - `/api/cockpit` — bounded public-safe projection for the Home demo cockpit
+- `/api/resources?alias=lab-dev&control=restricted-ssh` — exact registered
+  account/control drill-down. At most ten affected resources are returned per
+  read as ordinal `resource-01` references, allowlisted family, status and
+  evaluation time. `truncated=true` means the displayed list is incomplete;
+  account IDs, resource IDs, ARNs and raw findings are never returned.
+
+`control-registry.json` is the versioned allowlist shared by the Config
+provider, dashboard, Compliance Agent backend and Home validator. The live
+four-alias read for Issue #68 found only its two rules (S3 bucket public access
+and restricted SSH); no EC2/EBS, S3 encryption or RDS rule was present in this
+aggregator. These are eight account/control checks, **not** eight different
+controls. M4 must separately decide whether to authorize more Config rules.
+Missing, mismatched or over-30-day-old per-resource evidence fails the detail
+read; it never becomes a compliant/green result. The detail list is not a
+remediation or generic resource lookup interface.
 
 ## Home demo cockpit
 
@@ -74,8 +89,8 @@ or raw finding is stored. Do not commit the file or its path. Without this
 optional integration the cockpit remains visibly DEGRADED while existing
 Status/Explain/Plan behavior continues to work.
 
-No demo re-arm, preview, confirmation, history, mutation, generic AWS action or
-resource-detail route is part of this package.
+No demo re-arm, preview, confirmation, history, mutation or generic AWS action
+is part of this package.
 
 Source/provenance decisions:
 https://github.com/amitkarpe/awsops/blob/g/issue-39-g-implementation/integration/config_dashboard/SOURCE_PROVENANCE.md
