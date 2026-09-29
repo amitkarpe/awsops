@@ -60,7 +60,7 @@ Mode: **one execution PR, many milestones; standing owner approval recorded
   page from the existing exact 4 x 2 evidence and last actual Harness call.
   Unknown route or stale/failed Harness state is reported honestly. The
   Compliance Agent remains one read-only tool with zero actions.
-- M3 / F3+F6 (#68): repository implementation in review. Read-only discovery
+- M3 / F3+F6 (#68 / merged PR #69): repository implementation complete. Read-only discovery
   found exactly two common managed rules across all four LAB aliases, for S3
   bucket public access and restricted SSH (eight checks total). The dashboard
   now uses one versioned allowlist and a bounded, masked affected-resource
@@ -68,9 +68,13 @@ Mode: **one execution PR, many milestones; standing owner approval recorded
   current Config evidence; any additional S3, EC2/EBS or RDS rule belongs to
   a separately authorized M4 AWS change. No green status is inferred for
   missing/stale/partial evidence.
-- M4 / F4 Conformance Pack and M5 / F5 remediation canary: repository planning
-  may proceed under #62; live AWS writes remain UNAUTHORIZED until its exact
-  mutation gate is granted. Issue #11 / PR #13 remain deferred.
+- M4 / F4 (#70): repository-ready six-rule `awsops-home-readonly-v1` managed
+  Conformance Pack proposal with offline validation and a seven-item gate
+  packet in `docs/current/CONFIG_PACK_M4.md`. Two controls are current M3
+  evidence; four are only targets. No pack/rule has been deployed. M5 / F5
+  remediation canary remains repository planning only. All live M4/M5 AWS
+  writes remain UNAUTHORIZED until the exact #62 mutation gate is granted.
+  Issue #11 / PR #13 remain deferred.
 
 ## Operational hygiene - AWS resource ledger - IN PROGRESS (#14)
 

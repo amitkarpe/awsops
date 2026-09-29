@@ -40,5 +40,6 @@ jobs:
         working-directory: integration/config_dashboard
         run: |
           npm ci
+          npm run validate:pack
           npm run build
           npm run prepare:runtime

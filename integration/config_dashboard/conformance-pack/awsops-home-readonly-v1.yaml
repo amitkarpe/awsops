@@ -1,0 +1,43 @@
+Resources:
+  S3BucketPublicAccess:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: awsops-v1-s3-public-access
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_LEVEL_PUBLIC_ACCESS_PROHIBITED
+  S3BucketTlsOnly:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: awsops-v1-s3-tls-only
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_SSL_REQUESTS_ONLY
+  S3BucketDefaultEncryption:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: awsops-v1-s3-default-encryption
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_SERVER_SIDE_ENCRYPTION_ENABLED
+  RestrictedSsh:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: awsops-v1-restricted-ssh
+      Source:
+        Owner: AWS
+        SourceIdentifier: INCOMING_SSH_DISABLED
+  EncryptedEbsVolumes:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: awsops-v1-ebs-volumes-encrypted
+      Source:
+        Owner: AWS
+        SourceIdentifier: ENCRYPTED_VOLUMES
+  EbsEncryptionByDefault:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: awsops-v1-ebs-encryption-default
+      Source:
+        Owner: AWS
+        SourceIdentifier: EC2_EBS_ENCRYPTION_BY_DEFAULT
