@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "packName": "awsops-home-readonly-v1",
+  "packVersion": 1,
+  "region": "ap-southeast-1",
+  "aliases": ["lab-dev", "lab-poc", "lab-qa", "lab-sec"],
+  "liveRegistryVersion": 1,
+  "controls": [
+    {
+      "id": "s3-bucket-level-public-access-prohibited",
+      "logicalId": "S3BucketPublicAccess",
+      "ruleName": "awsops-v1-s3-public-access",
+      "sourceIdentifier": "S3_BUCKET_LEVEL_PUBLIC_ACCESS_PROHIBITED",
+      "state": "accepted",
+      "documentation": "https://docs.aws.amazon.com/config/latest/developerguide/s3-bucket-level-public-access-prohibited.html"
+    },
+    {
+      "id": "s3-bucket-ssl-requests-only",
+      "logicalId": "S3BucketTlsOnly",
+      "ruleName": "awsops-v1-s3-tls-only",
+      "sourceIdentifier": "S3_BUCKET_SSL_REQUESTS_ONLY",
+      "state": "planned",
+      "documentation": "https://docs.aws.amazon.com/config/latest/developerguide/s3-bucket-ssl-requests-only.html"
+    },
+    {
+      "id": "s3-bucket-server-side-encryption-enabled",
+      "logicalId": "S3BucketDefaultEncryption",
+      "ruleName": "awsops-v1-s3-default-encryption",
+      "sourceIdentifier": "S3_BUCKET_SERVER_SIDE_ENCRYPTION_ENABLED",
+      "state": "planned",
+      "documentation": "https://docs.aws.amazon.com/config/latest/developerguide/s3-bucket-server-side-encryption-enabled.html"
+    },
+    {
+      "id": "restricted-ssh",
+      "logicalId": "RestrictedSsh",
+      "ruleName": "awsops-v1-restricted-ssh",
+      "sourceIdentifier": "INCOMING_SSH_DISABLED",
+      "state": "accepted",
+      "documentation": "https://docs.aws.amazon.com/config/latest/developerguide/restricted-ssh.html"
+    },
+    {
+      "id": "encrypted-volumes",
+      "logicalId": "EncryptedEbsVolumes",
+      "ruleName": "awsops-v1-ebs-volumes-encrypted",
+      "sourceIdentifier": "ENCRYPTED_VOLUMES",
+      "state": "planned",
+      "documentation": "https://docs.aws.amazon.com/config/latest/developerguide/encrypted-volumes.html"
+    },
+    {
+      "id": "ec2-ebs-encryption-by-default",
+      "logicalId": "EbsEncryptionByDefault",
+      "ruleName": "awsops-v1-ebs-encryption-default",
+      "sourceIdentifier": "EC2_EBS_ENCRYPTION_BY_DEFAULT",
+      "state": "planned",
+      "documentation": "https://docs.aws.amazon.com/config/latest/developerguide/ec2-ebs-encryption-by-default.html"
+    }
+  ]
+}
