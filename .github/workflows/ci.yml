@@ -22,24 +22,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-      - name: Fetch and verify immutable upstream test fixture
-        run: python scripts/fetch_native_fixture.py
-      - name: Run tests
-        env:
-          AWSOPS_REQUIRE_NATIVE_FIXTURE: "1"
-        run: python -m unittest discover -s tests -p 'test_*.py'
-      - name: Check demo cockpit read-only projection
-        run: node --test tests/demo_cockpit.test.cjs
-      - name: Validate Home runtime prerequisites and pinned source
-        run: |
-          python scripts/home_demo.py check
-          docker compose -f integration/runtime/home/docker-compose.yaml config -q
-          python scripts/home_demo.py prepare /tmp/awsops-home-demo
-          python scripts/home_demo.py verify /tmp/awsops-home-demo
-      - name: Build config2 Home artifact
-        working-directory: integration/config_dashboard
-        run: |
-          npm ci
-          npm run validate:pack
-          npm run build
-          npm run prepare:runtime
+      - name: Verify repository (cloud parity)
+        run: python scripts/cloud_verify.py --bootstrap

@@ -46,12 +46,20 @@ For the full repository-only cloud/CI verification loop on Linux with Python
 python scripts/cloud_verify.py --bootstrap
 ```
 
-Bootstrap downloads public pinned fixtures/source and installs the dashboard's
-locked npm dependencies. Later runs can omit `--bootstrap` to use installed
-dependencies and fixtures; source reconstruction is then explicitly skipped.
+This is also the GitHub Actions CI command. Bootstrap downloads public pinned
+fixtures/source, installs the dashboard's locked npm dependencies, and runs an
+online npm audit that fails on high/critical advisories or audit errors. Lower
+severity findings remain visible; nothing is upgraded automatically. Both modes
+run dashboard lint, contracts, pack validation and the build. Later runs can omit
+`--bootstrap` to use installed dependencies and fixtures; the online audit and
+source reconstruction are then explicitly skipped, so this is not full CI parity.
+Use a writable npm cache in restricted cloud sandboxes, for example
+`npm_config_cache=/tmp/awsops-npm python scripts/cloud_verify.py --bootstrap`.
 The command reports failures and environment-bound skips, never launches Home
 services or invokes AWS, and does not establish browser/live acceptance.
-See [the Phase 1 evidence](docs/current/DOT_CLOUD_PILOT.md).
+CI publishes a compact check/skip table in its job summary. See the
+[Phase 1 evidence](docs/current/DOT_CLOUD_PILOT.md) and
+[Phase 2 parity evidence](docs/current/DOT_CLOUD_CI_PARITY.md).
 
 The narrower native contract loop remains:
 

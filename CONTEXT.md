@@ -2,9 +2,18 @@
 
 Repository: `amitkarpe/awsops`
 Status: ACTIVE
-Updated: 2026-09-29
+Updated: 2026-10-02
 
 ## Authority
+
+Issue #77 owns the cloud-first engineering roadmap. Its M1 (Phase 2 of #73)
+uses `python scripts/cloud_verify.py --bootstrap` as the shared cloud/CI
+verification command, including lint and a high/critical dependency-audit gate.
+PR #74 established cloud portability; merged PR #76 patched the inherited
+brace-expansion findings. M1 validation is repository-only, awaiting acceptance;
+see `docs/current/DOT_CLOUD_CI_PARITY.md`. Home browser/provider acceptance stays
+separate. M2 browser migration, AWS calls, IAM/OIDC and deployment are outside
+this task; #62 continues to govern AWS mutation gates.
 
 Roadmap #1 owns migration. G owns roadmap/review/merge and may delegate bounded
 repository implementation to X through Bridge2. M2 live reads and M3A/M3B/M3C
