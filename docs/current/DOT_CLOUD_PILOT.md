@@ -104,6 +104,51 @@ contract evidence, not live Home validation.
   PR and inspected CI. No credential was printed, copied, created or changed.
   Connector argument-schema errors were corrected using the required field names.
 
+### Inherited dependency audit limitation (review correction)
+
+The successful [CI run 36996377154, job 110803926148](https://github.com/amitkarpe/awsops/actions/runs/36996377154/job/110803926148)
+reported **one high-severity dependency vulnerability** during `npm ci`.
+This is inherited and untriaged, not newly introduced: dashboard `package.json`
+and `package-lock.json` are unchanged from base
+`22800ab47b8f78a82a86296991d5586ec368d198` (verified by an empty Git diff).
+Passing install/build/tests and CI do **not** establish security-clean status.
+
+On 2026-10-02, the read-only command below, run in
+`integration/config_dashboard`, completed with exit **1** because the audit
+found vulnerabilities; this was not a registry/authentication failure:
+
+```bash
+npm_config_cache=/tmp/awsops-npm-clean-proof npm audit --json
+npm ls brace-expansion --all
+```
+
+Audit summary: one affected package entry at high severity, zero critical;
+multiple advisories apply to two installed versions of transitive
+`brace-expansion`. Both lockfile entries are marked development dependencies:
+
+- `eslint@9.39.5 -> minimatch@3.1.5 -> brace-expansion@1.1.18`.
+- `typescript-eslint@8.70.0 -> @typescript-eslint/typescript-estree@8.70.0
+  -> minimatch@10.2.6 -> brace-expansion@5.0.9`.
+
+The registry audit identifies two high-severity recursion/stack-exhaustion
+denial-of-service advisories,
+[GHSA-qhr7-859c-m2p7](https://github.com/advisories/GHSA-qhr7-859c-m2p7) and
+[GHSA-6j4f-fj2g-mc7p](https://github.com/advisories/GHSA-6j4f-fj2g-mc7p),
+and the moderate CPU-exhaustion advisory
+[GHSA-q2hr-2g5m-vwhr](https://github.com/advisories/GHSA-q2hr-2g5m-vwhr).
+The combined affected ranges reported were `<=1.1.20 || 4.0.0 - 5.0.11`.
+The audit says `fixAvailable: true`; no fix or exploitability assessment was
+performed. Development-dependency placement alone does not establish absence
+of exposure in build/CI tooling.
+
+Suggested separately scoped follow-up: triage whether untrusted input can reach
+these tooling dependencies, select a compatible patched dependency resolution,
+then rerun the audit and repository verification. No dependency upgrade,
+`npm audit fix`, lockfile change, advisory reproduction or workflow change was
+performed for this evidence correction. The only repository change in the
+correction is this document; `git diff --check` and dependency-file comparison
+are the applicable local checks, with the existing CI rerun on the new PR head.
+
 ## Capability classification and explicit skips
 
 “Cloud PASS” below means executed repository evidence, not live acceptance.
