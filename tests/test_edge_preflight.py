@@ -178,6 +178,9 @@ class PreflightTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as parent:
             output = Path(parent) / "evidence"
             output.mkdir(mode=0o755)
+            # mkdir's mode is filtered by umask (cloud workspaces may use 077).
+            # Deliberately create the unsafe fixture this rejection test needs.
+            output.chmod(0o755)
             with self.assertRaises(PreflightError):
                 collect(config(), output, FakeAws(), FakeHost())
 

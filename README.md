@@ -39,13 +39,29 @@ usage-based, direct-$0 or unknown.
 
 ## Tests
 
+For the full repository-only cloud/CI verification loop on Linux with Python
+3.12, Node 24, npm, Git and Docker Compose:
+
+```bash
+python scripts/cloud_verify.py --bootstrap
+```
+
+Bootstrap downloads public pinned fixtures/source and installs the dashboard's
+locked npm dependencies. Later runs can omit `--bootstrap` to use installed
+dependencies and fixtures; source reconstruction is then explicitly skipped.
+The command reports failures and environment-bound skips, never launches Home
+services or invokes AWS, and does not establish browser/live acceptance.
+See [the Phase 1 evidence](docs/current/DOT_CLOUD_PILOT.md).
+
+The narrower native contract loop remains:
+
 ```bash
 python scripts/fetch_native_fixture.py
 AWSOPS_REQUIRE_NATIVE_FIXTURE=1 python -m unittest discover -s tests -p 'test_*.py'
 ```
 
 The explicit fixture step fetches two immutable upstream source files and
-verifies their whole Git blobs. Python 3.12 and Node 22 are used in CI.
+verifies their whole Git blobs. Python 3.12 and Node 24 are used in CI.
 Offline tests without fixtures do not establish native integration acceptance.
 For the Compliance Agent browser path, see `docs/architecture/PLAYWRIGHT_E2E.md`.
 
