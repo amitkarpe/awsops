@@ -112,7 +112,7 @@ test("config2 synthetic browser: filter, masked details, fail-closed evidence", 
     manifest.checks.push("synthetic 4x2 rendered; absent Harness stays DEGRADED; zero actions");
     await screenshot("cockpit.png");
 
-    await page.getByLabel("Account", { exact: true }).selectOption("lab-dev");
+    await page.getByRole("combobox", { name: /^Account/ }).selectOption("lab-dev");
     await rows(2);
     await page.getByRole("button", { name: "Controls", exact: false }).first().click();
     await page.getByRole("textbox", { name: "Search controls" }).fill("restricted-ssh");
@@ -136,7 +136,7 @@ test("config2 synthetic browser: filter, masked details, fail-closed evidence", 
     manifest.checks.push("failed detail does not retain old resource evidence");
 
     state = "partial";
-    await page.getByLabel("Account", { exact: true }).selectOption("ALL");
+    await page.getByRole("combobox", { name: /^Account/ }).selectOption("ALL");
     await page.getByRole("button", { name: "Refresh", exact: true }).click();
     await rows(6);
     await visible(page.getByRole("alert").filter({ hasText: "Partial evidence: 3 of 4" }), "PARTIAL_REQUIRED");
