@@ -8,8 +8,11 @@ Owning roadmap: Issue #1. G owns implementation and verification.
 - Dependency follow-up (#75 / #76): inherited brace-expansion lockfile fixes merged.
 - M1 / Phase 2 CI parity: shared `cloud_verify.py --bootstrap` path for cloud and
   Actions, dashboard lint, explicit online audit gate and sanitized job summary.
-  Evidence: `docs/current/DOT_CLOUD_CI_PARITY.md`; awaiting review/acceptance.
-- M2 cloud browser parity is a separate next scope, not claimed by M1.
+  Evidence: `docs/current/DOT_CLOUD_CI_PARITY.md`; merged in PR #78.
+- M1 is merged in PR #78. M2 cloud browser parity adds the synthetic config2
+  filter/detail/partial/unavailable journey using Playwright; evidence and limits
+  are in `docs/current/CLOUD_BROWSER_PARITY.md`. M2 awaits review/acceptance.
+  Owner-authenticated sec2 and deferred Reject are not claimed by this journey.
 - M3–M5 identity/execution work remains separate and subject to #77/#62 gates.
   No AWS call, IAM/OIDC, deployment or owner-private browser migration is part
   of M1. Existing product roadmap and deferred native Reject stay unchanged.

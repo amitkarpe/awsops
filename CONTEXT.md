@@ -2,18 +2,25 @@
 
 Repository: `amitkarpe/awsops`
 Status: ACTIVE
-Updated: 2026-10-02
+Updated: 2026-10-03
 
 ## Authority
+
+Issue #77 M1 is merged in PR #78. M2 adds a headless Playwright journey through
+the built config2 dashboard and real loopback server with an injected synthetic
+provider. The canonical cloud/CI command requires this browser check and produces
+public-safe, synthetic-only evidence. See `docs/current/CLOUD_BROWSER_PARITY.md`
+for current proof and environment blockers. M2 awaits review; owner-authenticated
+sec2, AWS/provider truth and public route acceptance remain separate and unchanged.
 
 Issue #77 owns the cloud-first engineering roadmap. Its M1 (Phase 2 of #73)
 uses `python scripts/cloud_verify.py --bootstrap` as the shared cloud/CI
 verification command, including lint and a high/critical dependency-audit gate.
 PR #74 established cloud portability; merged PR #76 patched the inherited
-brace-expansion findings. M1 validation is repository-only, awaiting acceptance;
-see `docs/current/DOT_CLOUD_CI_PARITY.md`. Home browser/provider acceptance stays
-separate. M2 browser migration, AWS calls, IAM/OIDC and deployment are outside
-this task; #62 continues to govern AWS mutation gates.
+brace-expansion findings. M1 is merged and its repository-only evidence is in
+`docs/current/DOT_CLOUD_CI_PARITY.md`. Home browser/provider acceptance stays
+separate. AWS calls, IAM/OIDC and deployment are outside the current M2 task;
+#62 continues to govern AWS mutation gates.
 
 Roadmap #1 owns migration. G owns roadmap/review/merge and may delegate bounded
 repository implementation to X through Bridge2. M2 live reads and M3A/M3B/M3C

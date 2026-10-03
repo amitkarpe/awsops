@@ -3,6 +3,13 @@
 Status: canonical browser-acceptance pattern  
 Owner: Roadmap #1; proven by Issue #49 / PR #54
 
+Roadmap #77 M2 reuses this Playwright library pattern plus `localRoute`,
+`requireVisible` and `currentGitHead` for a separate synthetic config2 journey.
+The owner-authenticated runner below remains the canonical sec2 acceptance path
+with unchanged authentication and private-evidence requirements. See
+[`CLOUD_BROWSER_PARITY.md`](../current/CLOUD_BROWSER_PARITY.md) for the explicit
+classification; synthetic dashboard PASS cannot satisfy `COMPLIANCE_UI_PASS`.
+
 ## Purpose
 
 Unit/contract tests can prove parsers and prompt rules, but they cannot prove what

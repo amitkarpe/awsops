@@ -294,4 +294,5 @@ if (require.main === module) {
     if (result.outcome !== 'COMPLIANCE_UI_PASS') process.exitCode = 2; })
     .catch(() => { console.log('{"outcome":"COMPLIANCE_UI_BLOCKED","stage":"private_config"}'); process.exitCode = 2; });
 }
-module.exports = {AGENT, BASE: DEFAULT_BASE, PURPOSE, api, localRoute, privateJson, run};
+module.exports = {AGENT, BASE: DEFAULT_BASE, PURPOSE, api, localRoute, privateJson, run,
+  requireVisible, currentGitHead};
