@@ -1,5 +1,6 @@
 # Cloud browser parity — #77 M2
 
+Delivery: [draft PR #79](https://github.com/amitkarpe/awsops/pull/79).
 Scope: public/synthetic config2 only. Owner-authenticated sec2 and AWS provider
 acceptance are unchanged. This is a browser test, not a deployment or live proof.
 
@@ -100,9 +101,34 @@ needed. Draft PR body will bind the final head and exact CI/artifact evidence.
   `Domain forbidden` for `cdn.playwright.dev`. No proxy/CDN workaround used.
 - Browser test without installed Chromium: FAIL as intended, with a failure
   manifest. This is an environment blocker, not a passed cloud browser journey.
-- Further validation and GitHub CI results are recorded in the draft PR. Cloud
-  bootstrap cannot be declared fully accepted while its official download is
-  blocked, even if the GitHub-hosted browser journey passes.
+- Full cloud command: FAIL with exactly two failures (Chromium installation and
+  browser launch). All other checks PASS: audit reports zero vulnerabilities,
+  161 Python tests, HTTP cockpit, lint, pack validation, source preparation,
+  TypeScript/Vite build and runtime permissions. No failing step was hidden.
+- First [CI run 37116249518](https://github.com/amitkarpe/awsops/actions/runs/37116249518):
+  browser downloaded/launched; rendered 4x2 cockpit passed, then the account
+  selector timed out. Corrected the test to match its combobox accessible name;
+  no application change. Failure manifest remained FAIL with only the completed
+  synthetic cockpit screenshot.
+- Corrected implementation head: `7ad7ee6bf1208d582f6031f35cd614cad890f206`.
+  [CI run 37116344309](https://github.com/amitkarpe/awsops/actions/runs/37116344309):
+  **SUCCESS**, all canonical checks including Chromium installation and the full
+  synthetic browser journey PASS. Journey took 1.8 seconds, Chromium
+  `153.0.8010.12`; the audit reported zero vulnerabilities.
+- Downloaded and inspected [artifact 11271890982](https://github.com/amitkarpe/awsops/actions/runs/37116344309/artifacts/11271890982):
+  exactly one manifest and three labeled PNGs; all screenshot hashes verified.
+  Manifest outcome `CLOUD_BROWSER_MOCK_PASS`, five completed check groups, zero
+  external/write requests/page errors, auth/storage export both false. Visually
+  reviewed dashboard, masked-resource dialog and unavailable-inventory evidence.
+  The manifest binds actual checked-out PR merge SHA
+  `fb12270096800e0a0914d2678604a0d21b01be47`, while the run metadata binds the
+  implementation branch head above. This is GitHub's validation merge ref, not
+  a merge into main.
+- Final documentation-inclusive head, CI result and artifact link are in PR #79's
+  body. Cloud-workspace bootstrap is still blocked by the official download
+  restriction despite the proven GitHub-hosted browser PASS. Do not claim full
+  acceptance in that workspace until its approved network/image setup supplies
+  the pinned browser. Do not route around its access policy or use Home.
 
 No AWS calls/mutation, IAM/OIDC, Home/office, private secret access, public exposure,
 Tailscale/DNS/TLS, deployment or merge. Remaining owner/private and provider paths

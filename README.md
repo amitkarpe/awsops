@@ -56,7 +56,7 @@ source reconstruction are then explicitly skipped, so this is not full CI parity
 Use a writable npm cache in restricted cloud sandboxes, for example
 `npm_config_cache=/tmp/awsops-npm python scripts/cloud_verify.py --bootstrap`.
 The command reports failures and environment-bound skips, never launches Home
-services or invokes AWS, and does not establish browser/live acceptance.
+services or invokes AWS, and does not establish owner-authenticated/live acceptance.
 CI publishes a compact check/skip table in its job summary. See the
 [Phase 1 evidence](docs/current/DOT_CLOUD_PILOT.md) and
 [Phase 2 parity evidence](docs/current/DOT_CLOUD_CI_PARITY.md).
