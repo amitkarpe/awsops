@@ -2,6 +2,18 @@
 
 Owning roadmap: Issue #1. G owns implementation and verification.
 
+## Cloud operating model — Roadmap v3 #77
+
+- Phase 1 (#73 / #74): cloud repository loop accepted; no Home execution needed.
+- Dependency follow-up (#75 / #76): inherited brace-expansion lockfile fixes merged.
+- M1 / Phase 2 CI parity: shared `cloud_verify.py --bootstrap` path for cloud and
+  Actions, dashboard lint, explicit online audit gate and sanitized job summary.
+  Evidence: `docs/current/DOT_CLOUD_CI_PARITY.md`; awaiting review/acceptance.
+- M2 cloud browser parity is a separate next scope, not claimed by M1.
+- M3–M5 identity/execution work remains separate and subject to #77/#62 gates.
+  No AWS call, IAM/OIDC, deployment or owner-private browser migration is part
+  of M1. Existing product roadmap and deferred native Reject stay unchanged.
+
 ## M1 - clean migration bootstrap - COMPLETE
 
 Layered source layout, current-only docs, selective migration and CI.

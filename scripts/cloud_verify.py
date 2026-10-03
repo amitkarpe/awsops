@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Run the repository-only CI checks; never start Home services or call AWS.
 
-Use --bootstrap for public downloads (fixtures, npm packages, pinned source).
-Without it, dependencies/fixtures must already exist and no download is requested.
+Use --bootstrap for public downloads and the online dependency audit.
+Without it, dependencies/fixtures must already exist; downloads/audit are skipped.
 """
 from __future__ import annotations
 
@@ -25,6 +25,11 @@ def main() -> int:
     args = parser.parse_args()
     env = dict(os.environ, AWSOPS_REQUIRE_NATIVE_FIXTURE="1", AWS_EC2_METADATA_DISABLED="true")
     failures = []
+    summary = []
+
+    def skip(reason: str) -> None:
+        print(f"SKIP {reason}", flush=True)
+        summary.append((reason, "SKIP"))
 
     def run(label: str, argv: list[str], cwd: Path = ROOT) -> bool:
         start = time.monotonic()
@@ -35,6 +40,7 @@ def main() -> int:
             print(f"UNAVAILABLE {label}: {error}", flush=True)
             code = 127
         print(f"{'PASS' if code == 0 else 'FAIL'} {label} exit={code} seconds={time.monotonic() - start:.1f}", flush=True)
+        summary.append((label, "PASS" if code == 0 else f"FAIL (exit {code})"))
         if code:
             failures.append(label)
         return code == 0
@@ -43,9 +49,10 @@ def main() -> int:
     print("Repository checks only; results do not certify live/browser acceptance.", flush=True)
     if args.bootstrap:
         run("pinned native fixtures", [python, "scripts/fetch_native_fixture.py"])
-        run("dashboard dependency install", ["npm", "ci"], DASHBOARD)
+        run("dashboard dependency install", ["npm", "ci", "--no-audit"], DASHBOARD)
+        run("dependency audit (high/critical gate)", ["npm", "audit", "--audit-level=high"], DASHBOARD)
     else:
-        print("SKIP public downloads: use --bootstrap on a clean checkout", flush=True)
+        skip("public downloads and online dependency audit: use --bootstrap for CI parity")
 
     # Both fixtures must exist: the producer suite otherwise silently skips cases.
     if all((ROOT / "artifacts/native-upstream" / name).is_file() for name in ("client.js", "resume.js")):
@@ -53,6 +60,7 @@ def main() -> int:
     else:
         print("FAIL native fixtures missing; run with --bootstrap", flush=True)
         failures.append("native fixtures missing")
+        summary.append(("native fixtures missing", "FAIL"))
     run("cockpit projection", ["node", "--test", "tests/demo_cockpit.test.cjs"])
     run("runtime prerequisites", [python, "scripts/home_demo.py", "check"])
     run("Compose configuration only", ["docker", "compose", "-f", "integration/runtime/home/docker-compose.yaml", "config", "-q"])
@@ -61,19 +69,29 @@ def main() -> int:
             if run("pinned runtime source prepare", [python, "scripts/home_demo.py", "prepare", target]):
                 run("pinned runtime source verify", [python, "scripts/home_demo.py", "verify", target])
             else:
-                print("SKIP source verify: prepare failed", flush=True)
+                skip("source verify: prepare failed")
     else:
-        print("SKIP pinned runtime source prepare/verify: public Git download requires --bootstrap", flush=True)
+        skip("pinned runtime source prepare/verify: public Git download requires --bootstrap")
+    run("dashboard lint", ["npm", "run", "lint"], DASHBOARD)
     run("Conformance Pack offline validation", ["npm", "run", "validate:pack"], DASHBOARD)
     if run("dashboard build", ["npm", "run", "build"], DASHBOARD):
         run("artifact read permissions", ["npm", "run", "prepare:runtime"], DASHBOARD)
     else:
-        print("SKIP artifact read permissions: build failed", flush=True)
-    print("SKIP GitHub CI result: inspect the PR's exact-head workflow run separately")
-    print("SKIP Home runtime/browser acceptance: needs private services, login and canonical evidence")
-    print("SKIP Tailscale/Funnel lifecycle: owner-local routing and separate authority")
-    print("SKIP AWS readback/deployment/remediation: requires separate AWS authority and identity")
+        skip("artifact read permissions: build failed")
+    skip("GitHub CI result: inspect the PR's exact-head workflow run separately")
+    skip("Home runtime/browser acceptance: needs private services, login and canonical evidence")
+    skip("Tailscale/Funnel lifecycle: owner-local routing and separate authority")
+    skip("AWS readback/deployment/remediation: requires separate AWS authority and identity")
     print(f"CLOUD_VERIFY {'FAIL' if failures else 'PASS'} failures={len(failures)}", flush=True)
+    # Only fixed labels/statuses enter the summary, never child output or private state.
+    if summary_path := os.environ.get("GITHUB_STEP_SUMMARY"):
+        with Path(summary_path).open("a", encoding="utf-8") as output:
+            output.write("## Repository verification\n\n")
+            output.write("Contract/build evidence only; no live/browser acceptance.\n\n")
+            output.write("| Check | Result |\n| --- | --- |\n")
+            for label, status in summary:
+                output.write(f"| {label} | {status} |\n")
+            output.write(f"\nCLOUD_VERIFY {'FAIL' if failures else 'PASS'} failures={len(failures)}\n")
     return 1 if failures else 0
 
 
