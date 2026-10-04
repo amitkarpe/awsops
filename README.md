@@ -56,10 +56,20 @@ source reconstruction are then explicitly skipped, so this is not full CI parity
 Use a writable npm cache in restricted cloud sandboxes, for example
 `npm_config_cache=/tmp/awsops-npm python scripts/cloud_verify.py --bootstrap`.
 The command reports failures and environment-bound skips, never launches Home
-services or invokes AWS, and does not establish browser/live acceptance.
+services or invokes AWS, and does not establish owner-authenticated/live acceptance.
 CI publishes a compact check/skip table in its job summary. See the
 [Phase 1 evidence](docs/current/DOT_CLOUD_PILOT.md) and
 [Phase 2 parity evidence](docs/current/DOT_CLOUD_CI_PARITY.md).
+
+The same command now installs pinned Playwright Chromium headless shell and runs
+the built config2 UI against a synthetic provider on an ephemeral loopback port.
+Chromium and its Linux shared-library dependencies must be available; missing
+browser/download access fails the check rather than silently skipping it.
+The default browser cache is ignored `artifacts/playwright-browsers`; override
+with `PLAYWRIGHT_BROWSERS_PATH` if needed. CI retains only labeled synthetic PNGs
+and a commit-bound manifest for seven days. See
+[cloud browser classification and operation](docs/current/CLOUD_BROWSER_PARITY.md).
+This does not replace owner-authenticated LibreChat or live AWS acceptance.
 
 The narrower native contract loop remains:
 

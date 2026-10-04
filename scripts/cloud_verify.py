@@ -24,6 +24,7 @@ def main() -> int:
     parser.add_argument("--bootstrap", action="store_true", help="allow public dependency/source downloads")
     args = parser.parse_args()
     env = dict(os.environ, AWSOPS_REQUIRE_NATIVE_FIXTURE="1", AWS_EC2_METADATA_DISABLED="true")
+    env.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(ROOT / "artifacts/playwright-browsers"))
     failures = []
     summary = []
 
@@ -46,11 +47,12 @@ def main() -> int:
         return code == 0
 
     python = sys.executable
-    print("Repository checks only; results do not certify live/browser acceptance.", flush=True)
+    print("Repository/synthetic browser checks only; no live provider or owner-auth acceptance.", flush=True)
     if args.bootstrap:
         run("pinned native fixtures", [python, "scripts/fetch_native_fixture.py"])
         run("dashboard dependency install", ["npm", "ci", "--no-audit"], DASHBOARD)
         run("dependency audit (high/critical gate)", ["npm", "audit", "--audit-level=high"], DASHBOARD)
+        run("headless Chromium install", ["node", "node_modules/playwright/cli.js", "install", "--only-shell", "chromium"], DASHBOARD)
     else:
         skip("public downloads and online dependency audit: use --bootstrap for CI parity")
 
@@ -76,8 +78,10 @@ def main() -> int:
     run("Conformance Pack offline validation", ["npm", "run", "validate:pack"], DASHBOARD)
     if run("dashboard build", ["npm", "run", "build"], DASHBOARD):
         run("artifact read permissions", ["npm", "run", "prepare:runtime"], DASHBOARD)
+        run("synthetic config2 browser journey", ["npm", "run", "test:browser"], DASHBOARD)
     else:
         skip("artifact read permissions: build failed")
+        skip("synthetic config2 browser journey: build failed")
     skip("GitHub CI result: inspect the PR's exact-head workflow run separately")
     skip("Home runtime/browser acceptance: needs private services, login and canonical evidence")
     skip("Tailscale/Funnel lifecycle: owner-local routing and separate authority")
@@ -87,7 +91,7 @@ def main() -> int:
     if summary_path := os.environ.get("GITHUB_STEP_SUMMARY"):
         with Path(summary_path).open("a", encoding="utf-8") as output:
             output.write("## Repository verification\n\n")
-            output.write("Contract/build evidence only; no live/browser acceptance.\n\n")
+            output.write("Contract/build/synthetic browser evidence only; no live provider or owner-auth acceptance.\n\n")
             output.write("| Check | Result |\n| --- | --- |\n")
             for label, status in summary:
                 output.write(f"| {label} | {status} |\n")

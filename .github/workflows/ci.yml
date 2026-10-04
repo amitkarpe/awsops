@@ -24,3 +24,15 @@ jobs:
           node-version: "24"
       - name: Verify repository (cloud parity)
         run: python scripts/cloud_verify.py --bootstrap
+      - name: Upload synthetic browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: config2-synthetic-browser-${{ github.sha }}
+          path: |
+            artifacts/cloud-browser/manifest.json
+            artifacts/cloud-browser/cockpit.png
+            artifacts/cloud-browser/resources.png
+            artifacts/cloud-browser/unavailable.png
+          if-no-files-found: warn
+          retention-days: 7
