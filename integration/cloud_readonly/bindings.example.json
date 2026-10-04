@@ -1,0 +1,40 @@
+{
+  "region": "ap-southeast-1",
+  "collector": {
+    "accountId": "<COLLECTOR_ACCOUNT>",
+    "roleName": "<READ_ROLE_NAME>",
+    "roleId": "<READ_ROLE_ID>",
+    "sessionName": "<EXACT_RUN_SESSION>"
+  },
+  "aggregator": "<AGGREGATOR_NAME>",
+  "targets": {
+    "lab-dev": {
+      "accountId": "<LAB_DEV_ACCOUNT>",
+      "rules": {
+        "s3-bucket-level-public-access-prohibited": "<EXACT_RULE_NAME_FOR_ALIAS>",
+        "restricted-ssh": "<EXACT_RULE_NAME_FOR_ALIAS>"
+      }
+    },
+    "lab-poc": {
+      "accountId": "<LAB_POC_ACCOUNT>",
+      "rules": {
+        "s3-bucket-level-public-access-prohibited": "<EXACT_RULE_NAME_FOR_ALIAS>",
+        "restricted-ssh": "<EXACT_RULE_NAME_FOR_ALIAS>"
+      }
+    },
+    "lab-qa": {
+      "accountId": "<LAB_QA_ACCOUNT>",
+      "rules": {
+        "s3-bucket-level-public-access-prohibited": "<EXACT_RULE_NAME_FOR_ALIAS>",
+        "restricted-ssh": "<EXACT_RULE_NAME_FOR_ALIAS>"
+      }
+    },
+    "lab-sec": {
+      "accountId": "<LAB_SEC_ACCOUNT>",
+      "rules": {
+        "s3-bucket-level-public-access-prohibited": "<EXACT_RULE_NAME_FOR_ALIAS>",
+        "restricted-ssh": "<EXACT_RULE_NAME_FOR_ALIAS>"
+      }
+    }
+  }
+}
