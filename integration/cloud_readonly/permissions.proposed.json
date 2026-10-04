@@ -1,0 +1,9 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": "config:DescribeAggregateComplianceByConfigRules",
+    "Resource": "arn:aws:config:ap-southeast-1:<COLLECTOR_ACCOUNT>:config-aggregator/<AGGREGATOR_ID>",
+    "Condition": {"StringEquals": {"aws:RequestedRegion": "ap-southeast-1"}}
+  }]
+}

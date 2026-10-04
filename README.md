@@ -86,3 +86,5 @@ For the Compliance Agent browser path, see `docs/architecture/PLAYWRIGHT_E2E.md`
 ## Development compute
 
 See `docs/architecture/DEV_COMPUTE_MODEL.md` for the compute decision and `docs/architecture/HOME_DEV_WORKFLOW.md` for the sanitized local/Codex bootstrap. GitHub is the source of truth; the old `vagent` filesystem is disposable unless proven otherwise.
+
+M3 cloud read-only repository contract and pending owner gates: [CLOUD_READONLY_M3.md](docs/current/CLOUD_READONLY_M3.md).
