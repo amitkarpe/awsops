@@ -1,217 +1,172 @@
-# Development Compute Model
+# Development compute and operating runbook
 
-Status: ACCEPTED AND ACTIVE
-Updated: 2026-09-28
-Owner: Issue #14 / roadmap #1
+Owner: [roadmap #77, M5](https://github.com/amitkarpe/awsops/issues/77).
+Updated: 2026-10-06. M1–M4 source preparation is merged; live AWS readiness
+remains **NOT_VERIFIED**. This is the canonical engineering/resume runbook.
+Resource decisions remain owned by #14 and live mutation gates by #62/#70.
 
-## Decision
-
-Use a **home-first development model**.
+## Implemented path and gated design
 
 ```text
-Home workstation
-  -> local coding / unit tests / docs / browser work
-  -> GitHub
-  -> GitHub Actions for repeatable CI
-  -> AWS only when a test really requires AWS-hosted state, SSM, provider identity,
-     native LibreChat integration, or account-local evidence
+Amit / ChatGPT / Dot -> saved Codex Cloud environment -> GitHub branch / PR
+                    -> GitHub Actions -> source and synthetic evidence
+
+GATED, NOT IMPLEMENTED AS A LIVE EXECUTION PATH:
+reviewed GitHub request -> verified OIDC -> narrow AWS role
+                        -> bounded AWS execution -> independent provider readback
 ```
 
-Do not treat EC2 as the default developer workstation.
+Normal repository engineering is cloud-first and laptop-optional. Home remains
+the supported NEW demo/private-browser runtime; it is not a fallback for blocked
+cloud work. Do not use office/Direct local execution or retained AWS hosts to
+make a cloud check pass. No generic AWS tool or deploy command is provided here.
 
-## Current compute roles
+| Path | Execution class | Source of truth and acceptance boundary |
+| --- | --- | --- |
+| Source edits, offline contracts, lint/build | Cloud-native | [cloud_verify.py](../../scripts/cloud_verify.py); no AWS identity |
+| Built config2 browser fixture | Cloud-native / GitHub-native | [browser_smoke.mjs](../../integration/config_dashboard/browser_smoke.mjs); real Chromium with synthetic provider, no owner login |
+| PR review, checks and publication | GitHub-native | [CI workflow](../../.github/workflows/ci.yml), exact PR head, run/job and tested merge checkout |
+| M3 read-only evidence contract | Cloud-native, synthetic only | [M3 contract/gates](../current/CLOUD_READONLY_M3.md); live acquisition is AWS-auth-required and unverified |
+| M4 Config Pack planning/preflight | Cloud-native, synthetic only | [M4 schema](../current/CLOUD_CONFIG_PACK_M4.md); no executor or authenticated approval verifier |
+| Config/provider identity, inventory, evaluation freshness | AWS-auth-required | Existing operator-approved identity and exact scope required; historical readback does not prove current state |
+| sec2 login, persisted answer/DOM binding and Archive | Home/private-browser-required | [canonical browser harness](PLAYWRIGHT_E2E.md) and [Home runtime](HOME_DEMO_RUNTIME.md); cloud fixture cannot replace it |
+| Home lifecycle and Tailscale/Funnel route | Home/operator-required | [Home lifecycle contract](../../scripts/home_demo.py); private state and separate route authority remain necessary |
+| Config Pack write and readback | AWS-auth-required, gated | [#70 gate packet](../current/CONFIG_PACK_M4.md); no source PASS enables a write |
 
-| Account | EC2 name | Size | Role now | Decision |
-| --- | --- | --- | --- | --- |
-| `amit` | `agentcore-issue19-librechat-poc-r01` | `t3.medium` | stopped recovery host; EBS/EIP retained | **RETAIN stopped; Home is NEW demo runtime** |
-| `vagent` | `seccop-project1-old-ami-host-r01` | `t3.small` | old SecCop / Inspector-to-SSM learning host | **candidate lightweight AWS canary after a separate repurpose gate** |
+Home dependencies that remain: running sec2/config2 and MongoDB state, normal
+owner login, private bindings and provider sessions, actual Harness telemetry,
+and the approved public route. Keep them operator-owned until a separately
+reviewed secure cloud replacement proves equivalent acceptance. Public-source
+preparation and synthetic browser checks have already moved to cloud; do not
+copy private Home files or sessions to reproduce those checks.
 
-## Why home-first
+## Verify a clean source revision
 
-The home workstation should own:
+Start at the repository root in the saved cloud environment. Read
+[AGENTS](../../AGENTS.md), [CONTEXT](../../CONTEXT.md), [SPEC](../../SPEC.md),
+the active owner issue and existing PR. Confirm origin is `amitkarpe/awsops`,
+preserve local changes and check for another writer before switching branches.
+Linux, Python 3.12, Node 24, npm, Git, Docker Compose and Chromium system libraries
+are the CI baseline; cloud verification does not start containers/Home services.
 
-- source editing;
-- Python/Node development;
-- Markdown/Astro/documentation work;
-- unit tests;
-- deterministic local integration tests;
-- Terraform/CDK synthesis and plan generation;
-- browser automation that does not require an AWS-hosted application;
-- Git/GitHub workflow.
+```bash
+git status --short --branch
+git remote -v
+git fetch origin
+git log -1 --format=%H
+npm_config_cache=/tmp/awsops-npm python scripts/cloud_verify.py --bootstrap
+```
 
-GitHub Actions should own:
+The wrapper is authoritative for the command sequence: pinned public fixtures,
+locked npm install, explicit high/critical audit, Python/native/M3/cockpit tests,
+source reconstruction, pack/preflight tests, lint/build and synthetic browser.
+The Home-named `check`, `prepare`, `verify` subcommands used inside it validate
+prerequisites and reconstruct pinned public source only. They are distinct from
+`validate`, service lifecycle and `public-*` operations, which the wrapper skips.
 
-- repeatable CI;
-- lint/test/build;
-- immutable fixture verification;
-- repository-only acceptance.
+Without `--bootstrap`, installed dependencies/fixtures are required and downloads,
+audit and source reconstruction are SKIP: this is a narrower iteration result,
+not full CI parity. A dependency/audit/CDN failure stays FAIL; fix a bounded
+repository problem in the existing PR or record an environment blocker. Never
+suppress the audit, weaken tests, or turn SKIP into PASS.
 
-AWS should be used only for behavior that cannot be proven locally.
+## Read evidence before accepting
 
-This avoids paying for an EC2 instance merely to obtain a Linux shell or AWS-control access.
+From the current PR branch, inspect its head and checks separately from local
+results. `gh pr view --json headRefOid,state,isDraft,statusCheckRollup` is a
+read-only lookup. `gh run list --branch BRANCH` locates runs; replace `BRANCH`
+with that PR's actual branch. `gh run view RUN_ID --json headSha,status,conclusion,jobs`
+reads the selected run; replace `RUN_ID` with the observed numeric ID.
 
-## `amit` runtime
+Require the reviewed head to match the current PR and run `headSha`, all required
+checks to succeed, and CI checkout logs to identify the tested base/head merge
+commit. PR CI artifacts record that merge checkout, which can differ from the PR
+head. Local artifacts record local HEAD; a clean tree must also be established
+because a recorded SHA alone cannot detect uncommitted edits. A later push needs
+new exact-head evidence and review. A merged PR is verified by its merge SHA,
+main readback and post-merge CI, not merely a successful merge command response.
 
-The retained `agentcore-issue19-librechat-poc-r01` reached `stopped` on
-2026-09-28 after Issue #56 proved the Home rebuild, local browser journey and
-temporary public tunnel. It was not terminated.
-
-- Git and the Home rebuild path are the NEW demo source of truth.
-- The encrypted 30 GiB gp3 volume remains attached as recovery state.
-- The Elastic IP remains associated.
-- Active `t3.medium` compute accrual is stopped; retained storage/address costs remain.
-- Do not add ordinary development work to or mutate this stopped host.
-
-Starting it again requires a separately approved recovery/demo action. Keep the
-instance type unchanged if that restart is approved.
-
-## `vagent` canary evidence
-
-Live read-only discovery on 2026-09-25:
-
-- EC2 name: `seccop-project1-old-ami-host-r01`;
-- size: `t3.small`;
-- SSM: Online;
-- 14-day CPU average: about **0.13%**;
-- observed CPU maximum: about **12.4%**;
-- memory: about **1.89 GiB total**, **1.59 GiB available** at sample time;
-- swap: **0**;
-- root filesystem: about **20 GiB**, **10% used**;
-- public IPv4: present;
-- OS: **Amazon Linux 2**;
-- Python: **3.7.16**;
-- Git: not installed;
-- Node: not installed;
-- Docker: not installed;
-- no application service is currently listening besides ordinary base-system services;
-- old demo TTL has expired.
-
-Cost Explorer currently shows its account usage is being offset by credits.
-Treat that as **credit-funded**, not permanently free.
-
-## Recommended `vagent` role
-
-Do **not** install the full LibreChat/MongoDB/Ops stack on this `t3.small`.
-
-Use it, after explicit repurpose approval, for lightweight AWS-hosted jobs such as:
-
-- SSM-based smoke tests;
-- provider-read/readback probes;
-- small Python canaries;
-- bounded AgentCore API/runtime experiments that fit within memory;
-- network/account-local tests that cannot run from home or GitHub-hosted CI.
-
-Do not use it for:
-
-- MongoDB + LibreChat + multiple background services;
-- long-running developer shells as the normal workflow;
-- broad shared tooling accumulated over time;
-- generic multi-account mutation;
-- production workloads.
-
-## Repurpose strategy
-
-The current `vagent` host is an old Amazon Linux 2 experiment. Reuse must be deliberate, but **do not spend time doing forensic host preservation**.
-
-GitHub is the source of truth:
-
-- `mytestlab123/AgentCore` contains the AgentCore architecture, OIDC/Gateway-policy and related platform work;
-- `mytestlab123/agentic-ai-cybersecurity-lab` contains the SecCop learning/demo code, browser helpers and runbooks;
-- if useful host-only state cannot be identified quickly, recreate it from repository code instead of preserving the machine.
-
-The live host inventory already shows no active application service, no Git/Node/Docker install and only base-system listeners. Therefore the preservation rule is:
-
-1. keep repository history;
-2. keep the existing public-safe AWS evidence already recorded;
-3. no default EBS/AMI snapshot;
-4. no filesystem-by-filesystem sync;
-5. rebuild rather than reverse-engineer old local state.
-
-A snapshot remains an AWS mutation/cost event and is justified only if a concrete irreplaceable artifact is later identified.
-
-### Choose one clean path
-
-Preferred order:
-
-**Option 1 — lightweight in-place canary**
-
-Use only if the required canary needs very little tooling.
-
-- isolated directory;
-- isolated Python environment;
-- fixed service/user boundary;
-- SSM only;
-- no public app listener;
-- no MongoDB/LibreChat;
-- explicit TTL;
-- remove only the new canary material when done.
-
-**Option 2 — clean replacement**
-
-Use if modern Node/Python/container tooling becomes a real requirement.
-
-- preserve old SecCop evidence first;
-- create a current supported image/runtime;
-- keep `t3.small` only if measured memory fits;
-- terminate the old AL2 host only after explicit approval.
-
-Do not slowly transform the old AL2 learning host into an undocumented permanent platform.
-
-## Cost policy
-
-| Compute | Cost posture |
+| Evidence | Meaning and where to inspect |
 | --- | --- |
-| Home workstation | preferred for normal development |
-| GitHub Actions | preferred for repeatable repository CI |
-| `amit` t3.medium | stopped recovery host; EBS/EIP retained, active compute stopped |
-| `vagent` t3.small | currently credit-funded; use only for bounded AWS-hosted canaries |
-| New EC2 | avoid unless a concrete host/VPC-local requirement exists |
+| Local wrapper log/exit and check summary | Executed source checks; wrapper explicitly skips live/owner paths and external CI acceptance |
+| Hosted CI result | Same command on the reported checkout; source/synthetic acceptance only |
+| `artifacts/cloud-browser/manifest.json` and PNGs | `git_head`, SYNTHETIC_CONFIG2_ONLY, CLOUD_BROWSER_MOCK_PASS; labeled fixture, no browser auth export |
+| `artifacts/cloud-readonly/mock-contract.json` | `checkoutHead`, SYNTHETIC_ONLY, eight cells, zero AWS calls; live/evaluation freshness NOT_VERIFIED |
+| `artifacts/config-pack-preflight/mock-preflight.json` | `checkoutHead`, public template digest, synthetic candidate; executionAllowed=false, liveApproval/liveReadiness NOT_VERIFIED |
+| Live acceptance | Separately authorized identity, acquisition, freshness and provider readback; none of the artifacts above supplies it |
 
-Every persistent AWS compute resource must remain visible in
-`docs/current/AWS_RESOURCES.md` with:
+The [workflow](../../.github/workflows/ci.yml) uploads three artifact groups with
+seven-day retention. Upload success proves storage, not that contents were
+inspected. M3/M4 hosted downloads were HTTP 403-blocked in Codex Cloud; local
+artifacts were inspected separately. Preserve that distinction. Missing, expired,
+wrong-SHA, RUNNING/failed or unavailable evidence is not acceptance.
 
-- account alias;
-- EC2 Name tag;
-- size;
-- state;
-- age;
-- purpose;
-- cost basis;
-- RETAIN / REVIEW / CLEANUP-CANDIDATE decision.
+Merged source anchors: [M3 acceptance](https://github.com/amitkarpe/awsops/issues/77#issuecomment-6008712131)
+and [M4 acceptance](https://github.com/amitkarpe/awsops/issues/77#issuecomment-6008826658).
+M4 merged at `221b984ec726600346dd221895c864c531ac0451` with
+[post-merge CI PASS](https://github.com/amitkarpe/awsops/actions/runs/37409778264).
+Earlier dated milestone documents preserve what ran then; their historical
+browser-download failures do not override later successful runs, and later
+success does not retroactively change those failures.
 
-## Migration trigger
+## Resume or recover without duplicate action
 
-Do not move AgentCore workload merely because `vagent` appears free.
+Durable engineering state is the owner issue, existing PR, commit and CI run;
+local uncommitted work must be preserved separately in the same approved workspace.
+No live AWS execution journal or resumable deployment exists in M3/M4. A lost
+session cannot be reconstructed from a mock artifact as if it were a live run.
 
-Move a workload only when all are true:
+| Situation | Safe next step |
+| --- | --- |
+| Lost Codex/chat session | Reopen saved cloud environment, inspect status/worktrees and fetch refs; read #77 and the existing PR before resuming. Compare local and remote heads. Preserve others' changes; no reset, force-push, replacement PR or duplicate milestone. |
+| Uncertain push/PR/merge response | Read remote branch, PR state/merge SHA and main first. Do not repeat the write based on a timeout alone. Resume the existing PR if still open. |
+| Running or missing CI | Find the run for the exact head and await terminal status. Missing evidence stays unknown. Rerun only the inspected repository-only CI; never assume a workflow with AWS actions is safe to retry. |
+| Bootstrap/Chromium blocked | Retain failure and inspect exact-head hosted CI separately; use the same approved cloud environment once access returns. No Home/office fallback or access-control bypass. |
+| GitHub connector/session expired | Stop publication/readback claims; retain local work, SHA and known run IDs. Owner restores the existing connection. Read back remote state before retrying; do not create/extract replacement credentials. |
+| Artifact download 403/expiry | Record upload versus inspection status separately; use accessible logs for only what they prove. If fresh contents are required, run the same safe source job and label its new run/SHA. Never manufacture or relabel an old artifact. |
+| Missing/mismatched/stale preflight input | Reject. Reconcile independent expected context, exact source and fresh facts; do not edit an approval or reported fact to force a match. A rebuilt plan needs a matching separately reviewed packet. |
+| Any future live request times out | Stop. Preserve existing operation/run identifiers and approved private evidence. Under an authorized read path, reconcile provider state before deciding whether a write occurred. Do not retry, advance aliases, overwrite a divergent pack or delete resources on uncertainty. This repo currently has no live runner to resume. |
 
-1. local/home execution cannot prove the requirement;
-2. the workload fits comfortably inside `t3.small` memory/CPU;
-3. required AWS identity/network locality is documented;
-4. the authoritative SecCop/AgentCore state is present in GitHub or explicitly declared disposable;
-5. the canary has an explicit lifecycle/TTL;
-6. no public ingress, IAM expansion, secret migration, or target-resource mutation is implicitly introduced;
-7. the active Issue records the exact mutation boundary.
+Handoffs record owner/PR, base/head/merge SHA as applicable, dirty state, commands,
+exit results, run/job/checkout, inspected versus merely uploaded artifacts, remaining
+gates and one next goal. Public evidence contains aliases and safe summaries only;
+never publish private bindings, raw plan digests, sessions or provider identifiers.
 
-## Near-term sequence
+## Operator-owned activation gates
 
-1. **Home first:** keep new source development, tests and the NEW demo off EC2.
-2. **Git first:** preserve the reproducible runtime and validation contract in `awsops`.
-3. **Retain recovery state:** keep the stopped `amit` EBS/EIP; delete nothing.
-4. **Restart only when approved:** use the retained host only for a bounded recovery/demo need.
-5. **Keep `vagent` separate:** follow its independent owner boundary and never use it as a fallback.
+Normal repository work can continue without asking for another `go`. Activation
+requires evidence and explicit authority beyond this runbook:
 
-## Stop gates
+1. **M3 actual identity/trust:** verify effective OIDC subject format/customization,
+   inherited settings and the intended environment/job context, plus protected
+   environment reviewers and branch/workflow restrictions. Keep the
+   [subject placeholder](../../integration/cloud_readonly/trust.proposed.json)
+   non-deployable until resolved. Do not mint tokens or change settings to make
+   documentation/synthetic checks pass. Missing provider/role or any trust change
+   requires a separate exact IAM/OIDC authorization.
+2. **M3 acquisition:** owner verifies existing provider/audience, exact collector
+   role/immutable ID, effective permissions and aggregator isolation; privately
+   maps four distinct LAB accounts and exact rules in ap-southeast-1. Review the
+   bounded acquisition adapter/workflow and private handling before any live run;
+   independently establish provenance and evaluation freshness. Full checklist:
+   [M3 owner packet](../current/CLOUD_READONLY_M3.md).
+3. **M4 first write:** approve the [#62/#70 seven-item packet](../current/CONFIG_PACK_M4.md)
+   for exact target alias/account/Region, pack/version/CREATE operation, six
+   controls (no remediation canary), permitted actions, rollback/retention, cost
+   and exclusions, updated for the actual OIDC role/workflow and lifecycle tags.
+   Review clean source/template bindings, real approval verification, identity,
+   recorder and existing service-linked role before execution. Missing role needs
+   separate IAM authority; unknown/divergent pack state stops. Stage one alias;
+   independent rule/provider readback must precede expansion or product acceptance.
 
-Explicit approval remains required for:
+Synthetic approval booleans do not satisfy these gates. No static-key fallback,
+IAM broadening, automatic remediation, generic AWS mutation, new public exposure
+or protected-host action is implied. Native Reject #11/#13 remains deferred.
+The retained `amit` host stays recovery-only; `vagent`/Lightsail remain separately
+governed. Historical inventory/cost evidence belongs in the
+[resource ledger](../current/AWS_RESOURCES.md), not a claim of fresh readback here.
 
-- starting or terminating the stopped `amit` EC2;
-- any `vagent` mutation outside its separately recorded boundary;
-- retagging/rebuilding the `vagent` host;
-- snapshot/AMI creation;
-- installing a new persistent runtime/service on `vagent`;
-- public ingress;
-- IAM/OIDC/credential changes;
-- cross-account trust;
-- material new recurring cost;
-- moving the M3 live canary away from its currently approved `amit` boundary.
+After M5 documentation review, remaining meaningful work is gate resolution and
+separately scoped trusted acquisition/execution with provider evidence. Do not
+invent another synthetic milestone, runtime migration or cleanup to claim the
+live roadmap complete.

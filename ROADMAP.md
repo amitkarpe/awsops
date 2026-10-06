@@ -18,12 +18,16 @@ Owning roadmap: Issue #1. G owns implementation and verification.
   OIDC subject format/customization is unverified; the trust proposal retains a
   non-deployable placeholder pending exact read-only settings evidence.
   Live acquisition remains unverified and subject to #77/#62 gates.
-- M4 repository preparation adds one-target Config Pack plan/schema and offline
+- M4 repository preparation is accepted in merged PR #81: one-target Config Pack plan/schema and offline
   approval/fact consistency checks; see `docs/current/CLOUD_CONFIG_PACK_M4.md`.
   Synthetic success grants no execution authority. M4 live writes still require
-  the exact #62/#70 gate; M5 remains downstream.
-  No AWS call, IAM/OIDC, deployment or owner-private browser migration is part
-  of M1. Existing product roadmap and deferred native Reject stay unchanged.
+  the exact #62/#70 gate.
+- M5 documentation is prepared for review in the existing canonical
+  [compute/runbook](docs/architecture/DEV_COMPUTE_MODEL.md): execution classes,
+  exact-source verification, safe resume and operator-owned activation gates.
+  No AWS identity, deployment, runtime migration or live acceptance is added.
+  After review, remaining live progress depends on the M3 acquisition gates and
+  #62/#70 approval plus separately reviewed execution/readback implementation.
 
 ## M1 - clean migration bootstrap - COMPLETE
 
@@ -107,7 +111,7 @@ Mode: **one execution PR, many milestones; standing owner approval recorded
 - EC2 / always-on compute has a separate high-visibility table.
 - `amit` retained host is stopped/recovery-only; its encrypted 30 GiB gp3 volume and Elastic IP remain retained.
 - `vagent` live read confirms one running expired-TTL `t3.small` learning host plus 109 S3 buckets total. **Owner decision 2026-09-27: the host is PROTECTED / DO NOT TOUCH.**
-- Home-first compute is active: ordinary development and the NEW read-only demo stay on Home/GitHub; the stopped `amit` host is recovery-only and `vagent` remains separately governed.
+- Under #77, ordinary engineering uses Codex Cloud/GitHub; Home retains the NEW private demo runtime. The stopped `amit` host is recovery-only and `vagent` remains separately governed.
 - EC2 Name tags are part of the canonical high-cost/resource ledger view.
 - **Legacy Lightsail and the retained `vagent` t3.small are PROTECTED / DO NOT TOUCH.** Read-only inspection is allowed; any stop/start/delete/resize/repurpose/tag/IAM/network change needs new exact authorization.
 - No auto-cleanup. Any other deletion/termination/repurpose is a separate exact mutation boundary.

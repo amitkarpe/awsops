@@ -4,12 +4,20 @@ Clean, selectively migrated AWS security-operations contracts.
 
 ## Current acceptance
 
+Roadmap #77 M1–M4 source preparation is merged in PRs #78–#81. Normal
+repository engineering uses the saved cloud environment and GitHub CI. M3/M4
+synthetic success is not live AWS approval; identity/acquisition and Config Pack
+writes remain gated. Start with the canonical
+[operating and recovery runbook](docs/architecture/DEV_COMPUTE_MODEL.md).
+
+The earlier product/native roadmap remains separate:
+
 - M2 live read/prepare/readback passed across four registered personal-LAB
   aliases. The temporary probe changed no existing services or AWS resources.
 - M3 repository code supplies a durable ledger, private native bridge and
   trusted pause registration. Readiness follows fresh provider verification
   and durable registration, not model-supplied evidence.
-- The isolated native-browser Reject canary is still pending in Issue #11 / PR #13.
+- The isolated native-browser Reject canary remains deferred in Issue #11 / PR #13.
 - Remediation remains disabled. The old repo is reference material, not a
   runtime dependency or an automatic source of credentials/deployment authority.
 - Issue #14 owns the KISS read-only AWS resource/cost ledger and EC2 right-sizing evidence.
@@ -39,37 +47,19 @@ usage-based, direct-$0 or unknown.
 
 ## Tests
 
-For the full repository-only cloud/CI verification loop on Linux with Python
-3.12, Node 24, npm, Git and Docker Compose:
+For full repository-only verification from the root on Linux with Python 3.12,
+Node 24, npm, Git, Docker Compose and Chromium system libraries:
 
 ```bash
 python scripts/cloud_verify.py --bootstrap
 ```
 
-This is also the GitHub Actions CI command. Bootstrap downloads public pinned
-fixtures/source, installs the dashboard's locked npm dependencies, and runs an
-online npm audit that fails on high/critical advisories or audit errors. Lower
-severity findings remain visible; nothing is upgraded automatically. Both modes
-run dashboard lint, contracts, pack validation and the build. Later runs can omit
-`--bootstrap` to use installed dependencies and fixtures; the online audit and
-source reconstruction are then explicitly skipped, so this is not full CI parity.
-Use a writable npm cache in restricted cloud sandboxes, for example
-`npm_config_cache=/tmp/awsops-npm python scripts/cloud_verify.py --bootstrap`.
-The command reports failures and environment-bound skips, never launches Home
-services or invokes AWS, and does not establish owner-authenticated/live acceptance.
-CI publishes a compact check/skip table in its job summary. See the
-[Phase 1 evidence](docs/current/DOT_CLOUD_PILOT.md) and
-[Phase 2 parity evidence](docs/current/DOT_CLOUD_CI_PARITY.md).
-
-The same command now installs pinned Playwright Chromium headless shell and runs
-the built config2 UI against a synthetic provider on an ephemeral loopback port.
-Chromium and its Linux shared-library dependencies must be available; missing
-browser/download access fails the check rather than silently skipping it.
-The default browser cache is ignored `artifacts/playwright-browsers`; override
-with `PLAYWRIGHT_BROWSERS_PATH` if needed. CI retains only labeled synthetic PNGs
-and a commit-bound manifest for seven days. See
-[cloud browser classification and operation](docs/current/CLOUD_BROWSER_PARITY.md).
-This does not replace owner-authenticated LibreChat or live AWS acceptance.
+This is the GitHub Actions command: pinned public-source bootstrap, locked
+install/audit, contracts, M3/M4 synthetic evidence, lint/build and synthetic
+browser. It starts no Home services and makes no AWS calls. Without `--bootstrap`,
+audit/download/source-reconstruction skips mean the result is not full CI parity.
+The [runbook](docs/architecture/DEV_COMPUTE_MODEL.md) covers writable cache setup,
+exact-head hosted verification, artifact limits, safe recovery and operator gates.
 
 The narrower native contract loop remains:
 
@@ -85,6 +75,6 @@ For the Compliance Agent browser path, see `docs/architecture/PLAYWRIGHT_E2E.md`
 
 ## Development compute
 
-See `docs/architecture/DEV_COMPUTE_MODEL.md` for the compute decision and `docs/architecture/HOME_DEV_WORKFLOW.md` for the sanitized local/Codex bootstrap. GitHub is the source of truth; the old `vagent` filesystem is disposable unless proven otherwise.
-
-M3 cloud read-only repository contract and pending owner gates: [CLOUD_READONLY_M3.md](docs/current/CLOUD_READONLY_M3.md).
+Use the [canonical compute/runbook](docs/architecture/DEV_COMPUTE_MODEL.md).
+Home remains the NEW demo/private-browser runtime, not a cloud-engineering
+fallback. Retained hosts stay under their separate owner boundaries.
