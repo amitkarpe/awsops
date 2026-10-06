@@ -1,7 +1,14 @@
 # Home DEV and AWS Demo Runbook
 
-Status: OPERATING MODEL
+Status: HISTORICAL #29 BOOTSTRAP — current engineering model superseded
 Owner: Issue #29 / roadmap #1; home workstation baseline from Issue #14
+
+Current routing: [Development compute and operating runbook](DEV_COMPUTE_MODEL.md)
+is canonical under #77. The Home-first/AWS-demo cycle and reserved-name notes
+below preserve the earlier #29 design, not current activation instructions.
+Home remains the supported NEW private demo runtime; use
+[the runtime contract](HOME_DEMO_RUNTIME.md) and current owner authority for it.
+This historical guide grants no cloud-work fallback, host restart or deployment.
 
 ## Purpose
 

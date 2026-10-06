@@ -6,18 +6,23 @@ Updated: 2026-10-06
 
 ## Authority
 
-Issue #77 M1–M3 source work is merged in PRs #78/#79/#80. M3 supplies the
+Issue #77 M1–M4 source work is merged in PRs #78/#79/#80/#81. M3 supplies the
 offline read-only LAB contract and non-deployable OIDC subject placeholder.
 Actual subject format, private bindings, provider/role and live acquisition
 remain unverified. Source acceptance does not establish AWS readiness.
 
-M4 now adds repository-only Config Pack plan/schema and synthetic preflight
+Merged M4 adds repository-only Config Pack plan/schema and synthetic preflight
 consistency checks, reusing the #70 pack validator. See
 `docs/current/CLOUD_CONFIG_PACK_M4.md`. No live executor or approval verifier
 exists; #62/#70's seven-item live mutation gate remains unsatisfied.
 
+M5 reconciles the canonical operating/recovery runbook in
+`docs/architecture/DEV_COMPUTE_MODEL.md`; documentation review is pending.
+Normal engineering is cloud-first. Home/private-browser operation remains
+separate; no Home/office/Direct fallback or cloud activation is authorized here.
+
 The canonical repository command is `python scripts/cloud_verify.py --bootstrap`.
-M3 cloud and exact-head GitHub CI passed, including Chromium/browser and the
+M3/M4 cloud and exact-head GitHub CI passed, including Chromium/browser and the
 zero-vulnerability audit after the source-map-js patch. Hosted artifact download
 was HTTP 403-blocked; source/synthetic checks do not replace Home/provider proof.
 
@@ -86,7 +91,7 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
   remained active. No instance stop/restart or type change occurred.
 - Live `vagent` inventory confirms `seccop-project1-old-ami-host-r01` (`t3.small`) is SSM Online and almost idle (~0.13% 14-day CPU average), with ~1.59 GiB RAM available and ~10% root-disk use at the sampled point. It is Amazon Linux 2 with Python 3.7 and no Git/Node/Docker, so it is not a clean modern developer workstation. **Owner decision 2026-09-27: this `vagent` host is PROTECTED / DO NOT TOUCH.** No stop, terminate, delete, resize, repurpose, retag, IAM or network change is authorized; read-only inspection only unless Amit gives a new exact authorization.
 - Legacy Lightsail resources (one running, one stopped; created 2017/2018) are also **PROTECTED / DO NOT TOUCH** by Amit's 2026-09-27 decision. Read-only inspection is allowed; no stop/start/delete/resize/rebuild/tag/IAM/network mutation without new explicit authorization.
-- `docs/architecture/DEV_COMPUTE_MODEL.md` defines the accepted design: home workstation for normal development, GitHub Actions for repeatable CI, `amit` `t3.medium` only for the current full LibreChat/Ops/MongoDB integration path, and `vagent` only as a future lightweight AWS canary after an explicit repurpose gate.
+- `docs/architecture/DEV_COMPUTE_MODEL.md` is the canonical cloud-first engineering and recovery runbook under #77. Home remains the NEW private demo runtime; the stopped `amit` host is recovery-only and `vagent` remains separately governed.
 - Issue #56 M2 and M3 pass on the verified Home Ubuntu workstation: the pinned LibreChat source reconstructed from Git, isolated MongoDB and config2 run on loopback, read-only Config evidence is READY/non-partial at four aliases by two controls, and normal owner browser acceptance passed Status, Explain and no-change Plan. Exactly one read-only MCP tool and zero actions were present; all three test conversations were archived without exporting browser auth or storage state.
 - Issue #56 M4 passes through one provider-assigned temporary HTTPS tunnel from Home to the NEW sec2 loopback service. Remote Status, Explain and no-change Plan passed 3/3 with the same persisted/rendered evidence binding, one read-only MCP tool, zero actions and Archive readback. The tunnel hostname and evidence remain owner-private. No Route53, custom DNS, router forwarding or IAM changed.
 - Issue #56 M5 stopped exactly the retained `amit` `t3.medium` on 2026-09-28 after the final identity, EBS/EIP and Home-health gates passed. Provider readback is `stopped`; its encrypted 30 GiB gp3 volume remains attached and its Elastic IP remains associated. Home sec2 HTTPS, config2 READY/non-partial 4 x 2 evidence and the remote three-prompt proof remained healthy. Nothing was terminated, detached, released or deleted; Lightsail and `vagent` were untouched. Git/Home are the NEW demo source of truth and the stopped EBS is recovery state only.
@@ -104,7 +109,7 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
 - `aws-secops` is **FROZEN / REFERENCE** and remains a reference/archive.
   `docs/architecture/AWS_SECOPS_HARVEST.md` is the canonical harvest matrix;
   new implementation belongs only in `awsops`.
-- Issue #29 M1-M3 are accepted: Home DEV is the normal development path, OLD demo names remain `ops.astromedicomp.org` / `sec.astromedicomp.org`, and NEW names are `ops2.astromedicomp.org` / `sec2.astromedicomp.org`.
+- Issue #29 M1-M3 established the historical Home DEV baseline; #77 now governs normal cloud engineering. OLD demo names remain `ops.astromedicomp.org` / `sec.astromedicomp.org`, and NEW names are `ops2.astromedicomp.org` / `sec2.astromedicomp.org`.
 - Issue #33 M1 is merged in PR #34. `integration/edge/awsops_edge.py` now provides an offline NEW-only Route53 planner and additive Nginx renderer. It has no apply/reload/service path; OLD routes remain untouched.
 - Issue #33 standing personal-LAB authority covers exact NEW TLS/DNS-01, additive Nginx/service work, and narrow challenge-TXT IAM where needed. Bridge2 capability flags do not constrain Codex native execution. No OLD mutation, deletion, broad IAM, new compute/network resources or PROD.
 - Issue #39 M1-M4 is merged in PR #40 at
@@ -210,9 +215,9 @@ deletion, broad IAM, new compute/network resources, live Approve or PROD work.
 
 ## Next
 
-1. Issue #60 Home Demo v1 productization is complete. Use `python scripts/home_demo.py validate` as the canonical fail-closed Home read-only validation path.
-2. Issue #56, Issue #39 and Issue #49 are accepted. Home config2 + sec2 AWS Ops Compliance Agent is the supported NEW read-only product; the retained `amit` EC2 remains stopped/recovery-only.
-3. Issue #11 / PR #13 native Reject acceptance is explicitly DEFERRED. M4 remediation remains NOT STARTED / UNAUTHORIZED; do not use it to bypass M3.
-4. Roadmap v2 Issue #62 owns the next authorized F1-F6 milestones. Issue #63 M1 stable Home URL passed live lifecycle checks and awaits PR #64 review/merge. `aws-secops` remains frozen/reference only; Issue #14 remains independent.
+1. Issue #77 M5 documentation review: canonical compute/runbook, recovery map and exact remaining gates. M1–M4 source acceptance is recorded on #77; live M3/M4 readiness remains NOT_VERIFIED.
+2. Resolve the M3 identity/acquisition gates and the exact #62/#70 packet before separately scoped live work. No additional synthetic milestone can satisfy those gates.
+3. Home config2 + sec2 remains the supported NEW read-only runtime; #60 validation and the canonical owner browser harness remain separate from cloud fixtures. The retained `amit` EC2 is recovery-only. No runtime or route change is part of M5.
+4. Issue #11 / PR #13 native Reject remains DEFERRED. `aws-secops` stays frozen/reference; #14 resource governance and protected-host decisions remain separate.
 
 Do not create another roadmap or mistake code/CI acceptance for live completion.
