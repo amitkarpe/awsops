@@ -18,18 +18,22 @@ Owning roadmap: Issue #1. G owns implementation and verification.
   environment subject is verified from repository OIDC settings; the existing
   provider is reused and one exact-trust, STS-only role is configured. The
   environment allows only the Issue #83 implementation branch and `main`.
-  One manual OIDC/STS workflow proof remains. No accepted Config aggregator was
-  found, so Config read is explicitly blocked and no Config permission is added.
+  Identity proof passed in run 37450622218 at merged PR #84 main
+  `a12f7f3d004eeed9acb2a6a0e123a7f5e3894983`; #83 is complete. No accepted Config aggregator was
+  found; #86 now owns an account-local four-action proposal using #85 input.
+  Config read remains NOT_RUN/PENDING. Source acquisition is disabled.
+  Main-only Environment cleanup is 403-blocked; owner IAM approval/readback
+  and one-run authorization are still required. No Config permission is added.
   See `docs/current/CLOUD_READONLY_M3.md`; this does not authorize M4 writes.
 - M4 repository preparation is accepted in merged PR #81: one-target Config Pack plan/schema and offline
   approval/fact consistency checks; see `docs/current/CLOUD_CONFIG_PACK_M4.md`.
   Synthetic success grants no execution authority. M4 live writes still require
   the exact #62/#70 gate.
-- M5 documentation is prepared for review in the existing canonical
+- M5 documentation is merged in PR #82 in the existing canonical
   [compute/runbook](docs/architecture/DEV_COMPUTE_MODEL.md): execution classes,
   exact-source verification, safe resume and operator-owned activation gates.
   No AWS identity, deployment, runtime migration or live acceptance is added.
-  After review, remaining live progress depends on the M3 acquisition gates and
+  Remaining live progress depends on #86 acquisition gates and
   #62/#70 approval plus separately reviewed execution/readback implementation.
 
 ## M1 - clean migration bootstrap - COMPLETE
