@@ -13,11 +13,14 @@ Owning roadmap: Issue #1. G owns implementation and verification.
   filter/detail/partial/unavailable journey using Playwright; evidence and limits
   are in `docs/current/CLOUD_BROWSER_PARITY.md`. M2 is merged in PR #79; GitHub-hosted synthetic proof is accepted.
   Owner-authenticated sec2 and deferred Reject are not claimed by this journey.
-- M3 source preparation accepted in merged PR #80: offline identity/Region/four-alias evidence contract,
-  mock artifact and owner gate packet in `docs/current/CLOUD_READONLY_M3.md`.
-  OIDC subject format/customization is unverified; the trust proposal retains a
-  non-deployable placeholder pending exact read-only settings evidence.
-  Live acquisition remains unverified and subject to #77/#62 gates.
+- M3 source preparation is accepted in merged PR #80. Issue #83 now carries the
+  separately authorized live read-only identity activation. The immutable
+  environment subject is verified from repository OIDC settings; the existing
+  provider is reused and one exact-trust, STS-only role is configured. The
+  environment allows only the Issue #83 implementation branch and `main`.
+  One manual OIDC/STS workflow proof remains. No accepted Config aggregator was
+  found, so Config read is explicitly blocked and no Config permission is added.
+  See `docs/current/CLOUD_READONLY_M3.md`; this does not authorize M4 writes.
 - M4 repository preparation is accepted in merged PR #81: one-target Config Pack plan/schema and offline
   approval/fact consistency checks; see `docs/current/CLOUD_CONFIG_PACK_M4.md`.
   Synthetic success grants no execution authority. M4 live writes still require

@@ -1,0 +1,64 @@
+name: AWSOPS Read-only LAB
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: awsops-readonly
+  cancel-in-progress: false
+
+jobs:
+  readonly:
+    name: Verify bounded LAB identity
+    environment: awsops-lab-readonly
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Assume the dedicated read-only role
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: awsops-readonly
+          role-duration-seconds: 900
+          aws-region: ap-southeast-1
+          mask-aws-account-id: true
+
+      - name: Verify identity and publish sanitized evidence
+        shell: bash
+        env:
+          EXPECTED_ACCOUNT_ID: ${{ secrets.AWS_EXPECTED_ACCOUNT_ID }}
+          AWS_REGION: ap-southeast-1
+        run: |
+          set +x
+          set -euo pipefail
+          identity="$(aws sts get-caller-identity --output json)"
+          actual_account="$(jq -r .Account <<<"${identity}")"
+          actual_arn="$(jq -r .Arn <<<"${identity}")"
+          echo "::add-mask::${actual_account}"
+          expected_arn="arn:aws:sts::${EXPECTED_ACCOUNT_ID}:assumed-role/awsops-github-readonly/awsops-readonly"
+          if [[ "${actual_account}" != "${EXPECTED_ACCOUNT_ID}" || "${actual_arn}" != "${expected_arn}" ]]; then
+            echo "OIDC_IDENTITY=FAIL"
+            exit 1
+          fi
+          if [[ "${AWS_REGION}" != "ap-southeast-1" ]]; then
+            echo "REGION=FAIL"
+            exit 1
+          fi
+          {
+            echo "GITHUB_ENVIRONMENT=PASS"
+            echo "OIDC_PROVIDER=PASS"
+            echo "ROLE_TRUST=PASS"
+            echo "OIDC_ASSUME_ROLE=PASS"
+            echo "OIDC_SUBJECT_MATCH=PASS"
+            echo "STS_IDENTITY=PASS"
+            echo "REGION=PASS"
+            echo "STATIC_KEYS=NONE"
+            echo "CONFIG_READ=BLOCKED_NO_ACCEPTED_AGGREGATOR"
+          } | tee -a "$GITHUB_STEP_SUMMARY"

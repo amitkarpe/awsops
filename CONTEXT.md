@@ -6,10 +6,15 @@ Updated: 2026-10-06
 
 ## Authority
 
-Issue #77 M1–M4 source work is merged in PRs #78/#79/#80/#81. M3 supplies the
-offline read-only LAB contract and non-deployable OIDC subject placeholder.
-Actual subject format, private bindings, provider/role and live acquisition
-remain unverified. Source acceptance does not establish AWS readiness.
+Issue #77 M1–M5 source/runbook work is merged in PRs #78–#82. Issue #83 now
+owns the live read-only GitHub OIDC identity path. Its private readback verified
+the canonical `amit` LAB alias in `ap-southeast-1`, reused the existing GitHub
+OIDC provider, created one dedicated STS-only role with exact immutable
+environment-bound trust, and configured the `awsops-lab-readonly` Environment
+for only the Issue #83 branch and `main`. No accepted Config aggregator was
+found, so no Config permission is attached. The single real workflow proof is
+the remaining acceptance gate; details are in
+`docs/current/CLOUD_READONLY_M3.md`. No account IDs or role ARNs are public.
 
 Merged M4 adds repository-only Config Pack plan/schema and synthetic preflight
 consistency checks, reusing the #70 pack validator. See
