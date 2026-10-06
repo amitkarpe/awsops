@@ -15,6 +15,8 @@ Owning roadmap: Issue #1. G owns implementation and verification.
   Owner-authenticated sec2 and deferred Reject are not claimed by this journey.
 - M3 repository preparation: offline identity/Region/four-alias evidence contract,
   mock artifact and owner gate packet in `docs/current/CLOUD_READONLY_M3.md`.
+  OIDC subject format/customization is unverified; the trust proposal retains a
+  non-deployable placeholder pending exact read-only settings evidence.
   Live acquisition and M4–M5 remain subject to #77/#62 gates.
   No AWS call, IAM/OIDC, deployment or owner-private browser migration is part
   of M1. Existing product roadmap and deferred native Reject stay unchanged.

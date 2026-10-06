@@ -51,7 +51,7 @@ assumed to exist. A later authorized owner must resolve all of the following:
 | --- | --- |
 | Identity | Existing collector account, exact read-role ARN/name and immutable role ID; independent mapping of the four distinct LAB accounts and eight exact raw rule names. No alias inferred from account ordering. |
 | Provider | Existing `https://token.actions.githubusercontent.com` OIDC provider in that collector account, audience `sts.amazonaws.com`; reuse only after owner verifies its configuration. Missing provider/role is a new explicit IAM gate. |
-| Trust | `trust.proposed.json`: only `sts:AssumeRoleWithWebIdentity`, exact provider ARN and `StringEquals` audience/sub. Proposed subject is `repo:amitkarpe/awsops:environment:awsops-lab-readonly`. |
+| Trust | `trust.proposed.json`: only `sts:AssumeRoleWithWebIdentity`, exact provider ARN and `StringEquals` audience/sub. Subject is deliberately `<UNVERIFIED_SUBJECT_DO_NOT_DEPLOY>`; it is not a GitHub subject and must not be deployed. Resolve the actual-format verification gate below before proposing an exact value. |
 | GitHub controls | Proposed environment `awsops-lab-readonly` requires owner reviewers, prevention of self-review and deployment restricted to protected `main`. Environment subject does **not** bind a branch/workflow; owner must verify these controls and prevent any unreviewed workflow obtaining that environment token. No PR/fork or scheduled live execution. |
 | Permission | `permissions.proposed.json`: only `config:DescribeAggregateComplianceByConfigRules`, exact existing aggregator ARN (ID, not name) in ap-southeast-1, `aws:RequestedRegion` fixed. No additional policies, broad permission sets or cross-role assume path. Owner reviews effective permissions, boundary and SCPs. |
 | Aggregator scope | IAM scopes this action to the aggregator, **not** the four source accounts/rules. Request filters are application checks, not IAM constraints. Owner must prove the aggregator contains only authorized LAB source scope or stop for a different isolation design; do not approve broader organizational access silently. Creating/changing an aggregator is outside this packet. |
@@ -74,6 +74,30 @@ No AWS SDK source exists in this slice, so policy design is operation-based.
 All mutation, resource details, remediation, Config Pack deployment, retained
 EC2/Lightsail/vagent actions, IAM/OIDC provisioning, secrets, Home/office,
 Tailscale, DNS/TLS and public-route changes remain excluded. #11/PR #13 deferred.
+
+## Subject verification gate — unresolved
+
+The repository's actual OIDC subject format and customization have **not** been
+verified. [GitHub's immutable subject documentation](https://docs.github.com/en/actions/reference/security/oidc#immutable-subject-claims)
+describes name-only and immutable owner/repository-ID formats; subject
+customization can also change the result. Repository names or creation dates
+alone are not proof of the effective subject.
+
+Before replacing the placeholder, an authorized owner must obtain read-only
+settings evidence for this repository's effective immutable-subject mode and
+subject customization, including any inherited settings and opt-in state, and
+verify the exact subject for the intended `awsops-lab-readonly` environment/job
+context. Record the evidence source and observation time in the private gate
+packet; keep private identities and token material out of Git and public logs.
+If settings evidence cannot establish the exact format, leave the placeholder
+and stop. Do not mint a token or change settings to resolve this repository task.
+Any later verification needing token issuance requires separate authorization.
+
+Review the verified exact subject with the provider, audience and GitHub controls
+above before any separately authorized IAM change. Retain `StringEquals`; do not
+add wildcard subjects, alternate-format fallbacks or broader trust. Passing the
+offline policy test proves only that this proposal preserves the placeholder and
+fixed conditions, never that GitHub can assume a role or that live M3 is ready.
 
 ## Executed evidence
 

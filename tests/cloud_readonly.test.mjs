@@ -65,7 +65,7 @@ test('placeholder owner bindings are intentionally unusable', () => {
   const binding = JSON.parse(readFileSync(new URL('../integration/cloud_readonly/bindings.example.json', import.meta.url)));
   assert.throws(() => requestPlan(binding), /READONLY_CONTRACT_REJECTED/);
 });
-test('proposed identity policy has one read action; trust has exact repository environment and audience', () => {
+test('proposed identity policy has one read action; trust keeps an unusable subject until actual-format verification', () => {
   const read = name => JSON.parse(readFileSync(new URL(`../integration/cloud_readonly/${name}.proposed.json`, import.meta.url)));
   assert.deepEqual(read('permissions').Statement, [{ Effect: 'Allow', Action: 'config:DescribeAggregateComplianceByConfigRules',
     Resource: 'arn:aws:config:ap-southeast-1:<COLLECTOR_ACCOUNT>:config-aggregator/<AGGREGATOR_ID>',
@@ -75,7 +75,7 @@ test('proposed identity policy has one read action; trust has exact repository e
   assert.equal(trust[0].Action, 'sts:AssumeRoleWithWebIdentity');
   assert.deepEqual(trust[0].Condition, { StringEquals: {
     'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-    'token.actions.githubusercontent.com:sub': 'repo:amitkarpe/awsops:environment:awsops-lab-readonly',
+    'token.actions.githubusercontent.com:sub': '<UNVERIFIED_SUBJECT_DO_NOT_DEPLOY>',
   } });
   assert.equal(trust[0].Principal.Federated, 'arn:aws:iam::<COLLECTOR_ACCOUNT>:oidc-provider/token.actions.githubusercontent.com');
 });
