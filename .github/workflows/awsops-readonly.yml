@@ -13,52 +13,48 @@ concurrency:
 
 jobs:
   readonly:
-    name: Verify bounded LAB identity
+    name: Bounded account-local Config posture
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
     environment: awsops-lab-readonly
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       id-token: write
       contents: read
+    env:
+      # Source gate: change only through reviewed activation after #86 owner approval,
+      # verified main-only Environment, IAM attachment/readback and one-run authority.
+      # Not a dispatch input, repository variable, or secret.
+      CONFIG_ACQUISITION_ENABLED: 'false'
+      AWS_REGION: ap-southeast-1
+      AWS_DEFAULT_REGION: ap-southeast-1
+      AWS_MAX_ATTEMPTS: '1'
+      AWS_RETRY_MODE: standard
+      AWS_EC2_METADATA_DISABLED: 'true'
+      AWS_IGNORE_CONFIGURED_ENDPOINT_URLS: 'true'
     steps:
-      - name: Assume the dedicated read-only role
+      - name: Check out the reviewed source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Assume the existing proven role only after activation
+        if: env.CONFIG_ACQUISITION_ENABLED == 'true'
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           role-session-name: awsops-readonly
           role-duration-seconds: 900
           aws-region: ap-southeast-1
+          allowed-account-ids: ${{ secrets.AWS_EXPECTED_ACCOUNT_ID }}
           mask-aws-account-id: true
-
-      - name: Verify identity and publish sanitized evidence
+          unset-current-credentials: true
+          translate-env-variables: false
+          disable-retry: true
+      - name: Publish bounded sanitized posture or explicit disabled status
         shell: bash
         env:
           EXPECTED_ACCOUNT_ID: ${{ secrets.AWS_EXPECTED_ACCOUNT_ID }}
-          AWS_REGION: ap-southeast-1
         run: |
           set +x
           set -euo pipefail
-          identity="$(aws sts get-caller-identity --output json)"
-          actual_account="$(jq -r .Account <<<"${identity}")"
-          actual_arn="$(jq -r .Arn <<<"${identity}")"
-          echo "::add-mask::${actual_account}"
-          expected_arn="arn:aws:sts::${EXPECTED_ACCOUNT_ID}:assumed-role/awsops-github-readonly/awsops-readonly"
-          if [[ "${actual_account}" != "${EXPECTED_ACCOUNT_ID}" || "${actual_arn}" != "${expected_arn}" ]]; then
-            echo "OIDC_IDENTITY=FAIL"
-            exit 1
-          fi
-          if [[ "${AWS_REGION}" != "ap-southeast-1" ]]; then
-            echo "REGION=FAIL"
-            exit 1
-          fi
-          {
-            echo "GITHUB_ENVIRONMENT=PASS"
-            echo "OIDC_PROVIDER=PASS"
-            echo "ROLE_TRUST=PASS"
-            echo "OIDC_ASSUME_ROLE=PASS"
-            echo "OIDC_SUBJECT_MATCH=PASS"
-            echo "STS_IDENTITY=PASS"
-            echo "REGION=PASS"
-            echo "STATIC_KEYS=NONE"
-            echo "CONFIG_READ=BLOCKED_NO_ACCEPTED_AGGREGATOR"
-          } | tee -a "$GITHUB_STEP_SUMMARY"
+          python scripts/config_posture.py

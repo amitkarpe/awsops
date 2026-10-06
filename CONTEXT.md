@@ -12,8 +12,13 @@ the canonical `amit` LAB alias in `ap-southeast-1`, reused the existing GitHub
 OIDC provider, created one dedicated STS-only role with exact immutable
 environment-bound trust, and configured the `awsops-lab-readonly` Environment
 for only the Issue #83 branch and `main`. No accepted Config aggregator was
-found, so no Config permission is attached. The single real workflow proof is
-the remaining acceptance gate; details are in
+found, so no Config permission is attached. Identity-only run 37450622218 passed at merged PR #84 main
+`a12f7f3d004eeed9acb2a6a0e123a7f5e3894983`; #83 is complete.
+Issue #86 owns the disabled account-local four-action Config source proposal
+using #85 decision input. Config acquisition remains NOT_RUN/PENDING.
+Removal of the obsolete Environment branch rule was denied by GitHub (403);
+main-only Environment readback, policy approval/readback and explicit one-run
+authorization remain gates. No AWS mutation or live read occurred in #86. Details are in
 `docs/current/CLOUD_READONLY_M3.md`. No account IDs or role ARNs are public.
 
 Merged M4 adds repository-only Config Pack plan/schema and synthetic preflight
@@ -22,7 +27,7 @@ consistency checks, reusing the #70 pack validator. See
 exists; #62/#70's seven-item live mutation gate remains unsatisfied.
 
 M5 reconciles the canonical operating/recovery runbook in
-`docs/architecture/DEV_COMPUTE_MODEL.md`; documentation review is pending.
+`docs/architecture/DEV_COMPUTE_MODEL.md`; PR #82 is merged.
 Normal engineering is cloud-first. Home/private-browser operation remains
 separate; no Home/office/Direct fallback or cloud activation is authorized here.
 

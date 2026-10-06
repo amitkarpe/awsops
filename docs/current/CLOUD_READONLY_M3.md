@@ -25,14 +25,133 @@ eligible administrator, so no unusable reviewer gate was configured. The
 manual workflow uses a verified immutable release commit of
 `aws-actions/configure-aws-credentials`, 900-second sessions, and private
 environment secrets `AWS_ROLE_ARN` and `AWS_EXPECTED_ACCOUNT_ID`. It prints only
-sanitized pass/fail markers. One real workflow proof remains pending.
+sanitized pass/fail markers. Identity-only run
+[37450622218](https://github.com/amitkarpe/awsops/actions/runs/37450622218)
+passed at merged PR #84 main `a12f7f3d004eeed9acb2a6a0e123a7f5e3894983`.
+Issue #83 is complete; this proof does not include Config reads.
 
-Workflow consumer contract: manually dispatch `AWSOPS Read-only LAB` from the
-reviewed implementation branch or `main`, environment `awsops-lab-readonly`,
-Region `ap-southeast-1`. Success proves OIDC assumption, exact role/account
-readback, and Region only. It does not prove Config evidence or authorize writes.
-Future Config reads require a separately verified accepted aggregator; future
-write/remediation workflows require separate explicit authority.
+The identity proof above is historical accepted evidence. Issue #86 replaces the
+workflow's source consumer with the disabled, main-only contract below; do not
+repeat the identity-only run. The obsolete branch remains in the Environment
+because its authorized removal returned GitHub 403; source guards do not prove
+that the live Environment is main-only.
+
+## Issue #86 account-local Config operating contract
+
+Owner: [#86](https://github.com/amitkarpe/awsops/issues/86), parent #77;
+[#85](https://github.com/amitkarpe/awsops/issues/85) is policy decision input.
+Source/offline acceptance is separate from **Config NOT_RUN/PENDING**.
+This capability reads only the existing `amit` account in `ap-southeast-1`.
+It does not populate the four-alias dashboard, prove evaluation freshness,
+remediate, create Config resources or use an aggregator.
+
+### Activation gates and policy
+
+The existing manual workflow has a job-level `main`/`workflow_dispatch` guard,
+five-minute timeout and the preserved pinned OIDC action with a 900-second
+session. `CONFIG_ACQUISITION_ENABLED: 'false'` is committed source, not a dispatch
+input or configurable variable. While false it skips role assumption and the
+reader emits BLOCKED / NOT_ACQUIRED with null counts, then exits nonzero.
+No workflow is dispatched during repository implementation.
+
+Before any future activation:
+
+1. Authorized repository administrator removes only obsolete deployment branch
+   rule `62118086` (`g/issue-83-github-oidc-readonly`), preserving main rule
+   `62118088`, then reads back only main/branch. The current integration received
+   HTTP 403 on deletion; GET still showed both rules. No bypass or reviewer change.
+2. Independent source review accepts the existing workflow/reader. Operator
+   privately verifies the approved LAB account, exact existing role identity,
+   effective permissions, permissions boundary and SCP limitations. Source
+   tests do not establish these live facts; they remain UNKNOWN here.
+3. Explicit owner approval precedes attaching the individually removable
+   [account-local proposal](../../integration/cloud_readonly/account-local.proposed.json)
+   and private effective-access readback. Do not attach it now. The account
+   placeholder makes the public proposal non-deployable as supplied.
+4. Explicit authorization for one Config-read run precedes a reviewed activation
+   change of the literal source gate and one manual main dispatch. Record exact
+   reviewed SHA/run; no automatic reruns, schedule or repeat identity proof.
+
+Static policy readiness: `IAM_POLICY_READY=YES`, `EXACT_ACTIONS=4`,
+`OWNER_APPROVAL_REQUIRED=YES`. This describes review material, not live access.
+Recorder actions `DescribeConfigurationRecorders` and
+`DescribeConfigurationRecorderStatus` use the approved account's Singapore
+`configuration-recorder/*/*` ARN family. `DescribeConfigRules` and
+`DescribeComplianceByConfigRule` require Resource `*` because they do not support
+resource-level IAM; both statements fix `aws:RequestedRegion=ap-southeast-1`.
+No extra STS Allow, broad ReadOnlyAccess, Config wildcard or trust change.
+The [AWS service authorization reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_config.html)
+and its public machine-readable Config reference were checked for all four
+same-named read actions and resource support. The older aggregate proposal below
+remains separate and is not attached or silently combined with this policy.
+
+### Bounded acquisition and public output
+
+`scripts/config_posture.py` uses one STS identity read before Config, checking
+independently supplied private account and exact role/session. It executes only
+the four fixed operations through AWS CLI with captured stdout/stderr, fixed
+Region, no profiles, endpoint override, CLI autopagination or retries. Only the
+OIDC action's temporary session credentials reach the subprocess; credential
+files and instance metadata are disabled. It makes two default recorder reads,
+at most five pages per rule/compliance list, at most 500 rows per list and 12
+Config calls total. A 120-second deadline includes STS and Config; each process
+has at most 15 seconds. Failure stops the read; no raw response artifact is saved.
+
+Default recorder APIs cover **customer-managed recorders only**. A complete
+empty recorder response means absence in that scope, never absence of all
+service-linked recorders. `RECORDER_SCOPE` describes the returned recording
+strategy: ALL_SUPPORTED_RESOURCE_TYPES, INCLUSION_BY_RESOURCE_TYPES,
+EXCLUSION_BY_RESOURCE_TYPES, NOT_APPLICABLE (confirmed scoped absence), or
+UNKNOWN. It does not certify all resource types or global-resource coverage.
+Private recorder names and exact rule-name sets must reconcile; rules must be
+ACTIVE. Remaining/repeated tokens or row/page caps yield INCOMPLETE_PAGINATION.
+Inventory changes between reads can yield INCONSISTENT; there is no atomic
+snapshot or retry to hide that uncertainty.
+
+The simple public summary contains only fixed fields/enums, nullable counts,
+validated public `SOURCE_SHA` and `RUN_ID` (otherwise NOT_VERIFIED):
+
+| Field | Meaning |
+| --- | --- |
+| OIDC_IDENTITY / REGION | PASS only after actual identity and fixed-Region checks; disabled is NOT_ACQUIRED, mismatch FAIL |
+| CONFIG_ACQUISITION | PASS, PARTIAL or BLOCKED; PASS means complete bounded acquisition, never product READY or account compliance |
+| REASON | COMPLETE, NOT_ACQUIRED, ACCESS_DENIED, INCOMPLETE_PAGINATION, INCONSISTENT, UNKNOWN, IDENTITY_MISMATCH or REGION_MISMATCH |
+| RECORDER_PRESENT / RECORDING | YES, NO or UNKNOWN within the customer-managed recorder scope |
+| RULE_INVENTORY_COMPLETE | YES only after complete private inventory/compliance reconciliation; otherwise NO |
+| TOTAL_RULES / COMPLIANT_RULES / NONCOMPLIANT_RULES / INSUFFICIENT_DATA_RULES / NOT_APPLICABLE_RULES | Counts of rules, not resources; null until complete, zero only for a complete observed empty category |
+| EVALUATION_FRESHNESS | Always NOT_VERIFIED; collection success is not evaluation freshness |
+| STATIC_KEYS | NONE in this fixed OIDC workflow; no static-key fallback |
+
+A returned recorder with unknown strategy or unsuccessful last recorder status
+produces PARTIAL even if rule counts are complete. Errors never imply absence,
+zero counts or READY. Previously verified recorder fields may survive a later
+rule-list failure, with overall PARTIAL/BLOCKED and null rule counts. The script
+exits nonzero unless acquisition PASS. Credential-action failures can stop the
+job before the reader; missing summary means NOT_ACQUIRED, never successful
+Config acquisition. Public logs must contain no raw responses, names, account
+IDs, ARNs, tokens or exception bodies. Offline injected fixtures exercise these
+boundaries but supply no AWS provenance or live readiness.
+
+### Lifecycle, failure and resource accounting
+
+For the future single authorized run, retain the sanitized source/run-bound
+summary and inspect exact-head status. Cancel on unexpected behavior; do not
+rerun on a timeout or change policy to make a denial pass. Once the run is
+accepted, update #86/#77 from NOT_RUN/PENDING to PROVEN only for the bounded
+Config acquisition; evaluation freshness remains NOT_VERIFIED. Disable the
+source gate again through review before any further acquisition; future runs
+require their own authorization.
+
+No role/provider/aggregator/recorder/rule/schedule/static key or secret is created
+by this source change. No AWS mutation or live read is performed here. New
+recurring infrastructure cost expected: $0; this is not a promise of free
+API/Actions/ancillary usage. Do not enable Config or trigger evaluations.
+Stopping dispatch or cancelling a job does not revoke issued credentials;
+900-second sessions expire naturally. Any later service policy is separately
+removable by an authorized operator. No Config resource rollback/deletion is
+needed for reads, and trust/provider removal is outside this contract.
+
+## Historical M3 aggregate source preparation
 
 Owning scope: [#77 owner instruction](https://github.com/amitkarpe/awsops/issues/77#issuecomment-5974933354).
 Base: `b5b21e15b5d0202700fa66ebd9d01096c573c6c7` (merged PR #79).
@@ -58,7 +177,7 @@ metadata only, preserve tokens/errors for rejection, and authenticate provenance
 Changing a private binding requires owner review; syntactic validation does not
 establish that an arbitrary supplied account belongs to LAB.
 
-The only runnable producer, `node scripts/cloud_readonly_mock.mjs`, constructs
+The aggregate contract’s only runnable producer, `node scripts/cloud_readonly_mock.mjs`, constructs
 invented in-memory evidence. It publishes `artifacts/cloud-readonly/mock-contract.json`
 with fixed labels, registry scope, cell count, actual checkout SHA and
 `SYNTHETIC_ONLY`. It publishes no raw accounts, ARNs, findings, rule names,
@@ -118,8 +237,8 @@ owner/repository identities enabled. The exact environment subject format is
 therefore `repo:<owner>@<owner-id>/<repo>@<repo-id>:environment:awsops-lab-readonly`;
 the concrete IDs and trust document remain private. The deployed role uses exact
 `StringEquals` conditions for that subject and `sts.amazonaws.com`; no wildcard
-or alternate subject is accepted. Successful workflow assumption is the final
-proof that the live claim matches the private trust.
+or alternate subject is accepted. The accepted identity-only run above proved that the live claim matched the
+private trust at its recorded SHA; later source tests do not refresh this proof.
 
 ## Executed evidence
 
