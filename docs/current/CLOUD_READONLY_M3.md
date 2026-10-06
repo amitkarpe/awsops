@@ -1,5 +1,39 @@
 # M3 read-only cloud contract — repository preparation
 
+## Issue #83 live identity activation
+
+The current Issue #83 owner decision authorizes the personal LAB identity path.
+Private verification used the canonical `amit` account alias and fixed Region
+`ap-southeast-1`; the account identifier remains private. One existing
+`token.actions.githubusercontent.com` provider with the `sts.amazonaws.com`
+audience was reused. GitHub reports immutable subject claims enabled with its
+default claim set. The private role trust uses `StringEquals` for the exact
+environment subject and audience; public docs intentionally omit immutable
+owner/repository IDs and AWS identifiers.
+
+The dedicated `awsops-github-readonly` role has no attached or inline AWS
+permissions: `GetCallerIdentity` needs no identity-policy grant. It is tagged
+for Issue #83 with TTL review date `31-12-26`; this is a review date, not
+automatic deletion. No accepted Config aggregator exists in the target
+account/Region, so Config read is `BLOCKED_NO_ACCEPTED_AGGREGATOR` and no Config
+permission was added.
+
+GitHub Environment `awsops-lab-readonly` is restricted to the Issue #83
+implementation branch and `main`. GitHub rejected self-review prevention
+without at least one reviewer; the repository currently has no independent
+eligible administrator, so no unusable reviewer gate was configured. The
+manual workflow uses a verified immutable release commit of
+`aws-actions/configure-aws-credentials`, 900-second sessions, and private
+environment secrets `AWS_ROLE_ARN` and `AWS_EXPECTED_ACCOUNT_ID`. It prints only
+sanitized pass/fail markers. One real workflow proof remains pending.
+
+Workflow consumer contract: manually dispatch `AWSOPS Read-only LAB` from the
+reviewed implementation branch or `main`, environment `awsops-lab-readonly`,
+Region `ap-southeast-1`. Success proves OIDC assumption, exact role/account
+readback, and Region only. It does not prove Config evidence or authorize writes.
+Future Config reads require a separately verified accepted aggregator; future
+write/remediation workflows require separate explicit authority.
+
 Owning scope: [#77 owner instruction](https://github.com/amitkarpe/awsops/issues/77#issuecomment-5974933354).
 Base: `b5b21e15b5d0202700fa66ebd9d01096c573c6c7` (merged PR #79).
 Origin is `https://github.com/amitkarpe/awsops.git`; main matched that base.
@@ -40,12 +74,13 @@ Five focused Node tests cover these previously untested safety boundaries;
 the canonical cloud verification runs them and produces the fixed artifact.
 CI retains contents-read permissions only, plus a seven-day synthetic artifact.
 
-## Exact owner gate packet — NOT APPROVED / NOT APPLIED
+## Historical owner gate packet at PR #80 — superseded by Issue #83
 
-The proposed JSON files are review material, not deployment inputs. Unknown
-private bindings in `bindings.example.json` must remain placeholders in public
-Git. No suitable provider, role, environment or aggregator was discovered or
-assumed to exist. A later authorized owner must resolve all of the following:
+The proposed JSON files remain review material, not deployment inputs. Unknown
+private bindings in `bindings.example.json` remain placeholders in public Git.
+The following packet records the state before Issue #83 owner authorization;
+its provider/role/environment stop gates are superseded by the live activation
+section above. The Config aggregator and Config-read limitations remain active:
 
 | Gate | Required owner decision/evidence |
 | --- | --- |
@@ -71,33 +106,20 @@ The machine-readable service-reference endpoint was proxy-blocked (403);
 policy scope was checked against the official HTML authorization table instead.
 No AWS SDK source exists in this slice, so policy design is operation-based.
 
-All mutation, resource details, remediation, Config Pack deployment, retained
-EC2/Lightsail/vagent actions, IAM/OIDC provisioning, secrets, Home/office,
-Tailscale, DNS/TLS and public-route changes remain excluded. #11/PR #13 deferred.
+All Config mutation, resource details, remediation, Config Pack deployment,
+retained EC2/Lightsail/vagent actions, IAM expansion, secrets publication,
+Home/office, Tailscale, DNS/TLS and public-route changes remain excluded.
+#11/PR #13 deferred.
 
-## Subject verification gate — unresolved
+## Subject verification evidence
 
-The repository's actual OIDC subject format and customization have **not** been
-verified. [GitHub's immutable subject documentation](https://docs.github.com/en/actions/reference/security/oidc#immutable-subject-claims)
-describes name-only and immutable owner/repository-ID formats; subject
-customization can also change the result. Repository names or creation dates
-alone are not proof of the effective subject.
-
-Before replacing the placeholder, an authorized owner must obtain read-only
-settings evidence for this repository's effective immutable-subject mode and
-subject customization, including any inherited settings and opt-in state, and
-verify the exact subject for the intended `awsops-lab-readonly` environment/job
-context. Record the evidence source and observation time in the private gate
-packet; keep private identities and token material out of Git and public logs.
-If settings evidence cannot establish the exact format, leave the placeholder
-and stop. Do not mint a token or change settings to resolve this repository task.
-Any later verification needing token issuance requires separate authorization.
-
-Review the verified exact subject with the provider, audience and GitHub controls
-above before any separately authorized IAM change. Retain `StringEquals`; do not
-add wildcard subjects, alternate-format fallbacks or broader trust. Passing the
-offline policy test proves only that this proposal preserves the placeholder and
-fixed conditions, never that GitHub can assume a role or that live M3 is ready.
+Read-only GitHub repository settings show the default claim set with immutable
+owner/repository identities enabled. The exact environment subject format is
+therefore `repo:<owner>@<owner-id>/<repo>@<repo-id>:environment:awsops-lab-readonly`;
+the concrete IDs and trust document remain private. The deployed role uses exact
+`StringEquals` conditions for that subject and `sts.amazonaws.com`; no wildcard
+or alternate subject is accepted. Successful workflow assumption is the final
+proof that the live claim matches the private trust.
 
 ## Executed evidence
 
