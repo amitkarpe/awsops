@@ -8,7 +8,7 @@
     "start": "node server.mjs",
     "lint": "eslint .",
     "test:browser": "node --test browser_smoke.mjs",
-    "validate:pack": "node conformance-pack/validate.mjs && node --test conformance-pack/validate.test.mjs"
+    "validate:pack": "node conformance-pack/validate.mjs && node --test conformance-pack/validate.test.mjs conformance-pack/preflight.test.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

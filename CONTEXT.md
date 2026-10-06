@@ -2,20 +2,24 @@
 
 Repository: `amitkarpe/awsops`
 Status: ACTIVE
-Updated: 2026-10-03
+Updated: 2026-10-06
 
 ## Authority
 
-Issue #77 M1 and M2 are merged in PRs #78/#79. M3 now prepares the offline
-read-only LAB identity/Region/four-alias contract, synthetic artifact and exact
-owner gate packet in `docs/current/CLOUD_READONLY_M3.md`. No live runner,
-AWS calls or IAM/OIDC changes are authorized in this pass. Private bindings
-and live acquisition remain gated; mock validation cannot prove AWS readiness.
+Issue #77 M1–M3 source work is merged in PRs #78/#79/#80. M3 supplies the
+offline read-only LAB contract and non-deployable OIDC subject placeholder.
+Actual subject format, private bindings, provider/role and live acquisition
+remain unverified. Source acceptance does not establish AWS readiness.
+
+M4 now adds repository-only Config Pack plan/schema and synthetic preflight
+consistency checks, reusing the #70 pack validator. See
+`docs/current/CLOUD_CONFIG_PACK_M4.md`. No live executor or approval verifier
+exists; #62/#70's seven-item live mutation gate remains unsatisfied.
 
 The canonical repository command is `python scripts/cloud_verify.py --bootstrap`.
-GitHub-hosted M2 synthetic browser proof is accepted. Codex's browser CDN 403
-remains a documented local failure, not PASS. Home/provider acceptance and #62
-mutation gates remain separate.
+M3 cloud and exact-head GitHub CI passed, including Chromium/browser and the
+zero-vulnerability audit after the source-map-js patch. Hosted artifact download
+was HTTP 403-blocked; source/synthetic checks do not replace Home/provider proof.
 
 Roadmap #1 owns migration. G owns roadmap/review/merge and may delegate bounded
 repository implementation to X through Bridge2. M2 live reads and M3A/M3B/M3C

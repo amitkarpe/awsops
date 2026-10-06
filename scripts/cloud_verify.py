@@ -78,6 +78,7 @@ def main() -> int:
         skip("pinned runtime source prepare/verify: public Git download requires --bootstrap")
     run("dashboard lint", ["npm", "run", "lint"], DASHBOARD)
     run("Conformance Pack offline validation", ["npm", "run", "validate:pack"], DASHBOARD)
+    run("synthetic Config Pack preflight", ["node", "scripts/config_pack_preflight_mock.mjs"])
     if run("dashboard build", ["npm", "run", "build"], DASHBOARD):
         run("artifact read permissions", ["npm", "run", "prepare:runtime"], DASHBOARD)
         run("synthetic config2 browser journey", ["npm", "run", "test:browser"], DASHBOARD)
