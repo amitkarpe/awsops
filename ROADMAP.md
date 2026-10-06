@@ -13,11 +13,15 @@ Owning roadmap: Issue #1. G owns implementation and verification.
   filter/detail/partial/unavailable journey using Playwright; evidence and limits
   are in `docs/current/CLOUD_BROWSER_PARITY.md`. M2 is merged in PR #79; GitHub-hosted synthetic proof is accepted.
   Owner-authenticated sec2 and deferred Reject are not claimed by this journey.
-- M3 repository preparation: offline identity/Region/four-alias evidence contract,
+- M3 source preparation accepted in merged PR #80: offline identity/Region/four-alias evidence contract,
   mock artifact and owner gate packet in `docs/current/CLOUD_READONLY_M3.md`.
   OIDC subject format/customization is unverified; the trust proposal retains a
   non-deployable placeholder pending exact read-only settings evidence.
-  Live acquisition and M4–M5 remain subject to #77/#62 gates.
+  Live acquisition remains unverified and subject to #77/#62 gates.
+- M4 repository preparation adds one-target Config Pack plan/schema and offline
+  approval/fact consistency checks; see `docs/current/CLOUD_CONFIG_PACK_M4.md`.
+  Synthetic success grants no execution authority. M4 live writes still require
+  the exact #62/#70 gate; M5 remains downstream.
   No AWS call, IAM/OIDC, deployment or owner-private browser migration is part
   of M1. Existing product roadmap and deferred native Reject stay unchanged.
 
