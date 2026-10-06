@@ -63,6 +63,8 @@ def main() -> int:
         print("FAIL native fixtures missing; run with --bootstrap", flush=True)
         failures.append("native fixtures missing")
         summary.append(("native fixtures missing", "FAIL"))
+    run("read-only evidence boundary", ["node", "--test", "tests/cloud_readonly.test.mjs"])
+    run("synthetic read-only artifact", ["node", "scripts/cloud_readonly_mock.mjs"])
     run("cockpit projection", ["node", "--test", "tests/demo_cockpit.test.cjs"])
     run("runtime prerequisites", [python, "scripts/home_demo.py", "check"])
     run("Compose configuration only", ["docker", "compose", "-f", "integration/runtime/home/docker-compose.yaml", "config", "-q"])
