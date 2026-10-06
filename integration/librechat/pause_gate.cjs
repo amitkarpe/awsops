@@ -2,7 +2,6 @@
 // Trusted producer only. Candidate nominations are not evidence or authority.
 const fs = require('node:fs');
 const path = require('node:path');
-const os = require('node:os');
 const {spawn} = require('node:child_process');
 const {createHash} = require('node:crypto');
 const gate = require('./native_gate.cjs');
@@ -14,6 +13,13 @@ function text(v, re=ID) { if (typeof v !== 'string' || !re.test(v)) fail(); retu
 function keys(v, names) {
   if (!v || typeof v !== 'object' || Array.isArray(v) ||
       Object.keys(v).sort().join(',') !== names.slice().sort().join(',')) fail();
+}
+function sdkHome() {
+  const value=process.env.AWSOPS_SDK_HOME;
+  if(typeof value!=='string'||!path.isAbsolute(value)||fs.realpathSync(value)!==value)fail();
+  const info=fs.lstatSync(value);
+  if(!info.isDirectory()||(info.mode&0o022)!==0||(process.getuid&&info.uid!==process.getuid()))fail();
+  return value;
 }
 function snapshot({client, job, pendingAction, streamId}, config) {
   config = gate.validateConfig(config);
@@ -72,7 +78,7 @@ function providerPipe(config, message) {
         shell:false,cwd:config.source_root,stdio:['pipe','pipe','pipe'],
         // Only the existing SDK's named local profile is used. No native auth or
         // temporary credentials are copied from the parent environment.
-        env:{LANG:'C.UTF-8',HOME:os.homedir(),AWS_EC2_METADATA_DISABLED:'true'},
+        env:{LANG:'C.UTF-8',HOME:sdkHome(),AWS_EC2_METADATA_DISABLED:'true'},
       });
       timer=setTimeout(stop,PREPARE_TIMEOUT_MS);
       child.on('error',stop); child.stdin.on('error',stop); child.stderr.on('data',stop);
@@ -111,7 +117,7 @@ async function beforePause({client,manager,pendingAction,streamId}, config=gate.
   pendingAction.payload.action_requests[0].arguments={control:'s3_ssl',batch_id:result.batch_id,scope_hash:result.scope_hash};
   pendingAction.expiresAt=Math.min(pendingAction.expiresAt,result.expires_at*1000);
 }
-module.exports={beforePause,snapshot,providerPipe,bindingDigest,PREPARE_TIMEOUT_MS};
+module.exports={beforePause,snapshot,providerPipe,bindingDigest,sdkHome,PREPARE_TIMEOUT_MS};
 
 // Compatible with the pinned native pre-tool hook factory. This requests review;
 // it does not register evidence, authenticate a user or authorize execution.

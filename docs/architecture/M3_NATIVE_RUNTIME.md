@@ -89,17 +89,19 @@ packet; a third ledger event or automatic native UI publication is not claimed.
 ## Immutable source and offline rollback
 
 Upstream repository ID 600596928 now resolves to `LibreChat-AI/LibreChat`.
-The commit pin is unchanged: `eaef87fa2684025627e25d649a56f4f2a63417a7`.
-`upstream.json` pins full producer and resume Git blobs. CI explicitly fetches
-both and refuses drift; no full upstream checkout/history is committed here.
+The current canary source pin is `cdfe54c3498818b21b33fb609fee02f2742b37ea`
+in `integration/canary/upstream.json`, which records the producer and resume
+Git blobs. `scripts/fetch_native_fixture.py` fetches and verifies those pinned
+sources; CI refuses drift. No full upstream checkout/history is committed here.
 
-`rehearse_patch.cjs` uses marked OFFLINE candidates only. The optional component
-is `resume` (default) or `pause`. It preserves exact originals and verifies
-source/helper bytes on check/reapply/rollback. Producer and resume use the same
-edit lock but separate backups; multi-file atomic installation is NOT claimed.
-Both components must verify before any future canary startup. A partial copy,
-missing helper, lock residue or drift is reconciliation-required, not permission
-for broad cleanup. Rollback does not delete the decision ledger.
+`integration/librechat/rehearse_patch.cjs` uses marked OFFLINE candidates only.
+The optional component is `resume` (default) or `pause`. It preserves exact
+originals and verifies source/helper bytes on check/reapply/rollback. Producer
+and resume use the same edit lock but separate backups; multi-file atomic
+installation is NOT claimed. Both components must verify before any future
+canary startup. A partial copy, missing helper, lock residue or drift is
+reconciliation-required, not permission for broad cleanup. Rollback does not
+delete the decision ledger.
 
 The resume failure path still uses generation-fenced terminalization, conditional
 checkpoint cleanup and independent slot release; timeout reports reconciliation.
@@ -119,14 +121,18 @@ safe or unsafe solely from one free-memory snapshot.
 Issue #11 permits a separate loopback canary on the same verified LAB host;
 no new EC2, ingress/DNS/IAM or existing-service changes. No canary process,
 listener, login, credential or native decision was created by this preflight.
-Creating its disposable normal login and local session-signing keys requires
-the explicit auth-provisioning gate. No secrets should be pasted into chat.
+The explicit auth-provisioning gate is satisfied: disposable normal login and
+canary-only local session-signing keys were created under Issue #11 authority,
+and normal UI login was proven without exporting browser auth state. No secrets
+should be pasted into chat.
 
-After that gate, continue in #11: capacity-limited clean pinned candidate,
-separate state, real tool/native policy registration, normal login, fresh
-read/prepare, native Reject, receipt/readback, supported chat cleanup, canary
-rollback and confirmation that existing services remain unaffected. No live
-Approve. Stop only canary processes; preserve sanitized acceptance/audit proof.
+Remaining live acceptance in #11 is: refresh the isolated canary to the current
+green PR #13 head, read the latest durable execution state before any retry,
+perform fresh read/prepare, native Reject, durable REJECTED receipt, zero
+dispatch, fresh unchanged provider readback, supported Archive cleanup, canary
+stop/rollback, and confirm existing services remain unaffected. Never blindly
+duplicate an SSM execution. No live Approve. Stop only canary processes;
+preserve sanitized acceptance/audit proof.
 
 ## Test interpretation
 
