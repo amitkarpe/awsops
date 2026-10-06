@@ -78,6 +78,26 @@ class PostureTests(unittest.TestCase):
         values = fixture(); values["describe-config-rules"]["ConfigRules"] *= 2
         self.assertEqual(self.run_fixture(values)[0]["REASON"], "INCONSISTENT")
 
+    def test_recorder_arn_reconciliation_preserves_optional_omission(self):
+        arn = f"arn:aws:config:{m.REGION}:{ACCOUNT}:configuration-recorder/private-recorder/id-one"
+        for recorder_arn, status_arn, expected in (
+            (arn, arn, "PASS"), (arn, None, "PASS"), (None, arn, "PASS"),
+            (arn, arn.replace("id-one", "id-two"), "PARTIAL"),
+        ):
+            values = fixture()
+            if recorder_arn is not None:
+                values["describe-configuration-recorders"]["ConfigurationRecorders"][0]["arn"] = recorder_arn
+            if status_arn is not None:
+                values["describe-configuration-recorder-status"]["ConfigurationRecordersStatus"][0]["arn"] = status_arn
+            result, calls = self.run_fixture(values)
+            self.assertEqual(result["CONFIG_ACQUISITION"], expected)
+            self.assertNotRegex(json.dumps(result), r"private-|arn:|111111111111|id-two")
+            if expected == "PARTIAL":
+                self.assertEqual(result["REASON"], "INCONSISTENT")
+                self.assertEqual(result["RECORDER_PRESENT"], "UNKNOWN")
+                self.assertIsNone(result["TOTAL_RULES"])
+                self.assertEqual(len(calls), 3)  # no rule reads after identity drift
+
     def test_identity_region_fail_before_config(self):
         values = fixture(); values["get-caller-identity"]["Account"] = "2" * 12
         result, calls = self.run_fixture(values)
@@ -136,6 +156,8 @@ class PostureTests(unittest.TestCase):
             with self.assertRaisesRegex(m.Rejected, "^ACCESS_DENIED$"):
                 caller("describe-config-rules", "private-token")
             args, kwargs = run.call_args
+            self.assertEqual(args[0][:3], ["aws", "configservice", "describe-config-rules"])
+            self.assertEqual(caller.config_calls, 1)
             self.assertIn("--no-paginate", args[0])
             self.assertEqual(kwargs["env"]["AWS_MAX_ATTEMPTS"], "1")
             self.assertEqual(kwargs["env"]["AWS_CONFIG_FILE"], "/dev/null")
@@ -143,6 +165,18 @@ class PostureTests(unittest.TestCase):
             caller.deadline = 0
             with self.assertRaises(m.Rejected): caller("describe-config-rules", None)
             self.assertEqual(run.call_count, 1)
+        with patch.dict(os.environ, env, clear=True), patch.object(m.subprocess, "run") as run:
+            run.return_value = subprocess.CompletedProcess([], 0, b"{}", b"")
+            caller = m.AwsCaller()
+            for operation in m.OPERATIONS:
+                caller(operation, None)
+                service = "sts" if operation == "get-caller-identity" else "configservice"
+                self.assertEqual(run.call_args.args[0][:3], ["aws", service, operation])
+            self.assertEqual(caller.config_calls, 4)
+            caller.config_calls = 12
+            with self.assertRaisesRegex(m.Rejected, "^INCOMPLETE_PAGINATION$"):
+                caller("describe-configuration-recorders", None)
+            self.assertEqual(run.call_count, 5)  # cap rejects before subprocess
         with patch.dict(os.environ, {**env, "AWS_ENDPOINT_URL_CONFIG": "https://invalid.example"}, clear=True):
             with self.assertRaises(m.Rejected): m.AwsCaller()
 

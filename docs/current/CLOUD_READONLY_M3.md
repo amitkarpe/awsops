@@ -103,7 +103,10 @@ service-linked recorders. `RECORDER_SCOPE` describes the returned recording
 strategy: ALL_SUPPORTED_RESOURCE_TYPES, INCLUSION_BY_RESOURCE_TYPES,
 EXCLUSION_BY_RESOURCE_TYPES, NOT_APPLICABLE (confirmed scoped absence), or
 UNKNOWN. It does not certify all resource types or global-resource coverage.
-Private recorder names and exact rule-name sets must reconcile; rules must be
+Private recorder names and, when both responses supply them, recorder ARNs
+(including the recorder ID) must reconcile. Optional ARN omission remains
+compatible with older responses; same-name/different-ARN responses are
+INCONSISTENT. Exact rule-name sets must reconcile; rules must be
 ACTIVE. Remaining/repeated tokens or row/page caps yield INCOMPLETE_PAGINATION.
 Inventory changes between reads can yield INCONSISTENT; there is no atomic
 snapshot or retry to hide that uncertainty.

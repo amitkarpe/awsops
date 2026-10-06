@@ -17,10 +17,10 @@ REGION = "ap-southeast-1"
 ROLE = "awsops-github-readonly"
 OPERATIONS = {
     "get-caller-identity": ("sts", None),
-    "describe-configuration-recorders": ("config", "ConfigurationRecorders"),
-    "describe-configuration-recorder-status": ("config", "ConfigurationRecordersStatus"),
-    "describe-config-rules": ("config", "ConfigRules"),
-    "describe-compliance-by-config-rule": ("config", "ComplianceByConfigRules"),
+    "describe-configuration-recorders": ("configservice", "ConfigurationRecorders"),
+    "describe-configuration-recorder-status": ("configservice", "ConfigurationRecordersStatus"),
+    "describe-config-rules": ("configservice", "ConfigRules"),
+    "describe-compliance-by-config-rule": ("configservice", "ComplianceByConfigRules"),
 }
 
 
@@ -95,6 +95,10 @@ def acquire(call, expected_account, region):
             summary.update(RECORDER_PRESENT="NO", RECORDING="NO", RECORDER_SCOPE="NOT_APPLICABLE")
         else:
             recorder, status = recorders[0], statuses[0]
+            # Older responses can omit arn; compare privately whenever both supply it.
+            if "arn" in recorder and "arn" in status:
+                require(isinstance(recorder["arn"], str) and bool(recorder["arn"]) and
+                        recorder["arn"] == status["arn"], "INCONSISTENT")
             require(type(status.get("recording")) is bool)
             group = recorder.get("recordingGroup")
             require(isinstance(group, dict))
@@ -154,7 +158,7 @@ class AwsCaller:
         require(operation in OPERATIONS)
         service, _ = OPERATIONS[operation]
         require(token is None or operation in {"describe-config-rules", "describe-compliance-by-config-rule"})
-        if service == "config":
+        if service == "configservice":
             self.config_calls += 1
             require(self.config_calls <= 12, "INCOMPLETE_PAGINATION")
         remaining = self.deadline - time.monotonic()
