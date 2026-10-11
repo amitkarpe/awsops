@@ -1,8 +1,8 @@
 # Development compute and operating runbook
 
 Owner: [roadmap #77, M5](https://github.com/amitkarpe/awsops/issues/77).
-Updated: 2026-10-06. M1–M4 source preparation is merged; live AWS readiness
-remains **NOT_VERIFIED**. This is the canonical engineering/resume runbook.
+Updated: 2026-10-06. M1–M5 source/runbook work is merged. #83 OIDC identity
+is PROVEN at run 37450622218; #86 Config acquisition remains **NOT_RUN/PENDING**. This is the canonical engineering/resume runbook.
 Resource decisions remain owned by #14 and live mutation gates by #62/#70.
 
 ## Implemented path and gated design
@@ -11,7 +11,7 @@ Resource decisions remain owned by #14 and live mutation gates by #62/#70.
 Amit / ChatGPT / Dot -> saved Codex Cloud environment -> GitHub branch / PR
                     -> GitHub Actions -> source and synthetic evidence
 
-GATED, NOT IMPLEMENTED AS A LIVE EXECUTION PATH:
+IDENTITY PROVEN (#83); CONFIG ACQUISITION PREPARED / LIVE PROOF PENDING (#86):
 reviewed GitHub request -> verified OIDC -> narrow AWS role
                         -> bounded AWS execution -> independent provider readback
 ```
@@ -137,19 +137,16 @@ never publish private bindings, raw plan digests, sessions or provider identifie
 Normal repository work can continue without asking for another `go`. Activation
 requires evidence and explicit authority beyond this runbook:
 
-1. **M3 actual identity/trust:** verify effective OIDC subject format/customization,
-   inherited settings and the intended environment/job context, plus protected
-   environment reviewers and branch/workflow restrictions. Keep the
-   [subject placeholder](../../integration/cloud_readonly/trust.proposed.json)
-   non-deployable until resolved. Do not mint tokens or change settings to make
-   documentation/synthetic checks pass. Missing provider/role or any trust change
-   requires a separate exact IAM/OIDC authorization.
-2. **M3 acquisition:** owner verifies existing provider/audience, exact collector
-   role/immutable ID, effective permissions and aggregator isolation; privately
-   maps four distinct LAB accounts and exact rules in ap-southeast-1. Review the
-   bounded acquisition adapter/workflow and private handling before any live run;
-   independently establish provenance and evaluation freshness. Full checklist:
-   [M3 owner packet](../current/CLOUD_READONLY_M3.md).
+1. **Identity and access restriction verified:** #83 proved the existing exact
+   immutable Environment subject and dedicated role. Main-only restriction and
+   executor quiescence are verified under #86; preserve them without redesign.
+   Independent Environment reviewer protection is absent and is not claimed.
+2. **Account-local Config acquisition:** the exact four-action policy is attached
+   and independently read back, with bounded IAM simulation evidence. PR #87
+   prepares source activation. Owner authorizes one manual merged-main proof after
+   review; verify the actual SHA/run and stop on failed or uncertain acquisition.
+   No aggregator or Config writes are in scope. See the
+   [bounded operating contract](../current/CLOUD_READONLY_M3.md#issue-86-account-local-config-operating-contract).
 3. **M4 first write:** approve the [#62/#70 seven-item packet](../current/CONFIG_PACK_M4.md)
    for exact target alias/account/Region, pack/version/CREATE operation, six
    controls (no remediation canary), permitted actions, rollback/retention, cost
@@ -166,7 +163,7 @@ The retained `amit` host stays recovery-only; `vagent`/Lightsail remain separate
 governed. Historical inventory/cost evidence belongs in the
 [resource ledger](../current/AWS_RESOURCES.md), not a claim of fresh readback here.
 
-After M5 documentation review, remaining meaningful work is gate resolution and
+Remaining meaningful work is #86 gate resolution and
 separately scoped trusted acquisition/execution with provider evidence. Do not
 invent another synthetic milestone, runtime migration or cleanup to claim the
 live roadmap complete.
