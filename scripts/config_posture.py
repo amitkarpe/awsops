@@ -111,7 +111,8 @@ def acquire(call, expected_account, region):
                 scope = "INCLUSION_BY_RESOURCE_TYPES"
             else:
                 scope = "UNKNOWN"
-            recorder_known = scope != "UNKNOWN" and status.get("lastStatus") == "Success"
+            # AWS CLI examples and live responses also use uppercase SUCCESS.
+            recorder_known = scope != "UNKNOWN" and status.get("lastStatus") in ("Success", "SUCCESS")
             summary.update(RECORDER_PRESENT="YES", RECORDING="YES" if status["recording"] else "NO", RECORDER_SCOPE=scope)
         rules = named(pages(call, "describe-config-rules", "ConfigRules"), "ConfigRuleName")
         compliance = named(pages(call, "describe-compliance-by-config-rule", "ComplianceByConfigRules"), "ConfigRuleName")
