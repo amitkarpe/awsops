@@ -11,7 +11,7 @@ Resource decisions remain owned by #14 and live mutation gates by #62/#70.
 Amit / ChatGPT / Dot -> saved Codex Cloud environment -> GitHub branch / PR
                     -> GitHub Actions -> source and synthetic evidence
 
-IDENTITY PROVEN (#83); CONFIG ACQUISITION DISABLED / GATED (#86):
+IDENTITY PROVEN (#83); CONFIG ACQUISITION PREPARED / LIVE PROOF PENDING (#86):
 reviewed GitHub request -> verified OIDC -> narrow AWS role
                         -> bounded AWS execution -> independent provider readback
 ```
@@ -137,19 +137,15 @@ never publish private bindings, raw plan digests, sessions or provider identifie
 Normal repository work can continue without asking for another `go`. Activation
 requires evidence and explicit authority beyond this runbook:
 
-1. **Identity preserved / access restriction pending:** #83 proved the existing
-   exact immutable environment subject and dedicated role; do not redesign trust
-   or rerun identity proof. #86 adds a main-only workflow guard. GitHub denied
-   removal of obsolete deployment branch rule `62118086` (403); an authorized
-   administrator must remove only that rule, preserve main rule `62118088`, and
-   read back main-only restrictions. Independent reviewer protection is absent.
-   Historical proposed trust JSON remains non-deployable review material.
-2. **Account-local Config acquisition:** #86 supplies a disabled fixed reader
-   and four-action policy proposal. Operator must privately verify the target
-   account/role, effective permissions, boundary/SCP and obtain explicit policy
-   attachment approval, attachment/readback and one-run authorization before
-   reviewed source activation. No aggregator is needed for this narrower path;
-   the old four-alias aggregate contract stays separately gated. See the
+1. **Identity and access restriction verified:** #83 proved the existing exact
+   immutable Environment subject and dedicated role. Main-only restriction and
+   executor quiescence are verified under #86; preserve them without redesign.
+   Independent Environment reviewer protection is absent and is not claimed.
+2. **Account-local Config acquisition:** the exact four-action policy is attached
+   and independently read back, with bounded IAM simulation evidence. PR #87
+   prepares source activation. Owner authorizes one manual merged-main proof after
+   review; verify the actual SHA/run and stop on failed or uncertain acquisition.
+   No aggregator or Config writes are in scope. See the
    [bounded operating contract](../current/CLOUD_READONLY_M3.md#issue-86-account-local-config-operating-contract).
 3. **M4 first write:** approve the [#62/#70 seven-item packet](../current/CONFIG_PACK_M4.md)
    for exact target alias/account/Region, pack/version/CREATE operation, six

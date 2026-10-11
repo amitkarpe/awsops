@@ -2,24 +2,23 @@
 
 Repository: `amitkarpe/awsops`
 Status: ACTIVE
-Updated: 2026-10-06
+Updated: 2026-10-11
 
 ## Authority
 
-Issue #77 M1–M5 source/runbook work is merged in PRs #78–#82. Issue #83 now
-owns the live read-only GitHub OIDC identity path. Its private readback verified
-the canonical `amit` LAB alias in `ap-southeast-1`, reused the existing GitHub
-OIDC provider, created one dedicated STS-only role with exact immutable
-environment-bound trust, and configured the `awsops-lab-readonly` Environment
-for only the Issue #83 branch and `main`. No accepted Config aggregator was
-found, so no Config permission is attached. Identity-only run 37450622218 passed at merged PR #84 main
-`a12f7f3d004eeed9acb2a6a0e123a7f5e3894983`; #83 is complete.
-Issue #86 owns the disabled account-local four-action Config source proposal
-using #85 decision input. Config acquisition remains NOT_RUN/PENDING.
-Removal of the obsolete Environment branch rule was denied by GitHub (403);
-main-only Environment readback, policy approval/readback and explicit one-run
-authorization remain gates. No AWS mutation or live read occurred in #86. Details are in
-`docs/current/CLOUD_READONLY_M3.md`. No account IDs or role ARNs are public.
+Issue #77 source/runbook work and #83 identity proof are complete. Issue #86
+and existing PR #87 own the account-local Config read milestone. Main-only
+Environment restriction and TERMINAL_QUIESCENT are verified. The existing
+awsops-github-readonly role now has exactly one four-action inline policy,
+with exact saved-policy readback and Singapore allow / other-region deny IAM
+simulation. No boundary or managed policy is attached. See the sanitized
+[M2 receipt](https://github.com/amitkarpe/awsops/issues/86#issuecomment-6103649261).
+
+PR #87 prepares the committed acquisition gate for activation. Config acquisition
+remains NOT_RUN/PENDING until the reviewed merged-main manual Actions run
+returns accepted evidence. Reuse existing OIDC trust, 900-second session and
+bounded reader. Never infer live access from IAM simulation or CI. Keep private
+account/ARN bindings out of Git. Do not repeat successful tests or dispatches.
 
 Merged M4 adds repository-only Config Pack plan/schema and synthetic preflight
 consistency checks, reusing the #70 pack validator. See

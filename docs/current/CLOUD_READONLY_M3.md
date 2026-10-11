@@ -49,31 +49,28 @@ remediate, create Config resources or use an aggregator.
 
 The existing manual workflow has a job-level `main`/`workflow_dispatch` guard,
 five-minute timeout and the preserved pinned OIDC action with a 900-second
-session. `CONFIG_ACQUISITION_ENABLED: 'false'` is committed source, not a dispatch
-input or configurable variable. While false it skips role assumption and the
-reader emits BLOCKED / NOT_ACQUIRED with null counts, then exits nonzero.
-No workflow is dispatched during repository implementation.
+session. The acquisition gate is a committed literal, never a dispatch input,
+repository variable or secret. This activation candidate sets it to true after
+owner approval and the [M2 policy/readback receipt](https://github.com/amitkarpe/awsops/issues/86#issuecomment-6103649261).
+Manual main-only execution remains mandatory; no workflow dispatch occurs merely
+because this PR is pushed. A disabled gate still returns BLOCKED / NOT_ACQUIRED.
 
-Before any future activation:
+Current activation evidence:
 
-1. Authorized repository administrator removes only obsolete deployment branch
-   rule `62118086` (`g/issue-83-github-oidc-readonly`), preserving main rule
-   `62118088`, then reads back only main/branch. The current integration received
-   HTTP 403 on deletion; GET still showed both rules. No bypass or reviewer change.
-2. Independent source review accepts the existing workflow/reader. Operator
-   privately verifies the approved LAB account, exact existing role identity,
-   effective permissions, permissions boundary and SCP limitations. Source
-   tests do not establish these live facts; they remain UNKNOWN here.
-3. Explicit owner approval precedes attaching the individually removable
-   [account-local proposal](../../integration/cloud_readonly/account-local.proposed.json)
-   and private effective-access readback. Do not attach it now. The account
-   placeholder makes the public proposal non-deployable as supplied.
-4. Explicit authorization for one Config-read run precedes a reviewed activation
-   change of the literal source gate and one manual main dispatch. Record exact
-   reviewed SHA/run; no automatic reruns, schedule or repeat identity proof.
+1. Only main/branch remains in the existing Environment; the obsolete rule was
+   removed. No reviewer/protection setting was broadened.
+2. Existing role identity, exact trust/audience, no boundary and no managed policies
+   were independently read back. Exactly one four-action inline policy is attached.
+3. GetRolePolicy matches the public proposal with only the private approved account
+   substituted. IAM simulation allows the approved Singapore reads and denies another
+   region, Config writes and PassRole. Simulation is not live OIDC access proof.
+4. Executor TERMINAL_QUIESCENT is accepted. Owner approves completing the existing
+   PR and one manual proof after reviewed merge/default-branch readiness. Record the
+   actual merged SHA/run; never automatically rerun a failed or uncertain attempt.
 
-Static policy readiness: `IAM_POLICY_READY=YES`, `EXACT_ACTIONS=4`,
-`OWNER_APPROVAL_REQUIRED=YES`. This describes review material, not live access.
+IAM_POLICY_READY=YES; EXACT_ACTIONS=4; IAM_ATTACHMENT_READBACK=PASS.
+Config acquisition remains NOT_RUN until the actual bounded Actions receipt.
+
 Recorder actions `DescribeConfigurationRecorders` and
 `DescribeConfigurationRecorderStatus` use the approved account's Singapore
 `configuration-recorder/*/*` ARN family. `DescribeConfigRules` and

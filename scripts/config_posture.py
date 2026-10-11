@@ -183,7 +183,7 @@ class AwsCaller:
 def main():
     argparse.ArgumentParser(description=__doc__).parse_args()
     summary = blank()
-    # Committed workflow sets false. No input/variable/secret may enable this gate.
+    # Only the reviewed workflow literal enables this gate, never a dispatch input.
     if os.environ.get("CONFIG_ACQUISITION_ENABLED") == "true":
         try:
             require(os.environ.get("GITHUB_ACTIONS") == "true" and

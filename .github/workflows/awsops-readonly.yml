@@ -22,10 +22,10 @@ jobs:
       id-token: write
       contents: read
     env:
-      # Source gate: change only through reviewed activation after #86 owner approval,
-      # verified main-only Environment, IAM attachment/readback and one-run authority.
-      # Not a dispatch input, repository variable, or secret.
-      CONFIG_ACQUISITION_ENABLED: 'false'
+      # Reviewed activation candidate after #86 M2 policy/readback receipt:
+      # https://github.com/amitkarpe/awsops/issues/86#issuecomment-6103649261
+      # Merge and manual dispatch remain separately gated. Never an input or variable.
+      CONFIG_ACQUISITION_ENABLED: 'true'
       AWS_REGION: ap-southeast-1
       AWS_DEFAULT_REGION: ap-southeast-1
       AWS_MAX_ATTEMPTS: '1'
