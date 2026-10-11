@@ -14,9 +14,12 @@ with exact saved-policy readback and Singapore allow / other-region deny IAM
 simulation. No boundary or managed policy is attached. See the sanitized
 [M2 receipt](https://github.com/amitkarpe/awsops/issues/86#issuecomment-6103649261).
 
-PR #87 prepares the committed acquisition gate for activation. Config acquisition
-remains NOT_RUN/PENDING until the reviewed merged-main manual Actions run
-returns accepted evidence. Reuse existing OIDC trust, 900-second session and
+PR #87 merged the committed acquisition gate. Initial run 38098174190 proved
+OIDC and complete rule inventory but returned PARTIAL because the reader did not
+recognize AWS's uppercase SUCCESS recorder status. The bounded correction accepts
+exact Success/SUCCESS only. The latest [#86 receipt](https://github.com/amitkarpe/awsops/issues/86)
+owns the corrected run's actual SHA, acquisition result and acceptance; CI alone
+does not establish them. Reuse existing OIDC trust, 900-second session and
 bounded reader. Never infer live access from IAM simulation or CI. Keep private
 account/ARN bindings out of Git. Do not repeat successful tests or dispatches.
 

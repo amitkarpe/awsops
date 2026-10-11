@@ -40,7 +40,8 @@ that the live Environment is main-only.
 
 Owner: [#86](https://github.com/amitkarpe/awsops/issues/86), parent #77;
 [#85](https://github.com/amitkarpe/awsops/issues/85) is policy decision input.
-Source/offline acceptance is separate from **Config NOT_RUN/PENDING**.
+Source/offline acceptance is separate from live Config acquisition. The latest
+#86 receipt owns the actual merged SHA, Actions run and acquisition result.
 This capability reads only the existing `amit` account in `ap-southeast-1`.
 It does not populate the four-alias dashboard, prove evaluation freshness,
 remediate, create Config resources or use an aggregator.
@@ -50,7 +51,7 @@ remediate, create Config resources or use an aggregator.
 The existing manual workflow has a job-level `main`/`workflow_dispatch` guard,
 five-minute timeout and the preserved pinned OIDC action with a 900-second
 session. The acquisition gate is a committed literal, never a dispatch input,
-repository variable or secret. This activation candidate sets it to true after
+repository variable or secret. Merged PR #87 sets it to true after
 owner approval and the [M2 policy/readback receipt](https://github.com/amitkarpe/awsops/issues/86#issuecomment-6103649261).
 Manual main-only execution remains mandatory; no workflow dispatch occurs merely
 because this PR is pushed. A disabled gate still returns BLOCKED / NOT_ACQUIRED.
@@ -64,12 +65,17 @@ Current activation evidence:
 3. GetRolePolicy matches the public proposal with only the private approved account
    substituted. IAM simulation allows the approved Singapore reads and denies another
    region, Config writes and PassRole. Simulation is not live OIDC access proof.
-4. Executor TERMINAL_QUIESCENT is accepted. Owner approves completing the existing
-   PR and one manual proof after reviewed merge/default-branch readiness. Record the
-   actual merged SHA/run; never automatically rerun a failed or uncertain attempt.
+4. Executor TERMINAL_QUIESCENT is accepted. PR #87 and its first proof completed.
+   Run 38098174190 returned PARTIAL solely because the reader rejected the observed
+   uppercase SUCCESS recorder status. Owner's subsequent continuation authorizes
+   the reviewed exact Success/SUCCESS correction and one fresh merged-main proof.
+   Record the actual SHA/run; reconcile any failed or uncertain attempt before retry.
 
 IAM_POLICY_READY=YES; EXACT_ACTIONS=4; IAM_ATTACHMENT_READBACK=PASS.
-Config acquisition remains NOT_RUN until the actual bounded Actions receipt.
+Initial OIDC and complete inventory read succeeded, but acquisition was PARTIAL.
+Use the latest #86 receipt for the corrected run's result; never infer PASS from
+source tests. Noncompliant rule counts do not imply an acquisition failure, and
+acquisition PASS does not authorize remediation or prove evaluation freshness.
 
 Recorder actions `DescribeConfigurationRecorders` and
 `DescribeConfigurationRecorderStatus` use the approved account's Singapore

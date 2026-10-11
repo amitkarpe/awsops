@@ -2,7 +2,7 @@
 
 Owner: [roadmap #77, M5](https://github.com/amitkarpe/awsops/issues/77).
 Updated: 2026-10-06. M1–M5 source/runbook work is merged. #83 OIDC identity
-is PROVEN at run 37450622218; #86 Config acquisition remains **NOT_RUN/PENDING**. This is the canonical engineering/resume runbook.
+is PROVEN at run 37450622218; [#86's latest receipt](https://github.com/amitkarpe/awsops/issues/86) owns live Config acquisition status. This is the canonical engineering/resume runbook.
 Resource decisions remain owned by #14 and live mutation gates by #62/#70.
 
 ## Implemented path and gated design
@@ -11,7 +11,7 @@ Resource decisions remain owned by #14 and live mutation gates by #62/#70.
 Amit / ChatGPT / Dot -> saved Codex Cloud environment -> GitHub branch / PR
                     -> GitHub Actions -> source and synthetic evidence
 
-IDENTITY PROVEN (#83); CONFIG ACQUISITION PREPARED / LIVE PROOF PENDING (#86):
+IDENTITY PROVEN (#83); CONFIG ACQUISITION SOURCE ACTIVE / LIVE RECEIPT IN #86:
 reviewed GitHub request -> verified OIDC -> narrow AWS role
                         -> bounded AWS execution -> independent provider readback
 ```
@@ -143,8 +143,10 @@ requires evidence and explicit authority beyond this runbook:
    Independent Environment reviewer protection is absent and is not claimed.
 2. **Account-local Config acquisition:** the exact four-action policy is attached
    and independently read back, with bounded IAM simulation evidence. PR #87
-   prepares source activation. Owner authorizes one manual merged-main proof after
-   review; verify the actual SHA/run and stop on failed or uncertain acquisition.
+   merged activation; run 38098174190 returned PARTIAL on uppercase SUCCESS.
+   Owner's continuation authorizes the exact status correction and one fresh
+   reviewed merged-main proof. The latest #86 receipt owns the resulting SHA/run
+   and acceptance; reconcile failed or uncertain acquisition before further action.
    No aggregator or Config writes are in scope. See the
    [bounded operating contract](../current/CLOUD_READONLY_M3.md#issue-86-account-local-config-operating-contract).
 3. **M4 first write:** approve the [#62/#70 seven-item packet](../current/CONFIG_PACK_M4.md)

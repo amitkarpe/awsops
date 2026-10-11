@@ -20,8 +20,11 @@ Owning roadmap: Issue #1. G owns implementation and verification.
   environment is now restricted to main only. Identity proof passed in run
   37450622218 at merged PR #84 main a12f7f3d004eeed9acb2a6a0e123a7f5e3894983.
   #86 now has verified attachment/readback of exactly four account-local Config
-  reads and resolved executor quiescence. PR #87 prepares reviewed activation;
-  Config acquisition remains NOT_RUN/PENDING until the one manual merged-main proof.
+  reads and resolved executor quiescence. PR #87 merged activation; initial run
+  38098174190 returned PARTIAL because of a recorder status spelling mismatch.
+  The exact Success/SUCCESS correction preserves unknown-state rejection. Use
+  [#86's latest receipt](https://github.com/amitkarpe/awsops/issues/86) for corrected
+  merged-main acquisition evidence and acceptance, separate from compliance posture.
   See `docs/current/CLOUD_READONLY_M3.md`; this does not authorize M4 writes.
 - M4 repository preparation is accepted in merged PR #81: one-target Config Pack plan/schema and offline
   approval/fact consistency checks; see `docs/current/CLOUD_CONFIG_PACK_M4.md`.
