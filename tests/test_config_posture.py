@@ -180,7 +180,7 @@ class PostureTests(unittest.TestCase):
         with patch.dict(os.environ, {**env, "AWS_ENDPOINT_URL_CONFIG": "https://invalid.example"}, clear=True):
             with self.assertRaises(m.Rejected): m.AwsCaller()
 
-    def test_policy_is_exact_proposal_and_workflow_stays_disabled(self):
+    def test_policy_is_exact_proposal_and_workflow_activation_is_bounded(self):
         p = json.loads((ROOT / "integration/cloud_readonly/account-local.proposed.json").read_text())
         self.assertEqual(len(p["Statement"]), 2)
         first, second = p["Statement"]
@@ -193,7 +193,7 @@ class PostureTests(unittest.TestCase):
             self.assertEqual(statement["Effect"], "Allow")
             self.assertEqual(statement["Condition"], {"StringEquals": {"aws:RequestedRegion": m.REGION}})
         workflow = (ROOT / ".github/workflows/awsops-readonly.yml").read_text()
-        self.assertIn("CONFIG_ACQUISITION_ENABLED: 'false'", workflow)
+        self.assertIn("CONFIG_ACQUISITION_ENABLED: 'true'", workflow)
         self.assertIn("if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'", workflow)
         self.assertIn("if: env.CONFIG_ACQUISITION_ENABLED == 'true'", workflow)
         self.assertIn("disable-retry: true", workflow)
