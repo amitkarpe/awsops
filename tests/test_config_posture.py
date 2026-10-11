@@ -43,6 +43,14 @@ class PostureTests(unittest.TestCase):
         self.assertEqual(result["EVALUATION_FRESHNESS"], "NOT_VERIFIED")
         self.assertEqual(len(calls), 5)
         self.assertNotRegex(json.dumps(result), r"private-|arn:|111111111111")
+        for state, expected in (("SUCCESS", "PASS"), ("Success", "PASS"),
+                                ("FAILURE", "PARTIAL"), ("Failure", "PARTIAL"),
+                                ("Pending", "PARTIAL"), ("NotApplicable", "PARTIAL"),
+                                (None, "PARTIAL"), ("unknown", "PARTIAL")):
+            with self.subTest(recorder_status=state):
+                values = fixture()
+                values["describe-configuration-recorder-status"]["ConfigurationRecordersStatus"][0]["lastStatus"] = state
+                self.assertEqual(self.run_fixture(values)[0]["CONFIG_ACQUISITION"], expected)
         values = fixture()
         values["describe-configuration-recorders"]["ConfigurationRecorders"] = []
         values["describe-configuration-recorder-status"]["ConfigurationRecordersStatus"] = []
