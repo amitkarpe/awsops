@@ -1,12 +1,13 @@
 # Defence Factory personal-LAB Power User review
 
-15 October 2026. Owning Issue90, existing draft PR93. Dot is sole native implementer.
+15 October 2026. Owning Issue90, existing PR93. Dot is sole native implementer.
 Owner direction: https://github.com/amitkarpe/awsops/pull/93#issuecomment-6194680568
 
 ## Superseding design
 
 The former S3-only/five-action proposal and its installation request are superseded.
-Do not install the old private packet. PR93 remains DRAFT and UNMERGED. The existing
+Do not install the old private packet. Source-only acceptance or merge of PR93 does
+not authorize IAM installation or live dispatch. The existing
 four-action Config read role, OIDC provider, protected Issue89 fixtures and public
 access settings remain unchanged. No AWS call, IAM installation or live dispatch
 occurred during this revision.
@@ -65,7 +66,7 @@ PassRole reference: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_us
   provider ownership, hosted viewer acceptance or a REAL remediation proof.
 - Revised detailed source/tests are retained privately; they are not claimed to be
   committed in this sanitized-summary revision. Earlier detailed publication was
-  withheld by the public-data safety check; no alternate publication route was used.
+  withheld to preserve the public/private boundary; no private material is published.
 - CI=NOT_RUN_SUMMARY_ONLY. Prior CI/source evidence is not reused as live authority.
 - INSTALLATION=HELD; LIVE_DISPATCH=HELD; NEW_AWS_RESOURCES=0.
 
