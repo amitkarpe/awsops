@@ -63,6 +63,7 @@ def main() -> int:
         print("FAIL native fixtures missing; run with --bootstrap", flush=True)
         failures.append("native fixtures missing")
         summary.append(("native fixtures missing", "FAIL"))
+    run("Defence Factory synthetic admission", ["node", "contracts/defence-factory/intake-check.cjs"])
     run("read-only evidence boundary", ["node", "--test", "tests/cloud_readonly.test.mjs"])
     run("synthetic read-only artifact", ["node", "scripts/cloud_readonly_mock.mjs"])
     run("cockpit projection", ["node", "--test", "tests/demo_cockpit.test.cjs"])

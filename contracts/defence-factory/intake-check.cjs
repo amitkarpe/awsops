@@ -1,0 +1,15 @@
+const assert=require('node:assert/strict');const api=require('./intake.cjs');
+const row={findingId:'finding-demo-a',accountAlias:'mock-a',resourceAlias:'resource-bucket-a',resourceType:'AWS::S3::Bucket',region:'ap-southeast-1',controlId:'s3-ssl-requests-only',severity:'HIGH',compliance:'NON_COMPLIANT',observedAt:'2026-10-15T00:00:00Z'};
+const enc=x=>JSON.stringify({schemaVersion:'defence-intake/1',findings:x});
+const good=api.intake(enc([row]),'json');assert.equal(good.findings.length,1);assert.equal(good.realWrites,0);assert.equal(good.findings[0].record.provenance,'IMPORTED_ASSERTION');
+const csv=api.COLUMNS.join(',')+'\r\n'+api.COLUMNS.map(k=>row[k]).join(',')+'\r\n';assert.deepEqual(api.intake(csv,'csv'),good);
+const bad=[enc([row,row]),enc([{...row,accountAlias:'amit'}]),enc([{...row,observedAt:'2026-02-30T00:00:00Z'}]),enc([{...row,accountId:'invalid'}]),enc([{...row,resourceAlias:'resource-123456789012'}]),enc([{...row,resourceAlias:'resource-<script>'}]),enc([{...row,controlId:'credential-test'}]),'{"schemaVersion":"defence-intake/1","findings":[],"findings":[]}',enc([]),'x'.repeat(api.MAX_BYTES+1)];
+for(const t of bad)assert.throws(()=>api.intake(t,'json'),{message:'INVALID_SYNTHETIC_INPUT'});
+assert.throws(()=>api.intake(new Uint8Array([0xc3,0x28]),'json'));assert.throws(()=>api.intake(csv.replace('finding-demo-a','"unclosed'),'csv'));
+assert.equal(api.intake(enc([{...row,controlId:'unrecognized-control'}]),'json').findings[0].record.controlId,'unknown-control');
+assert.equal(api.intake(enc(Array.from({length:500},(_,i)=>({...row,findingId:'finding-a-'+i,resourceAlias:'resource-a-'+i}))), 'json').findings.length,500);
+assert.throws(()=>api.intake(enc(Array.from({length:501},(_,i)=>({...row,findingId:'finding-a-'+i,resourceAlias:'resource-a-'+i}))), 'json'));
+console.log('PASS bounded JSON/CSV equality, 500 cap, 13 rejection probes, unknown-control review-only, zero real writes');
+const {freeze,admission}=require('./plan.cjs'),{digest,canonical}=require('./scope.cjs'),crypto=require('node:crypto');
+for(const value of [{b:2,a:1},['unicode-λ',null,true],Array.from({length:500},(_,i)=>({id:i}))])assert.equal(digest(value),crypto.createHash('sha256').update(canonical(value)).digest('hex'));
+const batch=freeze(enc([row]),'json',row.controlId),original=JSON.stringify(batch);assert.equal(admission(batch,'REJECT','2026-10-15T00:01:00Z').realWrites,0);assert.equal(admission(batch,'APPROVE_ONCE','2026-10-15T00:01:00Z').state,'APPROVE_BLOCKED');assert.equal(admission(batch,'APPROVE_ONCE','2026-10-15T00:06:00Z').state,'BLOCKED');batch.record.targets[0].revision++;assert.equal(admission(batch,'APPROVE_ONCE','2026-10-15T00:01:00Z').state,'BLOCKED');assert.equal(admission(JSON.parse(original),'APPROVE_ONCE','2026-10-15T00:01:00Z').dispatch,false);console.log('PASS SHA parity, exact offline freeze, Reject/Approve-blocked/expiry/drift, zero dispatch');

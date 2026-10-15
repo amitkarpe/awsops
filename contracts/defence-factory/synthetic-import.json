@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "defence-intake/1",
+  "findings": [
+    {
+      "findingId": "finding-demo-a",
+      "accountAlias": "mock-a",
+      "resourceAlias": "resource-bucket-a",
+      "resourceType": "AWS::S3::Bucket",
+      "region": "ap-southeast-1",
+      "controlId": "s3-ssl-requests-only",
+      "severity": "HIGH",
+      "compliance": "NON_COMPLIANT",
+      "observedAt": "2026-10-15T00:00:00Z"
+    },
+    {
+      "findingId": "finding-demo-b",
+      "accountAlias": "mock-b",
+      "resourceAlias": "resource-bucket-b",
+      "resourceType": "AWS::S3::Bucket",
+      "region": "ap-southeast-1",
+      "controlId": "s3-ssl-requests-only",
+      "severity": "HIGH",
+      "compliance": "NON_COMPLIANT",
+      "observedAt": "2026-10-15T00:00:00Z"
+    }
+  ]
+}
