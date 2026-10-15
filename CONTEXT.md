@@ -10,6 +10,10 @@ not #90 registration authority. M1 performs no AWS calls. The connection-expiry 
 gate is the absent approved narrow execution binding, not another blanket GO.
 [One review-only execution-role packet](docs/proposals/defence-lab-execution/README.md)
 reconciles current main, trust/permission scope and separate installation/live gates.
+PR93 continuation renders an exact private candidate and blocked fixed runbook;
+provider binding/effective permissions remain NOT_VERIFIED, not simulated PASS.
+[Installation-only decision](docs/proposals/defence-lab-execution/BINDING_REVIEW.md)
+is held; the proposal stays draft/unmerged.
 The shared schema is inert until semantic adapter checks are implemented and accepted.
 
 ## Preserved earlier context (not current #90 authority)

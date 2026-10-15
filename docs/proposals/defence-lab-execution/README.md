@@ -4,18 +4,24 @@
 API call, canary provisioning or remediation is performed by this change.**
 Owner requested a concrete proposal, not execution. Exact account/resource
 bindings stay owner-private; public aliases and explicit placeholders are used.
+Continuation: [private binding and exact installation-only review](BINDING_REVIEW.md)
+records rendered-candidate versus provider-verified status and the single decision.
 The accompanying [proposal.json](proposal.json) is the complete proposed trust,
-permission and boundary packet. It is **not a deployable template**: no renderer,
-deployment command, live workflow, or AWS client is supplied.
+permission and boundary packet. It is **not a deployable template**: no installation renderer,
+deployment command or live workflow is supplied. The continuation adds an offline
+renderer and review-only fixed runbook source; no SDK is invoked during rendering.
 
 ## Reconciled evidence and acceptance
 
 | Project | Current main / merged source | Accepted proof | Remaining gate |
 |---|---|---|---|
 | awsops #90 | `987561b21bd10618e34729ce8cf01bebb847fe5c`, PR91/92 | M1 contract, M2 intake and offline freeze; CI38738502752 | M3 partial; M4 real canary NOT_RUN |
-| agentcore2 #39 | `712f0a26098a9b1f93bc1eff2ba0652435468bd7`, PR40/41 | v1.10.0-mock, CI38738596130 synthetic browser/download proof; prior private publication receipt | hosted owner-auth E2E ACCESS_BLOCKED; real viewer #37 NOT_RUN |
+| agentcore2 #39 | `acf464ac46c9d416e45a5c284b6b22af698440db`, PR40/41/43 | v1.10.0-mock, CI38738596130 synthetic browser/download proof; prior private publication receipt | hosted owner-auth E2E ACCESS_BLOCKED; real viewer #37 NOT_RUN |
 
-Both main revisions and all four merges were freshly read. Open awsops PR13 and
+Both delivered roadmap revisions and all four roadmap merges were freshly read.
+Later safe core2 PR43 adds the source-only derived header label at acf464a;
+its exact-head CI38749145545 passed, full E2E step skipped. That header patch
+has not been published to the private Site in this continuation. Open awsops PR13 and
 core2 PR8/38 are unrelated and unchanged. No competing implementation PR was
 found. GitHub had closed both roadmaps despite comments saying they remained
 open; they were reopened to preserve outstanding acceptance gates. No assumption
@@ -258,14 +264,12 @@ No new billing-monitor permissions are granted merely to verify a small cost.
 
 ## One remaining decision
 
-**Review this isolated two-role / one-canary design, including its BPA action and
-execution-metadata limitations. IAM installation is held.** Do not request an
-installation approval while the exact new canary and effective protection packet
-are unbound. Once privately bound and source reviewed, present ONE concrete
-installation authorization with exact rendered policy/document digests and
-resource names; it must explicitly exclude live dispatch. Live remediation
-remains a separate authority gate under the owner's current no-live instruction.
-No routine repository approval or additional GO is needed for this proposal.
+Review the [installation-only packet](BINDING_REVIEW.md) and its owner-private
+rendered artifacts. Exact candidate name/account/role policies and runbook digests
+are now bound privately; provider existence/ownership, effective permissions and
+non-root setup access remain NOT_VERIFIED. Do not conflate these states. One
+specific installation authorization is requested there; live execution is excluded.
+PR93 remains draft/unmerged, and no installation may occur before that approval.
 
 ## Sources checked 15 October 2026
 
