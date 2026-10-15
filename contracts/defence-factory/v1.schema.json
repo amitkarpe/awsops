@@ -1,0 +1,734 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "record"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "defence-factory/1"
+    },
+    "kind": {
+      "enum": [
+        "Finding",
+        "Control",
+        "TargetRegistration",
+        "Batch",
+        "Decision",
+        "Run",
+        "Evidence"
+      ]
+    },
+    "record": {}
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:defence-factory:contract:1",
+  "$defs": {
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "catalogCandidates",
+        "liveRuleInstances",
+        "liveCoverage"
+      ],
+      "properties": {
+        "catalogCandidates": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 500
+        },
+        "liveRuleInstances": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "liveCoverage": {
+          "enum": [
+            "COMPLETE",
+            "PARTIAL",
+            "UNKNOWN"
+          ]
+        }
+      }
+    },
+    "resource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "accountAlias",
+        "resourceAlias",
+        "resourceType",
+        "region"
+      ],
+      "properties": {
+        "accountAlias": {
+          "enum": [
+            "amit",
+            "mock-a",
+            "mock-b"
+          ]
+        },
+        "resourceAlias": {
+          "type": "string",
+          "pattern": "^resource-[a-z][a-z0-9-]{0,47}$",
+          "maxLength": 64
+        },
+        "resourceType": {
+          "enum": [
+            "AWS::S3::Bucket",
+            "AWS::EC2::SecurityGroup",
+            "UNKNOWN"
+          ]
+        },
+        "region": {
+          "enum": [
+            "ap-southeast-1"
+          ]
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "findingId",
+        "datasetId",
+        "revision",
+        "resource",
+        "controlId",
+        "severity",
+        "compliance",
+        "observedAt",
+        "evaluatedAt",
+        "freshness",
+        "provenance",
+        "evidenceId"
+      ],
+      "properties": {
+        "findingId": {
+          "type": "string",
+          "pattern": "^finding-[a-z][a-z0-9-]{0,47}$",
+          "maxLength": 64
+        },
+        "datasetId": {
+          "type": "string",
+          "pattern": "^dataset-[a-z][a-z0-9-]{0,47}$",
+          "maxLength": 64
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "resource": {
+          "$ref": "#/$defs/resource"
+        },
+        "controlId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$",
+          "maxLength": 64
+        },
+        "severity": {
+          "enum": [
+            "CRITICAL",
+            "HIGH",
+            "MEDIUM",
+            "LOW",
+            "INFORMATIONAL"
+          ]
+        },
+        "compliance": {
+          "enum": [
+            "COMPLIANT",
+            "NON_COMPLIANT",
+            "INSUFFICIENT_DATA",
+            "NOT_APPLICABLE",
+            "UNKNOWN"
+          ]
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$"
+        },
+        "evaluatedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "freshness": {
+          "enum": [
+            "FRESH",
+            "STALE",
+            "NOT_VERIFIED"
+          ]
+        },
+        "provenance": {
+          "enum": [
+            "SYNTHETIC",
+            "IMPORTED_ASSERTION",
+            "TRUSTED_PROVIDER_READ"
+          ]
+        },
+        "evidenceId": {
+          "type": "string",
+          "pattern": "^evidence-[a-z][a-z0-9-]{0,47}$",
+          "maxLength": 64
+        }
+      }
+    },
+    "control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "controlId",
+        "version",
+        "support",
+        "capabilityId"
+      ],
+      "properties": {
+        "controlId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$",
+          "maxLength": 64
+        },
+        "version": {
+          "const": 1
+        },
+        "support": {
+          "enum": [
+            "CATALOG_CANDIDATE",
+            "MOCK_SUPPORTED",
+            "LAB_READ_SUPPORTED",
+            "WRITE_GATED"
+          ]
+        },
+        "capabilityId": {
+          "enum": [
+            "s3-require-tls",
+            "s3-block-public-access",
+            "sg-restrict-ssh",
+            null
+          ]
+        }
+      }
+    },
+    "registration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "accountAlias",
+        "registryVersion",
+        "region",
+        "mode",
+        "bindingStatus"
+      ],
+      "properties": {
+        "accountAlias": {
+          "enum": [
+            "amit",
+            "mock-a",
+            "mock-b"
+          ]
+        },
+        "registryVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "region": {
+          "enum": [
+            "ap-southeast-1"
+          ]
+        },
+        "mode": {
+          "enum": [
+            "MOCK",
+            "LAB_READ",
+            "APPROVED_LAB_WRITE",
+            "UNKNOWN"
+          ]
+        },
+        "bindingStatus": {
+          "enum": [
+            "SYNTHETIC",
+            "VERIFIED_PRIVATE",
+            "UNKNOWN"
+          ]
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "findingId",
+        "resource",
+        "controlId",
+        "revision",
+        "evidenceDigest",
+        "capabilityId",
+        "expectedChange"
+      ],
+      "properties": {
+        "findingId": {
+          "type": "string",
+          "pattern": "^finding-[a-z][a-z0-9-]{0,47}$",
+          "maxLength": 64
+        },
+        "resource": {
+          "$ref": "#/$defs/resource"
+        },
+        "controlId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$",
+          "maxLength": 64
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "evidenceDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "capabilityId": {
+          "enum": [
+            "s3-require-tls",
+            "s3-block-public-access",
+            "sg-restrict-ssh"
+          ]
+        },
+        "expectedChange": {
+          "enum": [
+            "DENY_INSECURE_TRANSPORT",
+            "ENABLE_BUCKET_PUBLIC_ACCESS_BLOCK",
+            "REMOVE_EXACT_WORLD_OPEN_SSH"
+          ]
+        }
+      }
+    },
+    "batch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "batchId",
+        "datasetId",
+        "registryVersion",
+        "mode",
+        "frozenAt",
+        "expiresAt",
+        "targets",
+        "scopeDigest"
+      ],
+      "properties": {
+        "batchId": {
+          "type": "string",
+          "pattern": "^batch-[a-z][a-z0-9-]{0,47}$",
+          "maxLength": 64
+        },
+        "datasetId": {
+          "type": "string",
+          "pattern": "^dataset-[a-z][a-z0-9-]{0,47}$",
+          "maxLength": 64
+        },
+        "registryVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "mode": {
+          "enum": [
+            "MOCK",
+            "LAB_READ",
+            "APPROVED_LAB_WRITE",
+            "UNKNOWN"
+          ]
+        },
+        "frozenAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$"
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/target"
+          },
+          "minItems": 1,
+          "maxItems": 500,
+          "uniqueItems": true
+        },
+        "scopeDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decisionId",
+        "batchId",
+        "scopeDigest",
+        "choice",
+        "decidedAt",
+        "expiresAt",
+        "principalBindingDigest",
+        "receiptId"
+      ],
+      "properties": {
+        "decisionId": {
+          "type": "string",
+          "pattern": "^decision-[a-z][a-z0-9-]{0,47}$",
+          "maxLength": 64
+        },
+        "batchId": {
+          "type": "string",
+          "pattern": "^batch-[a-z][a-z0-9-]{0,47}$",
+          "maxLength": 64
+        },
+        "scopeDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "choice": {
+          "enum": [
+            "APPROVE_ONCE",
+            "REJECT"
+          ]
+        },
+        "decidedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$"
+        },
+        "principalBindingDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "receiptId": {
+          "type": "string",
+          "pattern": "^receipt-[a-z][a-z0-9-]{0,47}$",
+          "maxLength": 64
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "findingId",
+        "resourceAlias",
+        "execution",
+        "providerReadback",
+        "compliance",
+        "freshness",
+        "simulatedWrites",
+        "realWrites",
+        "receiptId"
+      ],
+      "properties": {
+        "findingId": {
+          "type": "string",
+          "pattern": "^finding-[a-z][a-z0-9-]{0,47}$",
+          "maxLength": 64
+        },
+        "resourceAlias": {
+          "type": "string",
+          "pattern": "^resource-[a-z][a-z0-9-]{0,47}$",
+          "maxLength": 64
+        },
+        "execution": {
+          "enum": [
+            "NOT_RUN",
+            "RUNNING",
+            "SUCCEEDED",
+            "FAILED",
+            "BLOCKED",
+            "UNKNOWN"
+          ]
+        },
+        "providerReadback": {
+          "enum": [
+            "NOT_ACQUIRED",
+            "MATCH",
+            "MISMATCH",
+            "UNKNOWN"
+          ]
+        },
+        "compliance": {
+          "enum": [
+            "COMPLIANT",
+            "NON_COMPLIANT",
+            "INSUFFICIENT_DATA",
+            "UNKNOWN"
+          ]
+        },
+        "freshness": {
+          "enum": [
+            "FRESH",
+            "STALE",
+            "NOT_VERIFIED"
+          ]
+        },
+        "simulatedWrites": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 500
+        },
+        "realWrites": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 500
+        },
+        "receiptId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^receipt-[a-z][a-z0-9-]{0,47}$",
+              "maxLength": 64
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runId",
+        "batchId",
+        "decisionId",
+        "mode",
+        "status",
+        "results",
+        "realWrites",
+        "simulatedWrites"
+      ],
+      "properties": {
+        "runId": {
+          "type": "string",
+          "pattern": "^run-[a-z][a-z0-9-]{0,47}$",
+          "maxLength": 64
+        },
+        "batchId": {
+          "type": "string",
+          "pattern": "^batch-[a-z][a-z0-9-]{0,47}$",
+          "maxLength": 64
+        },
+        "decisionId": {
+          "type": "string",
+          "pattern": "^decision-[a-z][a-z0-9-]{0,47}$",
+          "maxLength": 64
+        },
+        "mode": {
+          "enum": [
+            "MOCK",
+            "LAB_READ",
+            "APPROVED_LAB_WRITE",
+            "UNKNOWN"
+          ]
+        },
+        "status": {
+          "enum": [
+            "NOT_RUN",
+            "RUNNING",
+            "PAUSED",
+            "REJECTED",
+            "BLOCKED",
+            "FAILED",
+            "PARTIAL",
+            "NEEDS_REVIEW",
+            "VERIFIED"
+          ]
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/result"
+          },
+          "minItems": 0,
+          "maxItems": 500,
+          "uniqueItems": true
+        },
+        "realWrites": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 500
+        },
+        "simulatedWrites": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 500
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidenceId",
+        "runId",
+        "sourceRevision",
+        "sourceVersion",
+        "hostedVersion",
+        "recordedAt",
+        "provenance",
+        "realWrites",
+        "limitation"
+      ],
+      "properties": {
+        "evidenceId": {
+          "type": "string",
+          "pattern": "^evidence-[a-z][a-z0-9-]{0,47}$",
+          "maxLength": 64
+        },
+        "runId": {
+          "type": "string",
+          "pattern": "^run-[a-z][a-z0-9-]{0,47}$",
+          "maxLength": 64
+        },
+        "sourceRevision": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "sourceVersion": {
+          "type": "string",
+          "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+-mock$"
+        },
+        "hostedVersion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+-mock$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$"
+        },
+        "provenance": {
+          "enum": [
+            "SYNTHETIC",
+            "IMPORTED_ASSERTION",
+            "TRUSTED_PROVIDER_READ"
+          ]
+        },
+        "realWrites": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 500
+        },
+        "limitation": {
+          "enum": [
+            "SYNTHETIC_ONLY",
+            "IMPORTED_NOT_ATTESTED",
+            "FRESHNESS_NOT_VERIFIED",
+            "HOSTED_NOT_VERIFIED"
+          ]
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "kind": {
+          "const": "Finding"
+        },
+        "record": {
+          "$ref": "#/$defs/finding"
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "Control"
+        },
+        "record": {
+          "$ref": "#/$defs/control"
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "TargetRegistration"
+        },
+        "record": {
+          "$ref": "#/$defs/registration"
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "Batch"
+        },
+        "record": {
+          "$ref": "#/$defs/batch"
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "Decision"
+        },
+        "record": {
+          "$ref": "#/$defs/decision"
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "Run"
+        },
+        "record": {
+          "$ref": "#/$defs/run"
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "Evidence"
+        },
+        "record": {
+          "$ref": "#/$defs/evidence"
+        }
+      }
+    }
+  ]
+}

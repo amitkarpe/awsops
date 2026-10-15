@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "defence-factory/1",
+  "kind": "Finding",
+  "record": {
+    "findingId": "finding-transport-a",
+    "datasetId": "dataset-demo-a",
+    "revision": 1,
+    "resource": {
+      "accountAlias": "mock-a",
+      "resourceAlias": "resource-bucket-a",
+      "resourceType": "AWS::S3::Bucket",
+      "region": "ap-southeast-1"
+    },
+    "controlId": "s3-ssl-requests-only",
+    "severity": "HIGH",
+    "compliance": "NON_COMPLIANT",
+    "observedAt": "2026-10-15T00:00:00Z",
+    "evaluatedAt": null,
+    "freshness": "NOT_VERIFIED",
+    "provenance": "SYNTHETIC",
+    "evidenceId": "evidence-demo-a"
+  }
+}

@@ -1,3 +1,14 @@
+# Issue90 current scope
+
+Owner directive 2026-10-15: Dot native implementation, no controller/X dependency.
+M1 defines the inert [Defence Factory v1 boundary](contracts/defence-factory/README.md).
+Personal LAB alias amit only for future verified reads; old aliases below cannot be
+registered through this contract. Preserve #89 fixtures and all IAM/trust/security gates.
+M1/M2 source changes grant no live remediation authority; existing live Approve stays disabled.
+No AWS call, runtime activation, new permission or resource in M1.
+
+## Preserved legacy runtime specification
+
 # Specification
 
 Status: ACTIVE - Home read-only v1 supported; M3 live acceptance deferred; M4 unauthorized.
