@@ -54,8 +54,9 @@ resources and evidence are retained. No real provider write, Config convergence,
 new-account readiness or real-viewer acceptance is claimed. M5 handoff must retain
 these gaps rather than close the issue as fully live-complete.
 
-Actual M3 attempt, 2026-10-15: the selected personal-LAB AWS connection returned
-UNAUTHORIZED / requires reauthentication before any API execution. STS target or
-role match was NOT established. No alternative account or credentials were tried.
-Owner reconnects that existing personal-LAB connection; this is an access gate,
-not a request for broader IAM. No live canary or live read proof can pass yet.
+Historical M3 attempt, 2026-10-15: connection reauthentication initially blocked
+STS before execution. The later owning-Issue checkpoint6192833060 supersedes that
+transient blocker: access inspection completed privately and read-only. No fresh
+Config acquisition or remediation occurred. The current gate is an approved
+narrow execution binding. See the [review-only role proposal](../proposals/defence-lab-execution/README.md).
+No proposed IAM, trust, Environment, document or canary is installed by that packet.

@@ -1,0 +1,379 @@
+{
+  "status": "PROPOSAL_ONLY_NOT_DEPLOYABLE",
+  "accountAlias": "amit",
+  "region": "ap-southeast-1",
+  "privateBindings": {
+    "LAB_ACCOUNT_ID": "owner-approved exact personal LAB account, never commit value",
+    "EXACT_NEW_CANARY_BUCKET_NAME": "UNBOUND: new empty disposable bucket only; never Issue89 fixture"
+  },
+  "oidcController": {
+    "roleName": "awsops-github-lab-canary-controller",
+    "requestedSessionSeconds": 900,
+    "roleMaxSessionDurationSeconds": 3600,
+    "trust": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Principal": {
+            "Federated": "arn:aws:iam::${LAB_ACCOUNT_ID}:oidc-provider/token.actions.githubusercontent.com"
+          },
+          "Action": "sts:AssumeRoleWithWebIdentity",
+          "Condition": {
+            "StringEquals": {
+              "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+              "token.actions.githubusercontent.com:sub": "repo:amitkarpe@1894622/awsops@1383456061:environment:awsops-lab-canary"
+            }
+          }
+        }
+      ]
+    },
+    "permissions": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Sid": "StartOnlyReviewedVersion",
+          "Effect": "Allow",
+          "Action": [
+            "ssm:StartAutomationExecution"
+          ],
+          "Resource": "arn:aws:ssm:ap-southeast-1:${LAB_ACCOUNT_ID}:automation-definition/AWSOPS-Issue90-S3BpaCanary:1",
+          "Condition": {
+            "StringEquals": {
+              "aws:RequestedRegion": "ap-southeast-1",
+              "ssm:DocumentVersion": "1"
+            }
+          }
+        },
+        {
+          "Sid": "ReadDurableExecution",
+          "Effect": "Allow",
+          "Action": [
+            "ssm:GetAutomationExecution"
+          ],
+          "Resource": "arn:aws:ssm:ap-southeast-1:${LAB_ACCOUNT_ID}:automation-execution/*",
+          "Condition": {
+            "StringEquals": {
+              "aws:RequestedRegion": "ap-southeast-1"
+            }
+          }
+        },
+        {
+          "Sid": "PassOnlyExactServiceRole",
+          "Effect": "Allow",
+          "Action": [
+            "iam:PassRole"
+          ],
+          "Resource": "arn:aws:iam::${LAB_ACCOUNT_ID}:role/awsops-lab-s3-canary-execution",
+          "Condition": {
+            "StringEquals": {
+              "iam:PassedToService": "ssm.amazonaws.com"
+            }
+          }
+        }
+      ]
+    },
+    "permissionsBoundary": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Sid": "StartOnlyReviewedVersion",
+          "Effect": "Allow",
+          "Action": [
+            "ssm:StartAutomationExecution"
+          ],
+          "Resource": "arn:aws:ssm:ap-southeast-1:${LAB_ACCOUNT_ID}:automation-definition/AWSOPS-Issue90-S3BpaCanary:1",
+          "Condition": {
+            "StringEquals": {
+              "aws:RequestedRegion": "ap-southeast-1",
+              "ssm:DocumentVersion": "1"
+            }
+          }
+        },
+        {
+          "Sid": "ReadDurableExecution",
+          "Effect": "Allow",
+          "Action": [
+            "ssm:GetAutomationExecution"
+          ],
+          "Resource": "arn:aws:ssm:ap-southeast-1:${LAB_ACCOUNT_ID}:automation-execution/*",
+          "Condition": {
+            "StringEquals": {
+              "aws:RequestedRegion": "ap-southeast-1"
+            }
+          }
+        },
+        {
+          "Sid": "PassOnlyExactServiceRole",
+          "Effect": "Allow",
+          "Action": [
+            "iam:PassRole"
+          ],
+          "Resource": "arn:aws:iam::${LAB_ACCOUNT_ID}:role/awsops-lab-s3-canary-execution",
+          "Condition": {
+            "StringEquals": {
+              "iam:PassedToService": "ssm.amazonaws.com"
+            }
+          }
+        },
+        {
+          "Sid": "DenyOtherActions",
+          "Effect": "Deny",
+          "NotAction": [
+            "ssm:StartAutomationExecution",
+            "ssm:GetAutomationExecution",
+            "iam:PassRole"
+          ],
+          "Resource": "*"
+        },
+        {
+          "Sid": "DenyOtherResources",
+          "Effect": "Deny",
+          "Action": [
+            "ssm:StartAutomationExecution",
+            "ssm:GetAutomationExecution",
+            "iam:PassRole"
+          ],
+          "NotResource": [
+            "arn:aws:ssm:ap-southeast-1:${LAB_ACCOUNT_ID}:automation-definition/AWSOPS-Issue90-S3BpaCanary:1",
+            "arn:aws:ssm:ap-southeast-1:${LAB_ACCOUNT_ID}:automation-execution/*",
+            "arn:aws:iam::${LAB_ACCOUNT_ID}:role/awsops-lab-s3-canary-execution"
+          ]
+        },
+        {
+          "Sid": "DenyOtherRegions",
+          "Effect": "Deny",
+          "Action": [
+            "ssm:StartAutomationExecution",
+            "ssm:GetAutomationExecution"
+          ],
+          "Resource": "*",
+          "Condition": {
+            "StringNotEquals": {
+              "aws:RequestedRegion": "ap-southeast-1"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "serviceExecutor": {
+    "roleName": "awsops-lab-s3-canary-execution",
+    "sessionLifetime": "SSM-managed; not asserted to equal OIDC 900 seconds",
+    "trust": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Principal": {
+            "Service": "ssm.amazonaws.com"
+          },
+          "Action": "sts:AssumeRole",
+          "Condition": {
+            "StringEquals": {
+              "aws:SourceAccount": "${LAB_ACCOUNT_ID}"
+            },
+            "ArnLike": {
+              "aws:SourceArn": "arn:aws:ssm:ap-southeast-1:${LAB_ACCOUNT_ID}:automation-execution/*"
+            }
+          }
+        }
+      ]
+    },
+    "permissions": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Sid": "OneBucketPosture",
+          "Effect": "Allow",
+          "Action": [
+            "s3:GetBucketLocation",
+            "s3:GetBucketTagging",
+            "s3:GetBucketPublicAccessBlock",
+            "s3:PutBucketPublicAccessBlock"
+          ],
+          "Resource": "arn:aws:s3:::${EXACT_NEW_CANARY_BUCKET_NAME}",
+          "Condition": {
+            "StringEquals": {
+              "aws:RequestedRegion": "ap-southeast-1",
+              "s3:ResourceAccount": "${LAB_ACCOUNT_ID}"
+            },
+            "Bool": {
+              "aws:SecureTransport": "true"
+            }
+          }
+        },
+        {
+          "Sid": "EmptyCanaryCheck",
+          "Effect": "Allow",
+          "Action": [
+            "s3:ListBucket"
+          ],
+          "Resource": "arn:aws:s3:::${EXACT_NEW_CANARY_BUCKET_NAME}",
+          "Condition": {
+            "StringEquals": {
+              "aws:RequestedRegion": "ap-southeast-1",
+              "s3:ResourceAccount": "${LAB_ACCOUNT_ID}"
+            },
+            "Bool": {
+              "aws:SecureTransport": "true"
+            },
+            "NumericEquals": {
+              "s3:max-keys": "1"
+            }
+          }
+        }
+      ]
+    },
+    "permissionsBoundary": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Sid": "OneBucketPosture",
+          "Effect": "Allow",
+          "Action": [
+            "s3:GetBucketLocation",
+            "s3:GetBucketTagging",
+            "s3:GetBucketPublicAccessBlock",
+            "s3:PutBucketPublicAccessBlock"
+          ],
+          "Resource": "arn:aws:s3:::${EXACT_NEW_CANARY_BUCKET_NAME}",
+          "Condition": {
+            "StringEquals": {
+              "aws:RequestedRegion": "ap-southeast-1",
+              "s3:ResourceAccount": "${LAB_ACCOUNT_ID}"
+            },
+            "Bool": {
+              "aws:SecureTransport": "true"
+            }
+          }
+        },
+        {
+          "Sid": "EmptyCanaryCheck",
+          "Effect": "Allow",
+          "Action": [
+            "s3:ListBucket"
+          ],
+          "Resource": "arn:aws:s3:::${EXACT_NEW_CANARY_BUCKET_NAME}",
+          "Condition": {
+            "StringEquals": {
+              "aws:RequestedRegion": "ap-southeast-1",
+              "s3:ResourceAccount": "${LAB_ACCOUNT_ID}"
+            },
+            "Bool": {
+              "aws:SecureTransport": "true"
+            },
+            "NumericEquals": {
+              "s3:max-keys": "1"
+            }
+          }
+        },
+        {
+          "Sid": "DenyOtherActions",
+          "Effect": "Deny",
+          "NotAction": [
+            "s3:GetBucketLocation",
+            "s3:GetBucketTagging",
+            "s3:GetBucketPublicAccessBlock",
+            "s3:PutBucketPublicAccessBlock",
+            "s3:ListBucket"
+          ],
+          "Resource": "*"
+        },
+        {
+          "Sid": "DenyOtherResources",
+          "Effect": "Deny",
+          "Action": [
+            "s3:GetBucketLocation",
+            "s3:GetBucketTagging",
+            "s3:GetBucketPublicAccessBlock",
+            "s3:PutBucketPublicAccessBlock",
+            "s3:ListBucket"
+          ],
+          "NotResource": [
+            "arn:aws:s3:::${EXACT_NEW_CANARY_BUCKET_NAME}"
+          ]
+        },
+        {
+          "Sid": "DenyOtherRegions",
+          "Effect": "Deny",
+          "Action": [
+            "s3:GetBucketLocation",
+            "s3:GetBucketTagging",
+            "s3:GetBucketPublicAccessBlock",
+            "s3:PutBucketPublicAccessBlock",
+            "s3:ListBucket"
+          ],
+          "Resource": "*",
+          "Condition": {
+            "StringNotEquals": {
+              "aws:RequestedRegion": "ap-southeast-1"
+            }
+          }
+        },
+        {
+          "Sid": "DenyWrongBucketOwner",
+          "Effect": "Deny",
+          "Action": [
+            "s3:GetBucketLocation",
+            "s3:GetBucketTagging",
+            "s3:GetBucketPublicAccessBlock",
+            "s3:PutBucketPublicAccessBlock",
+            "s3:ListBucket"
+          ],
+          "Resource": "*",
+          "Condition": {
+            "StringNotEquals": {
+              "s3:ResourceAccount": "${LAB_ACCOUNT_ID}"
+            }
+          }
+        },
+        {
+          "Sid": "DenyInsecureTransport",
+          "Effect": "Deny",
+          "Action": [
+            "s3:GetBucketLocation",
+            "s3:GetBucketTagging",
+            "s3:GetBucketPublicAccessBlock",
+            "s3:PutBucketPublicAccessBlock",
+            "s3:ListBucket"
+          ],
+          "Resource": "*",
+          "Condition": {
+            "Bool": {
+              "aws:SecureTransport": "false"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "workflow": {
+    "path": ".github/workflows/awsops-lab-canary.yml",
+    "installed": false,
+    "trigger": "workflow_dispatch",
+    "branch": "refs/heads/main",
+    "environment": "awsops-lab-canary",
+    "timeoutMinutes": 5,
+    "concurrency": "awsops-issue90-single-canary",
+    "cancelInProgress": false,
+    "activationDefault": false
+  },
+  "runbook": {
+    "name": "AWSOPS-Issue90-S3BpaCanary",
+    "version": "1",
+    "installed": false,
+    "targets": 1,
+    "targetParametersAllowed": false,
+    "executeScriptSecondsMax": 120,
+    "sdkAttemptsMax": 1,
+    "mutatingApiCallsMax": 1,
+    "awsOwnedExecution": true
+  },
+  "authorization": {
+    "iamInstall": "NOT_AUTHORIZED",
+    "canaryProvisioning": "NOT_AUTHORIZED_BY_THIS_PROPOSAL",
+    "liveDispatch": "NOT_AUTHORIZED",
+    "viewerAcceptance": "SEPARATE_NOT_RUN"
+  }
+}

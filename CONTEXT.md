@@ -6,7 +6,10 @@ M1 merged in PR91 (1099566); M2 offline intake/plan and live-gate status:
 M1 source contract and evidence table: [DEFENCE_FACTORY_M1](docs/current/DEFENCE_FACTORY_M1.md).
 #86 is complete (PR87/88 and successful run38113762515); #89 is proposal-only, no apply.
 Only personal LAB alias amit is in the new roadmap; old alias scopes below are historical,
-not #90 registration authority. M1 performs no AWS calls. M3 live identity is blocked by the existing AWS connection requiring reauthentication; no API ran.
+not #90 registration authority. M1 performs no AWS calls. The connection-expiry blocker is resolved; current M3/M4
+gate is the absent approved narrow execution binding, not another blanket GO.
+[One review-only execution-role packet](docs/proposals/defence-lab-execution/README.md)
+reconciles current main, trust/permission scope and separate installation/live gates.
 The shared schema is inert until semantic adapter checks are implemented and accepted.
 
 ## Preserved earlier context (not current #90 authority)
