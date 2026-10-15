@@ -1,3 +1,12 @@
+# Defence Factory — Issue90
+
+M1 source contract accepted/merged. M2 bounded synthetic intake implemented;
+M3/M4 offline boundaries and exact proof/gates recorded in current progress docs.
+M5 acceptance separates source, hosted release, real viewer and live AWS evidence.
+Never substitute CI for an unperformed external proof. Dot implements natively.
+
+## Preserved earlier roadmap
+
 # Roadmap
 
 Owning roadmap: Issue #1. G owns implementation and verification.
