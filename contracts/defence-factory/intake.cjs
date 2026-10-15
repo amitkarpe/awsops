@@ -27,7 +27,7 @@ function intake(input,format){try{
  if(/\d{12}|arn:|AKIA[A-Z0-9]{16}|ASIA[A-Z0-9]{16}|-----BEGIN|https?:|@|secret|password|token|credential/i.test(text))bad();
  let rows;if(format==='json'){const p=parseJSON(text);keys(p,['schemaVersion','findings']);if(p.schemaVersion!=='defence-intake/1')bad();rows=p.findings;}else if(format==='csv')rows=parseCSV(text);else bad();
  if(!Array.isArray(rows)||rows.length<1||rows.length>MAX_ROWS)bad();const ids=new Set(),resources=new Set();
- const findings=rows.map(r=>{keys(r,COLUMNS);if(COLUMNS.some(k=>typeof r[k]!=='string'))bad();
+ const findings=rows.map(r=>{keys(r,COLUMNS);if(COLUMNS.some(k=>typeof r[k]!=='string'))bad();if(Object.values(r).some(v=>/\d{12}|arn:|AKIA[A-Z0-9]{16}|ASIA[A-Z0-9]{16}|-----BEGIN|https?:|@|secret|password|token|credential/i.test(v)))bad();
  if(!/^finding-[a-z][a-z0-9-]{0,47}$/.test(r.findingId)||!/^resource-[a-z][a-z0-9-]{0,47}$/.test(r.resourceAlias))bad();
  if(!['mock-a','mock-b'].includes(r.accountAlias)||!['AWS::S3::Bucket','AWS::EC2::SecurityGroup','UNKNOWN'].includes(r.resourceType)||r.region!=='ap-southeast-1')bad();
  if(!/^[a-z][a-z0-9-]{0,63}$/.test(r.controlId)||!['CRITICAL','HIGH','MEDIUM','LOW','INFORMATIONAL'].includes(r.severity)||!['COMPLIANT','NON_COMPLIANT','INSUFFICIENT_DATA','NOT_APPLICABLE','UNKNOWN'].includes(r.compliance))bad();
