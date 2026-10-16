@@ -144,12 +144,12 @@ object, version or delete marker may be deleted by this command.
 The rough incremental cost assumption is one empty S3 bucket, zero stored
 objects and fewer than 100 request calls for one bounded sequence: expected
 well below USD0.01, subject to actual request pricing and usage. It is not a
-hard cap. The authoritative [Manager Issue #1 decision](https://github.com/amitkarpe/agent-ops/issues/1#issuecomment-6212167235)
+hard cap. The authoritative [Manager Issue #1 decision](https://github.com/amitkarpe/manager/issues/1#issuecomment-6212167235)
 sets a USD100 total account-spend cap separately for October 2026 and November
 2026, with no rollover and existing costs included. These are separate monthly
 caps, not USD200 of shared authority. At the start of an actual live batch,
 perform one month-to-date spend check, estimate the bounded sequence and reserve
 cleanup cost, then track estimated versus actual spend through the lifecycle.
-There are no per-API budget checks. The [approved budget apply is complete](https://github.com/amitkarpe/agent-ops/issues/1#issuecomment-6212872776).
+There are no per-API budget checks. The [approved budget apply is complete](https://github.com/amitkarpe/manager/issues/1#issuecomment-6212872776).
 Reverify private identity and the required packet/readback gates before live
 work. See [AWS S3 pricing](https://aws.amazon.com/s3/pricing/) for the rate basis.
