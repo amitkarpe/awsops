@@ -22,7 +22,16 @@ from awsops.execution import s3_canary
 from test_issue90_approval_e2e import make_case
 
 FIXED_TIME = 1_800_000_000
-UUIDS = iter(f"{number:032x}" for number in range(1, 100))
+def synthetic_uuid_hex(number: int) -> str:
+    """Return a deterministic UUID-shaped value without long digit runs."""
+    digits = f"{number:020x}"
+    # Interleave alphabetic hex nibbles so prefixed identifiers never resemble
+    # a private 12-digit account value to the canonical artifact reader.
+    return "".join(digits[offset:offset + 5] + marker for offset, marker in zip(
+        range(0, 20, 5), ("abc", "def", "abc", "def")))
+
+
+UUIDS = iter(synthetic_uuid_hex(number) for number in range(1, 100))
 FAKE_ACCOUNT = "999999999999"
 FAKE_BUCKET = "awsops-dev-issue90-s3-canary-zzzzzzzzzzzz"
 
