@@ -51,11 +51,60 @@ this is not an observed hosted/live release claim.
 The existing `DecisionStore`, native gate, `APPROVE_BLOCKED` and legacy Reject-only
 behavior remain unchanged. No consumer/schema mirror change or frontend work.
 
+## Approval application integration and Core2 artifact contract
+
+`src/awsops/application/s3_canary_approval.py` is the bounded application seam
+around the durable adapter. It freezes the batch, principal binding, source
+revision, exact resource digest, four setup actions, expiry and incremental
+cost ceiling in a private authority record. A single owner packet can also bind
+conditional cleanup, including the exact task-created resource, fresh owner and
+empty-state readback conditions, DeleteBucket and cleanup expiry. If cleanup is
+omitted, it is not authorized. There is no required second approval when one
+packet explicitly covers both stages.
+
+The verifier boundary is pure: it checks a proof and requested action but does
+not consume approval. The application SQLite row atomically claims the first
+decision packet once. Replaying that same packet cannot replace the winning
+audit identity; a different packet is rejected. The same packet can be
+re-verified for its already-bound conditional cleanup without another choice or
+second proof consumption. `AUDIT_READ` is a separate read-only verification
+action that may reopen committed evidence after mutation expiry; it cannot
+authorize a new decision or cleanup.
+
+The application accepts an injected verifier interface; no concrete trusted
+owner callback exists today. Its normal live operator route remains
+`TRUSTED_HUMAN_APPROVAL_BINDING_REQUIRED` before provider construction. The
+simulated verifier exists only in `tests/test_issue90_approval_e2e.py` and only
+authorizes a test-only fake SDK whose mode is `MOCK`. The fixture output is
+`SYNTHETIC_ONLY` / `TEST_SIMULATION`, never human approval, trusted provider
+readback, compliance convergence or live AWS evidence. The legacy native
+DecisionStore and reject-only adapter are unchanged.
+
+From the repository root, generate the deterministic Core2 handoff with:
+
+```sh
+python3 scripts/approval_e2e_artifacts.py --output ~/.AGENTS-temp/awsops/approval-e2e-run-1
+```
+
+The output path must be new or empty. `app-e2e-summary.json` follows the
+`awsops-canary-e2e/1` test interface and lists only relative filenames. Each
+`*.receipt.json` is the canonical four-envelope Batch, Decision, Run, Evidence
+array; each optional `*.audit.json` is separate noncanonical lifecycle context.
+The Run counts the four setup SDK attempts only. Conditional DeleteBucket
+attempt and status live in the lifecycle audit and never inflate remediation
+attempt counts.
+Core2-required scenarios are `success`, `uncertain-policy`, and `reject`; the
+same command also emits partial-setup and uncertain-delete cases. Summary and
+receipts explicitly distinguish TEST_SIMULATION, FAKE_SDK and SYNTHETIC evidence.
+Reported provider-path attempt counts are simulated, not AWS calls. The command
+creates no AWS clients or requests and does not change the public v1 schema.
+
 ## Focused offline proof
 
 ```sh
 python3 -m unittest discover -s tests -p test_s3_canary.py -v
 node contracts/defence-factory/intake-check.cjs
+python3 scripts/approval_e2e_artifacts.py --output ~/.AGENTS-temp/awsops/approval-e2e-run-1
 ```
 
 One fake-provider proof covers approval/readback, Reject, stale, drift, identity,
