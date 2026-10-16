@@ -119,6 +119,7 @@ class CanaryProof(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             provider = FakeProvider(clock, binding)
             provider.mode = "APPROVED_LAB_WRITE"
+            provider.drift = {"exists": False, "disposable": False, "public_blocked": False}
             adapter = CanaryAdapter(Path(tmp) / "canary.sqlite", binding, provider,
                                     source_revision="a" * 40, source_version="v1.0.0-mock",
                                     clock=lambda: clock[0])

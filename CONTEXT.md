@@ -23,5 +23,11 @@ Current source milestone: [fixed disposable S3-canary adapter](docs/current/S3_C
 uses canonical Batch/Decision/Run/Evidence and durable one-time claims, only `amit`.
 Fake-provider proof distinguishes simulated writes and independent readback from
 UNKNOWN Config compliance/freshness. Legacy native Approve remains blocked.
-No live provider/SDK, AWS operation or protected #89 change is part of this task.
+PR #94 included no live provider/SDK, AWS operation or protected #89 change.
 Actual viewer, hosted release, MOCK and REAL AWS evidence stay distinct.
+
+Home's next Issue #90 source slice is an exact SDK provider and human-operated
+create/approve/reconcile/cleanup route for one new empty canary. It remains
+source/fake-client-only pending Manager review and a later concrete live slice.
+The owner-private binding is not in Git; no AWS call or resource is part of this
+source milestone. See the provider section of the canary adapter note.
