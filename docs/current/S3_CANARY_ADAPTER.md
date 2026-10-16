@@ -122,8 +122,11 @@ performs zero provider writes. Partial cleanup is supported only when the exact
 task creation is ACK and setup rows form a contiguous ACK prefix followed only
 by missing, INTENT or REFUSED no-call states. Current owner/Region, emptiness
 (objects, versions and delete markers), and each setup result are rechecked:
-ACK tags/PAB/policy must match exactly; unattempted tags/PAB/policy must still
-be absent. Foreign state, a gap, uncertain CALLING row, preexisting bucket or
+ACK tags/PAB/policy must match exactly; unattempted tags and policy must still
+be absent. An unacknowledged PAB write permits either no bucket-level PAB or
+the exact four-flag all-true default that [S3 applies to new buckets](https://aws.amazon.com/about-aws/whats-new/2023/04/amazon-s3-security-best-practices-buckets-default/);
+partial, false or otherwise unexpected PAB configuration blocks deletion.
+Foreign state, a gap, uncertain CALLING row, preexisting bucket or
 uncertain creation blocks deletion. Delete itself changes INTENT to CALLING
 immediately before the SDK call; an uncertain delete is read-only reconciled,
 never replayed. The task tags include `TTL` for the next UTC day and

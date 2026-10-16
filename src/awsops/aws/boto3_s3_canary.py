@@ -160,8 +160,12 @@ class Boto3CanaryProvider:
                  and not versions.get("IsTruncated"))
         expected_tags = frozen_tags(binding, json.loads(payload)["frozenAt"]) if payload else None
         owned = creation == "ACK" and tags == expected_tags
-        blocked = all(block.get(key) is True for key in (
-            "BlockPublicAcls", "IgnorePublicAcls", "BlockPublicPolicy", "RestrictPublicBuckets"))
+        blocked = block == {
+            "BlockPublicAcls": True,
+            "IgnorePublicAcls": True,
+            "BlockPublicPolicy": True,
+            "RestrictPublicBuckets": True,
+        }
         return Observation(binding.account_id, REGION, binding.bucket, owned, bool(empty),
                            int(self.clock()), policy, exists=True, public_blocked=blocked,
                            tags_absent=not tags, public_block_absent=not block)
@@ -199,7 +203,7 @@ class Boto3CanaryProvider:
         if ops.get("public_block") == "ACK":
             if not observed.public_blocked:
                 raise ValueError("CLEANUP_PUBLIC_BLOCK_MISMATCH")
-        elif not observed.public_block_absent:
+        elif not (observed.public_block_absent or observed.public_blocked):
             raise ValueError("CLEANUP_UNEXPECTED_PUBLIC_BLOCK")
         if ops.get("policy") == "ACK":
             if observed.policy != fixed_policy(binding.bucket):

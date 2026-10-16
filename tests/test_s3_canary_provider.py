@@ -91,6 +91,13 @@ class FakeS3:
 
     def create_bucket(self, **_):
         self.exists = True
+        # S3 enables all four Block Public Access flags on newly created buckets.
+        self.block = {
+            "BlockPublicAcls": True,
+            "IgnorePublicAcls": True,
+            "BlockPublicPolicy": True,
+            "RestrictPublicBuckets": True,
+        }
         if self.fail_tags_preflight_after_create:
             self.fail_versions_once = True
         if self.foreign_after_create:
@@ -289,6 +296,25 @@ class ProviderProof(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     adapter.cleanup(batch["batchId"], principal)
                 self.assertEqual(s3.writes, before)
+
+    def test_cleanup_accepts_default_all_true_public_block_after_tag_refusal(self):
+        principal = canonical_digest("fake authenticated human")
+        with tempfile.TemporaryDirectory() as directory:
+            adapter, s3 = self.setup_canary(directory)
+            batch = adapter.prepare(principal)["record"]
+            s3.fail_tags_preflight_after_create = True
+            adapter.decide(batch["batchId"], batch["scopeDigest"], principal, "APPROVE_ONCE")
+
+            self.assertEqual(s3.writes, ["create"])
+            self.assertEqual(s3.block, {
+                "BlockPublicAcls": True,
+                "IgnorePublicAcls": True,
+                "BlockPublicPolicy": True,
+                "RestrictPublicBuckets": True,
+            })
+            self.assertEqual(adapter.cleanup(batch["batchId"], principal),
+                             {"status": "DELETED", "deleted": True})
+            self.assertEqual(s3.writes, ["create", "delete"])
 
     def test_reject_uncertain_and_guard_refusals(self):
         principal = canonical_digest("fake authenticated human")
