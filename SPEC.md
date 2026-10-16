@@ -12,8 +12,9 @@ not an enterprise production platform. **BUILD → DEMONSTRATE → IMPROVE.**
 5. No unnecessary frameworks, layers or infrastructure.
 6. Minimal meaningful tests and evidence only; reuse completed proof.
 7. Do not repeatedly request GO for routine development.
-8. DOT is the sole implementer and owns implementation, testing and safe source
-   merges when repository gates permit. No Direct, Factory, Codex X or other writer.
+8. Under the current #90 owner override, Manager coordinates and the existing
+   repository Codex X is the sole implementation writer; DOT is no longer writer.
+   Active task scope controls execution; this source milestone goes to M for review.
 9. Optional hardening must NOT block MVP milestones.
 10. Enterprise security, scalability, multi-tenant complexity and comprehensive
     edge-case coverage are future phases.
@@ -24,7 +25,8 @@ not an enterprise production platform. **BUILD → DEMONSTRATE → IMPROVE.**
 - Human **Approve Once** for each fixed real-remediation batch.
 - Preserve protected awsops Issue #89 fixtures.
 - No root credentials, secret exposure or accidental destructive actions.
-- Live IAM installation and remediation require exact, separate owner authorization.
+- Live IAM installation/remediation follow the current #90 owner override and exact
+  active task scope. This delegated source milestone authorizes no AWS operation.
 - Keep MOCK and REAL evidence distinct. Private bindings stay out of public GitHub.
 
 These are real boundaries, not a reason to invent additional approval ceremonies.

@@ -1,1 +1,1 @@
-"""Explicit bounded mutation adapters. Empty until an authorized milestone."""
+"""Explicit bounded adapters; no live provider or dispatch is wired by default."""
