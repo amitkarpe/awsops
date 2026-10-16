@@ -138,7 +138,8 @@ class CanaryAdapter:
                  "datasetId": "dataset-canary", "registryVersion": 1, "mode": self.mode,
                  "frozenAt": stamp(now), "expiresAt": stamp(now + MAX_PREPARE_TTL),
                  "targets": [{"findingId": "finding-canary", "resource": {
-                     "accountAlias": "amit", "resourceAlias": RESOURCE,
+                     # Public MOCK identity is synthetic; private binding stays amit.
+                     "accountAlias": "mock-a" if self.mode == "MOCK" else "amit", "resourceAlias": RESOURCE,
                      "resourceType": "AWS::S3::Bucket", "region": REGION},
                      "controlId": CONTROL, "revision": 1,
                      "evidenceDigest": self._evidence_digest(o),

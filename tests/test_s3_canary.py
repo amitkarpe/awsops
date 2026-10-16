@@ -62,6 +62,8 @@ class CanaryProof(unittest.TestCase):
                 batch = adapter.prepare(principal)
                 check_envelope(batch)
                 b = batch["record"]
+                self.assertEqual(b["targets"][0]["resource"]["accountAlias"], "mock-a")
+                self.assertEqual(adapter.binding.account_alias, "amit")
                 if scenario == "stale":
                     clock[0] += 301
                 if scenario == "drift":
@@ -113,6 +115,16 @@ class CanaryProof(unittest.TestCase):
                     self.assertNotIn(private, exported)
         with self.assertRaises(ValueError):
             CanaryBinding("000000000001", "synthetic-canary", account_alias="lab-dev")
+        # Projection only: even this non-MOCK preparation uses a fake, never AWS.
+        with tempfile.TemporaryDirectory() as tmp:
+            provider = FakeProvider(clock, binding)
+            provider.mode = "APPROVED_LAB_WRITE"
+            adapter = CanaryAdapter(Path(tmp) / "canary.sqlite", binding, provider,
+                                    source_revision="a" * 40, source_version="v1.0.0-mock",
+                                    clock=lambda: clock[0])
+            batch = adapter.prepare(principal)
+            self.assertEqual(batch["record"]["targets"][0]["resource"]["accountAlias"], "amit")
+            self.assertEqual(provider.writes, 0)
 
 
 if __name__ == "__main__":

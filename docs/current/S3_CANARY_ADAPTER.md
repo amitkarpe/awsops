@@ -37,6 +37,9 @@ absence of clients/protected fixtures. A boolean supplied by an untrusted caller
 is not such proof. No generic model-controlled AWS method is exposed.
 
 Fake providers use MOCK: all writes are **simulated**, provenance SYNTHETIC.
+The public MOCK account projection is `mock-a`, matching the existing core2
+receipt reader; private `CanaryBinding` remains restricted to `amit`. Non-MOCK
+projection remains `amit`. The emitted scope digest binds the projected alias.
 The optional APPROVED_LAB_WRITE protocol mode is not connected to a live client.
 Write counts conservatively count attempted calls when acknowledgment is unknown.
 Provider MATCH does not imply Config compliance convergence: compliance UNKNOWN,
