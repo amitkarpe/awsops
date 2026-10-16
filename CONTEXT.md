@@ -26,8 +26,10 @@ UNKNOWN Config compliance/freshness. Legacy native Approve remains blocked.
 PR #94 included no live provider/SDK, AWS operation or protected #89 change.
 Actual viewer, hosted release, MOCK and REAL AWS evidence stay distinct.
 
-Home's next Issue #90 source slice is an exact SDK provider and human-operated
-create/approve/reconcile/cleanup route for one new empty canary. It remains
-source/fake-client-only pending Manager review and a later concrete live slice.
-The owner-private binding is not in Git; no AWS call or resource is part of this
-source milestone. See the provider section of the canary adapter note.
+Home's Issue #90 source slice adds an exact SDK provider and human-operated
+operator route for one new empty canary. Live approve and cleanup both fail
+closed because no separately trusted canary approval binding is wired. PR95 is
+merged; the follow-up handles only proven acknowledged partial creation using
+fake-SDK proof. The owner-private binding is not in Git; no AWS call or resource
+is part of this source milestone. See the provider section of the canary adapter
+note.

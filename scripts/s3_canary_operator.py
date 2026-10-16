@@ -89,6 +89,11 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("BATCH_ID_REQUIRED")
         if args.operation in ("approve", "reject") and not args.scope_digest:
             raise ValueError("SCOPE_DIGEST_REQUIRED")
+        if args.operation == "cleanup":
+            raise ValueError(
+                "TRUSTED_HUMAN_CLEANUP_BINDING_REQUIRED: deletion needs a separately trusted, single-use "
+                "owner approval bound to this exact task-created resource and current cleanup readback"
+            )
         adapter = adapter_for(args.bucket)
         principal = operator_principal()
         if args.operation == "prepare":
@@ -107,8 +112,7 @@ def main(argv: list[str] | None = None) -> int:
             if cleanup["status"] != "NOT_REQUESTED":
                 print("CLEANUP_RECONCILIATION:" + json.dumps(cleanup, sort_keys=True), file=sys.stderr)
         else:
-            human_confirmation("DELETE", args.bucket, args.batch_id)
-            output = adapter.cleanup(args.batch_id, principal)
+            raise ValueError("TRUSTED_HUMAN_CLEANUP_BINDING_REQUIRED")
         print(json.dumps(output, sort_keys=True, separators=(",", ":")))
         return 0
     except Exception as exc:

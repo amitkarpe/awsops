@@ -62,6 +62,8 @@ class Observation:
     policy: dict | None
     exists: bool = True
     public_blocked: bool = True
+    tags_absent: bool = False
+    public_block_absent: bool = False
 
 
 class CanaryProvider(Protocol):
@@ -74,7 +76,8 @@ class CanaryProvider(Protocol):
     def create_bucket(self, binding: CanaryBinding, before_call: Callable[[], None]) -> None: ...
     def tag_bucket(self, binding: CanaryBinding, frozen_at: str, before_call: Callable[[], None]) -> None: ...
     def block_public_access(self, binding: CanaryBinding, before_call: Callable[[], None]) -> None: ...
-    def delete_bucket(self, binding: CanaryBinding) -> None: ...
+    def inspect_cleanup(self, binding: CanaryBinding, *, deleting: bool = False) -> Observation: ...
+    def delete_bucket(self, binding: CanaryBinding, before_call: Callable[[], None]) -> None: ...
 
 
 class CanaryAdapter:
@@ -372,19 +375,40 @@ class CanaryAdapter:
             row = db.execute("SELECT principal,result,binding FROM canaries WHERE batch_id=?", (batch_id,)).fetchone()
             ops = dict(db.execute("SELECT step,state FROM operations WHERE batch_id=?", (batch_id,)))
         if (not row or row[0] != principal or row[1] is None or row[2] != self._binding_digest()
-                or any(ops.get(step) != "ACK" for step in ("create", "tags", "public_block", "policy"))
-                or "delete" in ops):
+                or ops.get("create") != "ACK" or "delete" in ops):
             raise ValueError("CLEANUP_NOT_PROVEN")
-        observed = self._read()
-        if observed.policy != self._policy():
-            raise ValueError("CLEANUP_STATE_DRIFT")
-        # The completed receipt is already durable before the delete intent.
+        # The provider accepts only an acknowledged creation and a contiguous
+        # sequence of ACK or known-no-call setup states, then checks current state.
+        self.provider.inspect_cleanup(self.binding)
         with closing(self._db()) as db:
             db.execute("INSERT INTO operations VALUES (?,?,'INTENT')", (batch_id, "delete"))
+        claimed = False
+
+        def before_call() -> None:
+            nonlocal claimed
+            with closing(self._db()) as db:
+                db.execute("BEGIN IMMEDIATE")
+                updated = db.execute("UPDATE operations SET state='CALLING' WHERE batch_id=? AND step='delete' AND state='INTENT'",
+                                     (batch_id,))
+                if updated.rowcount != 1:
+                    raise ValueError("DELETE_CLAIM_UNAVAILABLE")
+                db.commit()
+            claimed = True
+
         try:
-            self.provider.delete_bucket(self.binding)
+            self.provider.delete_bucket(self.binding, before_call)
         except Exception:
+            if not claimed:
+                with closing(self._db()) as db:
+                    db.execute("UPDATE operations SET state='REFUSED' WHERE batch_id=? AND step='delete' AND state='INTENT'",
+                               (batch_id,))
+                return {"status": "REFUSED_NO_CALL", "deleted": False}
             return {"status": "UNKNOWN", "deleted": False}
+        if not claimed:
+            with closing(self._db()) as db:
+                db.execute("UPDATE operations SET state='REFUSED' WHERE batch_id=? AND step='delete' AND state='INTENT'",
+                           (batch_id,))
+            return {"status": "REFUSED_NO_CALL", "deleted": False}
         # A successful SDK acknowledgment is insufficient on its own.
         try:
             absent = self._read(allow_absent=True).exists is False
@@ -406,6 +430,8 @@ class CanaryAdapter:
             raise ValueError("NO_RECONCILABLE_RUN")
         if op is None:
             return {"status": "NOT_REQUESTED"}
+        if op[0] in ("INTENT", "REFUSED"):
+            return {"status": "REFUSED_NO_CALL", "deleted": False}
         try:
             absent = self._read(allow_absent=True).exists is False
         except Exception:

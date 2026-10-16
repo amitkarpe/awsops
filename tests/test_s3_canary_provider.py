@@ -35,6 +35,10 @@ class FakeS3:
         self.expire_on_head_call = None
         self.expire_on_versions = False
         self.foreign_after_create = False
+        self.fail_tags_preflight_after_create = False
+        self.fail_public_block_preflight_after_tags = False
+        self.fail_versions_once = False
+        self.fail_public_block_once = False
         self.clock = None
 
     def head_bucket(self, **_):
@@ -56,6 +60,9 @@ class FakeS3:
         return {"TagSet": [{"Key": k, "Value": v} for k, v in self.tags.items()]}
 
     def get_public_access_block(self, **_):
+        if self.fail_public_block_once:
+            self.fail_public_block_once = False
+            raise AwsError("503")
         if self.block is None:
             raise AwsError("NoSuchPublicAccessBlockConfiguration")
         return {"PublicAccessBlockConfiguration": self.block}
@@ -69,6 +76,9 @@ class FakeS3:
         return {"Contents": self.objects, "IsTruncated": False}
 
     def list_object_versions(self, **_):
+        if self.fail_versions_once:
+            self.fail_versions_once = False
+            raise AwsError("503")
         if self.expire_on_versions and self.exists and self.tags is None:
             self.clock[0] += 301
             self.expire_on_versions = False
@@ -81,12 +91,16 @@ class FakeS3:
 
     def create_bucket(self, **_):
         self.exists = True
+        if self.fail_tags_preflight_after_create:
+            self.fail_versions_once = True
         if self.foreign_after_create:
             self.objects = [{"Key": "foreign"}]
         self._write("create")
 
     def put_bucket_tagging(self, **kwargs):
         self.tags = {x["Key"]: x["Value"] for x in kwargs["Tagging"]["TagSet"]}
+        if self.fail_public_block_preflight_after_tags:
+            self.fail_public_block_once = True
         self._write("tags")
 
     def put_public_access_block(self, **kwargs):
@@ -213,6 +227,69 @@ class ProviderProof(unittest.TestCase):
             self.assertEqual(finding["compliance"], "UNKNOWN")
             self.assertEqual(finding["freshness"], "NOT_VERIFIED")
 
+    def test_cleanup_of_known_partial_setup_and_foreign_state_refusal(self):
+        principal = canonical_digest("fake authenticated human")
+        for failed_step, expected in (("tags", ["create"]),
+                                      ("public_block", ["create", "tags"])):
+            with self.subTest(failed_step=failed_step), tempfile.TemporaryDirectory() as directory:
+                adapter, s3 = self.setup_canary(directory)
+                batch = adapter.prepare(principal)["record"]
+                if failed_step == "tags":
+                    s3.fail_tags_preflight_after_create = True
+                else:
+                    s3.fail_public_block_preflight_after_tags = True
+                adapter.decide(batch["batchId"], batch["scopeDigest"], principal, "APPROVE_ONCE")
+                self.assertEqual(s3.writes, expected)
+
+                result = adapter.cleanup(batch["batchId"], principal)
+                self.assertEqual(result, {"status": "DELETED", "deleted": True})
+                self.assertEqual(s3.writes, expected + ["delete"])
+                self.assertEqual(adapter.cleanup_state(batch["batchId"], principal)["status"],
+                                 "DELETED_CONFIRMED")
+                with self.assertRaises(ValueError):
+                    adapter.cleanup(batch["batchId"], principal)
+                self.assertEqual(s3.writes, expected + ["delete"])
+
+        with tempfile.TemporaryDirectory() as directory:
+            adapter, s3 = self.setup_canary(directory)
+            batch = adapter.prepare(principal)["record"]
+            s3.fail_public_block_preflight_after_tags = True
+            adapter.decide(batch["batchId"], batch["scopeDigest"], principal, "APPROVE_ONCE")
+            inspect_cleanup = adapter.provider.inspect_cleanup
+
+            def refuse_delete_preflight(binding, *, deleting=False):
+                if deleting:
+                    raise ValueError("CLEANUP_STATE_DRIFT")
+                return inspect_cleanup(binding, deleting=deleting)
+
+            adapter.provider.inspect_cleanup = refuse_delete_preflight
+            self.assertEqual(adapter.cleanup(batch["batchId"], principal),
+                             {"status": "REFUSED_NO_CALL", "deleted": False})
+            self.assertEqual(s3.writes, ["create", "tags"])
+            self.assertEqual(adapter.cleanup_state(batch["batchId"], principal)["status"],
+                             "REFUSED_NO_CALL")
+
+        for drift in ("tag", "policy", "object", "version", "marker"):
+            with self.subTest(drift=drift), tempfile.TemporaryDirectory() as directory:
+                adapter, s3 = self.setup_canary(directory)
+                batch = adapter.prepare(principal)["record"]
+                s3.fail_public_block_preflight_after_tags = True
+                adapter.decide(batch["batchId"], batch["scopeDigest"], principal, "APPROVE_ONCE")
+                if drift == "tag":
+                    s3.tags["foreign"] = "leave-alone"
+                elif drift == "policy":
+                    s3.policy = {"Statement": [{"Sid": "foreign"}]}
+                elif drift == "object":
+                    s3.objects = [{"Key": "foreign"}]
+                elif drift == "version":
+                    s3.versions = [{"Key": "foreign", "VersionId": "1"}]
+                else:
+                    s3.markers = [{"Key": "foreign", "VersionId": "1"}]
+                before = list(s3.writes)
+                with self.assertRaises(ValueError):
+                    adapter.cleanup(batch["batchId"], principal)
+                self.assertEqual(s3.writes, before)
+
     def test_reject_uncertain_and_guard_refusals(self):
         principal = canonical_digest("fake authenticated human")
         for scenario in ("reject", "uncertain_create", "uncertain_policy", "preexisting",
@@ -257,6 +334,10 @@ class ProviderProof(unittest.TestCase):
                     self.assertEqual(writes, ["create"])
                     self.assertEqual(result["run"]["record"]["realWrites"], 1)
                     self.assertEqual(reconciled["run"]["record"]["realWrites"], 1)
+                    for _ in range(2):
+                        with self.assertRaises(ValueError):
+                            adapter.cleanup(batch["batchId"], principal)
+                    self.assertEqual(s3.writes, ["create"])
                 if scenario == "uncertain_policy":
                     self.assertEqual(writes, ["create", "tags", "public_block", "policy"])
                     self.assertEqual(result["run"]["record"]["realWrites"], 4)

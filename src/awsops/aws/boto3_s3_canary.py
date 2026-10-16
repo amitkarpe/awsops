@@ -94,12 +94,17 @@ class Boto3CanaryProvider:
         return rows[0] if rows else (None, None)
 
     def _operation(self, step: str, state: str = "INTENT") -> bool:
+        return self._operations().get(step) == state
+
+    def _operations(self) -> dict[str, str]:
         with closing(sqlite3.connect(self.ledger.as_uri() + "?mode=ro", uri=True)) as db:
-            rows = db.execute("SELECT o.state FROM canaries c JOIN operations o "
-                              "ON c.batch_id=o.batch_id WHERE c.binding=? AND o.step=?",
+            rows = db.execute("SELECT o.step,o.state FROM canaries c JOIN operations o "
+                              "ON c.batch_id=o.batch_id WHERE c.binding=?",
                               (canonical_digest([self.binding.account_id, self.binding.bucket,
-                                                 REGION, self.mode]), step)).fetchall()
-        return len(rows) == 1 and rows[0][0] == state
+                                                 REGION, self.mode]),)).fetchall()
+        if len({step for step, _state in rows}) != len(rows):
+            raise ValueError("AMBIGUOUS_OPERATION_JOURNAL")
+        return dict(rows)
 
     def _head(self) -> bool:
         try:
@@ -158,7 +163,50 @@ class Boto3CanaryProvider:
         blocked = all(block.get(key) is True for key in (
             "BlockPublicAcls", "IgnorePublicAcls", "BlockPublicPolicy", "RestrictPublicBuckets"))
         return Observation(binding.account_id, REGION, binding.bucket, owned, bool(empty),
-                           int(self.clock()), policy, exists=True, public_blocked=blocked)
+                           int(self.clock()), policy, exists=True, public_blocked=blocked,
+                           tags_absent=not tags, public_block_absent=not block)
+
+    def inspect_cleanup(self, binding: CanaryBinding, *, deleting: bool = False) -> Observation:
+        if binding != self.binding:
+            raise ValueError("CANARY_BINDING_MISMATCH")
+        ops = self._operations()
+        if ops.get("create") != "ACK":
+            raise ValueError("CLEANUP_CREATION_NOT_ACKNOWLEDGED")
+        if ("delete" in ops) != deleting or (deleting and ops.get("delete") != "INTENT"):
+            raise ValueError("CLEANUP_DELETE_STATE_MISMATCH")
+        stopped = False
+        for step in ("tags", "public_block", "policy"):
+            state = ops.get(step)
+            if state == "ACK":
+                if stopped:
+                    raise ValueError("CLEANUP_SETUP_SEQUENCE_DRIFT")
+            elif state in (None, "INTENT", "REFUSED"):
+                stopped = True
+            else:
+                raise ValueError("CLEANUP_SETUP_UNCERTAIN")
+
+        try:
+            observed = self.inspect(binding)
+        except Exception:
+            raise ValueError("CLEANUP_READBACK_UNAVAILABLE") from None
+        if not observed.exists or not observed.empty:
+            raise ValueError("CLEANUP_NOT_EMPTY_TASK_BUCKET")
+        if ops.get("tags") == "ACK":
+            if not observed.disposable:
+                raise ValueError("CLEANUP_TAG_OWNERSHIP_MISMATCH")
+        elif not observed.tags_absent:
+            raise ValueError("CLEANUP_UNEXPECTED_TAGS")
+        if ops.get("public_block") == "ACK":
+            if not observed.public_blocked:
+                raise ValueError("CLEANUP_PUBLIC_BLOCK_MISMATCH")
+        elif not observed.public_block_absent:
+            raise ValueError("CLEANUP_UNEXPECTED_PUBLIC_BLOCK")
+        if ops.get("policy") == "ACK":
+            if observed.policy != fixed_policy(binding.bucket):
+                raise ValueError("CLEANUP_POLICY_MISMATCH")
+        elif observed.policy is not None:
+            raise ValueError("CLEANUP_UNEXPECTED_POLICY")
+        return observed
 
     def create_bucket(self, binding: CanaryBinding, before_call: Callable[[], None]) -> None:
         if binding != self.binding or not self._operation("create"):
@@ -207,12 +255,9 @@ class Boto3CanaryProvider:
         self.s3.put_bucket_policy(Bucket=binding.bucket, ExpectedBucketOwner=binding.account_id,
                                   Policy=body)
 
-    def delete_bucket(self, binding: CanaryBinding) -> None:
-        if (binding != self.binding or not self._operation("create", "ACK")
-                or not self._operation("delete")):
+    def delete_bucket(self, binding: CanaryBinding, before_call: Callable[[], None]) -> None:
+        if binding != self.binding or not self._operation("create", "ACK") or not self._operation("delete"):
             raise ValueError("DELETE_NOT_JOURNALED")
-        observed = self.inspect(binding)
-        if (not observed.disposable or not observed.empty or not observed.public_blocked
-                or observed.policy != fixed_policy(binding.bucket)):
-            raise ValueError("DELETE_STATE_DRIFT")
+        self.inspect_cleanup(binding, deleting=True)
+        before_call()
         self.s3.delete_bucket(Bucket=binding.bucket, ExpectedBucketOwner=binding.account_id)

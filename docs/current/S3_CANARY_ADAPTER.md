@@ -99,9 +99,13 @@ imported JSON or model message is not independent human approval. Since this
 slice has no separately trusted approval factor, live `approve` fails closed
 with `TRUSTED_HUMAN_APPROVAL_BINDING_REQUIRED` before provider construction or
 AWS requests. The external gate is an owner-authenticated, single-use approval
-bound to this batch, scope digest and expiry, verified by an already trusted
-system. `reject` remains available. This PR does not mint or install that
-authority. Once the gate exists, approval prints a four-envelope canonical bundle for the existing core2 reader;
+bound to this batch, scope digest, expiry, source revision, exact resource,
+cost bound and cleanup terms, verified by an already trusted system. The
+existing `DecisionStore` is not that factor: it records `APPROVE_BLOCKED`, sets
+`dispatch_allowed=false`, and its native adapter resolves approval as Reject;
+the native platform authentication wiring is also explicitly pending.
+`reject` remains available. This PR does not mint or install approval authority.
+Once a suitable gate exists, approval prints a four-envelope canonical bundle for the existing core2 reader;
 its origin remains an imported assertion there until that product independently
 authenticates it. `reconcile` emits the same run without another write. The
 same command reports any uncertain cleanup status separately on stderr without
@@ -109,22 +113,30 @@ replaying DeleteBucket. The schema's `-mock` sourceVersion label is retained eve
 requires it; mode, write counts and provenance carry the actual distinction.
 
 There is no runnable live sequence in this source slice. Even `prepare` performs
-provider reads, so it belongs to a later concrete live slice. `approve` remains
-blocked until the external trust binding above is reviewed and implemented.
+provider reads, so it belongs to a later concrete live slice. Both `approve` and
+`cleanup` fail closed before provider construction. Live cleanup needs its own
+single-use trusted owner approval bound to the exact task-created resource,
+fresh empty-state readback and delete action; a batch approval cannot substitute.
 Private bucket/account details do not enter a public PR or receipt. `reject`
-performs zero provider writes. The four write attempts
-are CreateBucket, PutBucketTagging, PutPublicAccessBlock and PutBucketPolicy; one
-later DeleteBucket is allowed only with a retained receipt and all four prior
-acknowledgments. The task tags include `TTL` for the next UTC day and
+performs zero provider writes. Partial cleanup is supported only when the exact
+task creation is ACK and setup rows form a contiguous ACK prefix followed only
+by missing, INTENT or REFUSED no-call states. Current owner/Region, emptiness
+(objects, versions and delete markers), and each setup result are rechecked:
+ACK tags/PAB/policy must match exactly; unattempted tags/PAB/policy must still
+be absent. Foreign state, a gap, uncertain CALLING row, preexisting bucket or
+uncertain creation blocks deletion. Delete itself changes INTENT to CALLING
+immediately before the SDK call; an uncertain delete is read-only reconciled,
+never replayed. The task tags include `TTL` for the next UTC day and
 `cleanup=delete`; neither tag schedules deletion automatically. No unknown
-in-flight operation, changed policy, missing public block, foreign object,
-version or delete marker may be deleted by this command.
+in-flight operation, changed policy, foreign tag, unexpected public block,
+object, version or delete marker may be deleted by this command.
 
 The rough incremental cost assumption is one empty S3 bucket, zero stored
 objects and fewer than 100 request calls for one bounded sequence: expected
 well below USD0.01, subject to actual request pricing and usage. It is not a
 hard cap. Before live creation, Manager must reconcile observed prior spend
 across both workers against the USD100 total ceiling, reverify the private
-identity, and have the human approve this exact frozen batch. Do not infer
+identity, and obtain the separately trusted batch approval. Before cleanup,
+obtain the distinct cleanup approval and fresh exact readback. Do not infer
 those gates from source acceptance or fake receipts. See [AWS S3 pricing](https://aws.amazon.com/s3/pricing/)
 for the live rate check.
