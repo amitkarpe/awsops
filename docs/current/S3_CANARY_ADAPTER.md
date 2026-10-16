@@ -66,3 +66,61 @@ private bindings never appear in exported records.
 
 Next: M reviews this source PR. No AWS/provider operation, IAM installation,
 protected #89 change or live canary proof was performed by this milestone.
+
+## Home provider source slice — awaiting Manager source review
+
+`src/awsops/aws/boto3_s3_canary.py` and `scripts/s3_canary_operator.py` add one
+fixed SDK route for a **new** `awsops-dev-issue90-s3-canary-<12 lowercase letters
+or digits>` bucket. This source slice has only fake-SDK proof; it has made no AWS
+call. The existing adapter now freezes an absent exact name before any creation.
+Its private SQLite ledger records `create`, `tags`, `public_block`, `policy` and
+`delete` intent before each call. An uncertain call is never replayed. The
+provider accepts only profile `amit` in `ap-southeast-1`, compares fresh non-root
+STS with the owner-private expected account, and rejects preexisting buckets.
+Its reads require exact owner/Region, this ledger's acknowledged creation, exact
+task tags, an empty object listing **and** empty version/delete-marker listing,
+all four public-access-block flags, and no policy before the TLS-deny write.
+
+The private binding file stays under `~/.AGENTS-temp/manager/home-migration-20261016/`;
+the private receipt/operation ledger stays under `~/.AGENTS-temp/awsops/`.
+The operator uses a local OS account and an interactive terminal for a human to
+review/type the exact bucket and frozen digest. A digest, imported JSON or model
+message is not human authentication. Only the human runs `approve` or `reject`.
+`approve` prints a four-envelope canonical bundle for the existing core2 reader;
+its origin remains an imported assertion there until that product independently
+authenticates it. `reconcile` emits the same run without another write. The
+same command reports any uncertain cleanup status separately on stderr without
+replaying DeleteBucket. The schema's `-mock` sourceVersion label is retained even for real mode because v1
+requires it; mode, write counts and provenance carry the actual distinction.
+
+After Manager accepts this source and separately dispatches a concrete live
+slice, the human-operated sequence is:
+
+```sh
+PY=/home/dev/.config/awsops/venv/bin/python
+BUCKET=awsops-dev-issue90-s3-canary-0123456789ab  # replace suffix with one reviewed, unique private name
+$PY scripts/s3_canary_operator.py prepare --bucket "$BUCKET"
+BATCH_ID='replace-with-batchId-from-prepare'; SCOPE_DIGEST='replace-with-scopeDigest-from-prepare'
+$PY scripts/s3_canary_operator.py approve --bucket "$BUCKET" --batch-id "$BATCH_ID" --scope-digest "$SCOPE_DIGEST"
+$PY scripts/s3_canary_operator.py reconcile --bucket "$BUCKET" --batch-id "$BATCH_ID"
+$PY scripts/s3_canary_operator.py cleanup --bucket "$BUCKET" --batch-id "$BATCH_ID"
+```
+
+The placeholder values above must be replaced before shell execution; private
+bucket/account details do not enter a public PR or receipt. `reject` uses the same
+arguments as `approve` and performs zero provider writes. The four write attempts
+are CreateBucket, PutBucketTagging, PutPublicAccessBlock and PutBucketPolicy; one
+later DeleteBucket is allowed only with a retained receipt and all four prior
+acknowledgments. The task tags include `TTL` for the next UTC day and
+`cleanup=delete`; neither tag schedules deletion automatically. No unknown
+in-flight operation, changed policy, missing public block, foreign object,
+version or delete marker may be deleted by this command.
+
+The rough incremental cost assumption is one empty S3 bucket, zero stored
+objects and fewer than 100 request calls for one bounded sequence: expected
+well below USD0.01, subject to actual request pricing and usage. It is not a
+hard cap. Before live creation, Manager must reconcile observed prior spend
+across both workers against the USD100 total ceiling, reverify the private
+identity, and have the human approve this exact frozen batch. Do not infer
+those gates from source acceptance or fake receipts. See [AWS S3 pricing](https://aws.amazon.com/s3/pricing/)
+for the live rate check.
