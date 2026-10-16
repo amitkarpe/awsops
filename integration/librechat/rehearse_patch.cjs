@@ -8,7 +8,18 @@ const PRE_MARKER = '  let resolvedAskContentIndex;';
 const POST_MARKER = '  /**\n   * An interrupt steer enqueued just before the pause survives durably with';
 const PRE = `  // awsops: capture only the native server-owned context before the CAS.
   let awsopsNativeEnvelope = null;
+  let awsopsNativeCanary = false;
   if (Array.isArray(pendingAction?.payload?.action_requests) &&
+      pendingAction.payload.action_requests.some(a =>
+        typeof a?.name === 'string' && a.name.startsWith('approve_s3_canary_once'))) {
+    try {
+      awsopsNativeCanary = true;
+      awsopsNativeEnvelope = require('./awsops-native-gate.cjs')
+        .prepareNativeCanaryRequest({ req, job, pendingAction, streamId });
+    } catch {
+      return sendGenerationJson(res, 403, { code: 'AWSOPS_NATIVE_NOT_READY' }, generationProtocolVersion);
+    }
+  } else if (Array.isArray(pendingAction?.payload?.action_requests) &&
       pendingAction.payload.action_requests.some(a =>
         typeof a?.name === 'string' && a.name.startsWith('decide_s3_ssl_reject_only'))) {
     try {
@@ -21,44 +32,63 @@ const PRE = `  // awsops: capture only the native server-owned context before th
 
 `;
 const POST = `  // awsops: the native single-winner CAS has succeeded. Commit before ACK/resume.
-  if (awsopsNativeEnvelope) {
+  const failNativeDecision = async (code = 'AWSOPS_DECISION_UNAVAILABLE') => {
+    // The request already won the pause CAS. Finalize only this generation,
+    // remove its checkpoint after confirmed finalization, and release its slot.
+    const bounded = async (operation) => {
+      let timer;
+      try {
+        return await Promise.race([
+          operation(),
+          new Promise((_, reject) => { timer = setTimeout(() => reject(Error('timeout')), 2500); }),
+        ]);
+      } finally { clearTimeout(timer); }
+    };
+    let finalized = false;
+    let checkpointCleaned = false;
+    let slotReleased = false;
     try {
-      const decision = await require('./awsops-native-gate.cjs')
-        .persistNativeDecision(awsopsNativeEnvelope);
+      finalized = (await bounded(() => GenerationJobManager.completeJob(
+        streamId, code, job.createdAt))) === true;
+      if (finalized) {
+        await bounded(() => deleteResumedGenerationCheckpoint({
+          conversationId, checkpointerCfg, job, checkpointGeneration,
+        }));
+        checkpointCleaned = true;
+      }
+    } catch { logger.error('[awsops] Exact native terminalization needs reconciliation'); }
+    try {
+      await bounded(() => decrementPendingRequest(userId));
+      slotReleased = true;
+    } catch { logger.error('[awsops] Native concurrency slot needs reconciliation'); }
+    return sendGenerationJson(res, 503, {
+      code, dispatch_allowed: false,
+      terminalization: finalized && checkpointCleaned && slotReleased ? 'FINALIZED' : 'RECONCILE_REQUIRED',
+    }, generationProtocolVersion);
+  };
+  if (awsopsNativeEnvelope && awsopsNativeCanary) {
+    try {
+      // No canary dispatcher is mounted by this offline candidate. A future
+      // reviewed host binding must inject the existing application adapter and
+      // its independent owner verifier at this exact post-CAS seam.
+      await require('./awsops-native-gate.cjs').afterNativeCanaryClaim({
+        req, job, pendingAction, streamId, prepared: awsopsNativeEnvelope,
+        claimResult: claimed, manager: GenerationJobManager,
+      });
+      mapped.resumeValue = {[awsopsNativeEnvelope.message.binding.tool_call_id]: {type: 'reject', reason: 'LIVE_EXECUTION_NOT_AUTHORIZED'}};
+    } catch {
+      return failNativeDecision('NATIVE_CANARY_ADAPTER_UNAVAILABLE');
+    }
+  } else if (awsopsNativeEnvelope) {
+    try {
+      const decision = await require('./awsops-native-gate.cjs').afterNativeClaim({
+        req, job, pendingAction, streamId, prepared: awsopsNativeEnvelope,
+        claimResult: claimed, manager: GenerationJobManager,
+      });
       mapped.resumeValue = decision.resumeValue;
     } catch {
-      // Terminal operations are exact-generation fenced. A timeout/false result
-      // is reconciliation-required, never a fabricated terminal success.
-      const bounded = async (operation) => {
-        let timer;
-        try {
-          return await Promise.race([
-            operation(),
-            new Promise((_, reject) => { timer = setTimeout(() => reject(Error('timeout')), 2500); }),
-          ]);
-        } finally { clearTimeout(timer); }
-      };
-      let finalized = false;
-      let checkpointCleaned = false;
-      let slotReleased = false;
-      try {
-        finalized = (await bounded(() => GenerationJobManager.completeJob(
-          streamId, 'AWSOPS_DECISION_UNAVAILABLE', job.createdAt))) === true;
-        if (finalized) {
-          await bounded(() => deleteResumedGenerationCheckpoint({
-            conversationId, checkpointerCfg, job, checkpointGeneration,
-          }));
-          checkpointCleaned = true;
-        }
-      } catch { logger.error('[awsops] Exact native terminalization needs reconciliation'); }
-      try {
-        await bounded(() => decrementPendingRequest(userId));
-        slotReleased = true;
-      } catch { logger.error('[awsops] Native concurrency slot needs reconciliation'); }
-      return sendGenerationJson(res, 503, {
-        code: 'AWSOPS_DECISION_UNAVAILABLE', dispatch_allowed: false,
-        terminalization: finalized && checkpointCleaned && slotReleased ? 'FINALIZED' : 'RECONCILE_REQUIRED',
-      }, generationProtocolVersion);
+      // Never resume on missing, uncertain or rejected native evidence.
+      return failNativeDecision();
     }
   }
 

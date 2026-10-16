@@ -100,6 +100,41 @@ test('validated snapshot does not retain mutable request context', t => {
   f.req.body.decisions[0].decision = 'approve'; f.req.user.id = 'changed';
   assert.equal(env.message.decision, 'reject'); assert.equal(env.message.binding.principal_id, 'native-user');
 });
+test('canary callback is bound to authenticated host identity and the winning running generation', async t => {
+  const f = setup(t);
+  const pending = {actionId: 'canary-action', expiresAt: Date.now()+120000, payload: {type: 'tool_approval',
+    action_requests: [{name: gate.CANARY_WIRE_TOOL, tool_call_id: 'canary-call', arguments: {
+      control: 's3_canary', batch_id: 'batch-canary-'+'a'.repeat(32),
+      scope_digest: 'b'.repeat(64), authority_digest: 'c'.repeat(64)}}],
+    review_configs: [{tool_call_id: 'canary-call', allowed_decisions: ['approve', 'reject']} ]}};
+  f.job.metadata.pendingAction = pending;
+  f.req.body = {conversationId: f.streamId, actionId: pending.actionId, generationCreatedAt: f.job.createdAt,
+    agent_id: f.config.agent_id, endpoint: 'agents', decisions: [{tool_call_id: 'canary-call', decision: 'approve'}]};
+  const prepared = gate.prepareNativeCanaryRequest(f.context(), f.config);
+  let current = {...f.job, status: 'running', metadata:{...f.job.metadata}};
+  delete current.metadata.pendingAction;
+  delete current.metadata.pendingActionId;
+  let reads = 0;
+  const callback = await gate.afterNativeCanaryClaim({req:f.req, job:f.job, pendingAction:pending,
+    streamId:f.streamId, prepared, claimResult:true, manager:{getJob:async()=>{reads++; return current;}}},
+    f.config, value=>value);
+  assert.equal(reads, 1);
+  assert.equal(callback.operation, 'native_canary_choice');
+  assert.equal(callback.decision, 'approve');
+  assert.equal(callback.binding.principal_id, f.user.id);
+  assert.equal(callback.binding.tenant_id, 'tenant:'+f.user.tenantId);
+  assert.equal(callback.binding.generation_id, String(f.job.createdAt));
+  assert.equal(callback.authority_digest, 'c'.repeat(64));
+  // A caller-supplied true CAS result is insufficient without the exact running row.
+  current = {...current, metadata:{...current.metadata, userId:'other-user'}};
+  await assert.rejects(gate.afterNativeCanaryClaim({req:f.req, job:f.job, pendingAction:pending,
+    streamId:f.streamId, prepared, claimResult:true, manager:{getJob:async()=>current}}, f.config, value=>value));
+  await assert.rejects(gate.afterNativeCanaryClaim({req:f.req, job:f.job, pendingAction:pending,
+    streamId:f.streamId, prepared, claimResult:true, manager:{getJob:async()=>({...f.job,status:'requires_action'})}},
+    f.config, value=>value));
+  await assert.rejects(gate.afterNativeCanaryClaim({req:f.req, job:f.job, pendingAction:pending,
+    streamId:f.streamId, prepared, claimResult:true, manager:{getJob:async()=>({...f.job,status:'running'})}}, f.config));
+});
 test('malicious receipt cannot return an approve resolution', async t => {
   const f = setup(t); await register(f); const envelope = gate.prepareNativeRequest(f.context(), f.config);
   const valid = await gate.pipe(f.config, envelope.message);
@@ -123,8 +158,8 @@ test('pipe kills only its own timed-out child and denies continuation', {timeout
 });
 
 function harness(f, options = {}) {
-  let current = {...f.job, metadata: f.job.metadata};
-  const calls = {claim: 0, receipt: 0, initialize: 0, resume: 0, decrement: 0, terminal: 0, checkpoint: 0, finished: 0, errors: []};
+  let current = {...f.job, metadata: {...f.job.metadata}};
+  const calls = {claim: 0, receipt: 0, canary: 0, initialize: 0, resume: 0, decrement: 0, terminal: 0, checkpoint: 0, finished: 0, errors: []};
   let saved;
   const manager = {
     getJob: async () => current ? {...current, metadata: current.metadata} : null,
@@ -134,7 +169,9 @@ function harness(f, options = {}) {
     approvals: {resolve: async (_id, _action, _metadata, createdAt) => {
       calls.claim++; if (options.claimFails) throw Error('store unavailable');
       if (options.loseClaim || current.status !== 'requires_action' || current.createdAt !== createdAt) return false;
-      current = {...current, status: 'running'}; return true;
+      current = {...current, status: 'running', metadata:{...current.metadata}};
+      delete current.metadata.pendingAction; delete current.metadata.pendingActionId;
+      return true;
     }},
     completeJob: async (_id, _error, createdAt) => {
       calls.terminal++; calls.terminalGeneration = createdAt;
@@ -165,10 +202,15 @@ function harness(f, options = {}) {
   };
   const native = {
     prepareNativeRequest: context => gate.prepareNativeRequest(context, f.config),
-    persistNativeDecision: async envelope => {
+    prepareNativeCanaryRequest: context => gate.prepareNativeCanaryRequest(context, f.config),
+    afterNativeCanaryClaim: async context => {
+      calls.canary++;
+      return gate.afterNativeCanaryClaim(context, f.config);
+    },
+    afterNativeClaim: async context => {
       calls.receipt++;
       if (options.receiptFails) throw Error('private-receipt-error');
-      const result = await gate.persistNativeDecision(envelope);
+      const result = await gate.afterNativeClaim(context, f.config);
       if (options.lostAck) throw Error('lost acknowledgement');
       return result;
     },
@@ -201,7 +243,7 @@ test('pinned upstream controller + real SQLite process bridge', {skip: !hasUpstr
   for (const decision of ['reject', 'approve']) await t.test('successful '+decision, async t => {
     const f = setup(t); await register(f); f.req.body.decisions[0].decision = decision;
     const h = harness(f); await h.run();
-    assert.equal(h.res.code, 200); assert.equal(h.calls.claim, 1); assert.equal(h.calls.receipt, 1);
+    assert.equal(h.res.code, 200, JSON.stringify(h.calls)); assert.equal(h.calls.claim, 1); assert.equal(h.calls.receipt, 1);
     assert.equal(h.calls.resume, 1); assert.equal(h.calls.resolution['call-1'].type, 'reject');
     assert.equal(h.calls.finished, 1); assert.equal(h.calls.decrement, 1); assert.equal(h.calls.checkpoint, 1);
     assert.equal(h.calls.terminal, 0); assert.ok(h.saved());
@@ -252,6 +294,34 @@ test('pinned upstream controller + real SQLite process bridge', {skip: !hasUpstr
     f.req.body.decisions[0].decision = 'approve';
     const h = harness(f); await h.run(); assert.equal(h.res.code, 200); assert.equal(h.calls.receipt, 0);
     assert.equal(h.calls.resolution['call-1'].type, 'approve');
+  });
+  await t.test('canary missing dispatcher terminalizes claimed generation and releases slot', async t => {
+    const f = setup(t);
+    const pending = {actionId:'canary-action', expiresAt:Date.now()+120000, payload:{type:'tool_approval',
+      action_requests:[{name:gate.CANARY_WIRE_TOOL,tool_call_id:'canary-call',arguments:{control:'s3_canary',
+        batch_id:'batch-canary-'+'a'.repeat(32),scope_digest:'b'.repeat(64),authority_digest:'c'.repeat(64)}}],
+      review_configs:[{tool_call_id:'canary-call',allowed_decisions:['approve','reject']} ]}};
+    f.job.metadata.pendingAction = pending;
+    f.req.body = {conversationId:f.streamId,actionId:pending.actionId,generationCreatedAt:f.job.createdAt,
+      agent_id:f.config.agent_id,endpoint:'agents',decisions:[{tool_call_id:'canary-call',decision:'approve'}]};
+    const h = harness(f); await h.run();
+    assert.equal(h.res.code,503); assert.equal(h.res.body.code,'NATIVE_CANARY_ADAPTER_UNAVAILABLE');
+    assert.equal(h.res.body.terminalization,'FINALIZED'); assert.equal(h.calls.claim,1);
+    assert.equal(h.calls.canary,1); assert.equal(h.calls.resume,0); assert.equal(h.calls.decrement,1);
+    assert.equal(h.calls.terminalGeneration,f.job.createdAt); assert.equal(h.calls.checkpoint,1);
+  });
+  await t.test('uncertain canary terminalization reports reconciliation and releases slot', async t => {
+    const f = setup(t);
+    const pending = {actionId:'canary-action', expiresAt:Date.now()+120000, payload:{type:'tool_approval',
+      action_requests:[{name:gate.CANARY_WIRE_TOOL,tool_call_id:'canary-call',arguments:{control:'s3_canary',
+        batch_id:'batch-canary-'+'a'.repeat(32),scope_digest:'b'.repeat(64),authority_digest:'c'.repeat(64)}}],
+      review_configs:[{tool_call_id:'canary-call',allowed_decisions:['approve','reject']} ]}};
+    f.job.metadata.pendingAction = pending;
+    f.req.body = {conversationId:f.streamId,actionId:pending.actionId,generationCreatedAt:f.job.createdAt,
+      agent_id:f.config.agent_id,endpoint:'agents',decisions:[{tool_call_id:'canary-call',decision:'approve'}]};
+    const h = harness(f,{terminalFails:true}); await h.run();
+    assert.equal(h.res.body.terminalization,'RECONCILE_REQUIRED'); assert.equal(h.calls.checkpoint,0);
+    assert.equal(h.calls.decrement,1); assert.equal(h.calls.resume,0);
   });
 });
 
