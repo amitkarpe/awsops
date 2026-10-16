@@ -22,6 +22,7 @@ from awsops.execution.s3_canary import CanaryAdapter, CanaryBinding, REGION
 
 SETUP_ACTIONS = ("create", "tags", "public_block", "policy")
 CLEANUP_ACTION = "delete"
+AUDIT_READ_ACTION = "AUDIT_READ"
 CLEANUP_READBACK = "fresh-owner-region-task-created-empty-no-foreign-state"
 ASSURANCES = frozenset({"OWNER_AUTHENTICATED", "TEST_SIMULATION"})
 
@@ -230,6 +231,13 @@ class VerifiedOwnerDecision:
 
 
 class OwnerApprovalVerifier(Protocol):
+    """Pure proof validation; it must not consume a token or decision.
+
+    The application ledger performs the one-time packet claim. Rechecking the
+    same proof for conditional cleanup or AUDIT_READ is verification only.
+    AUDIT_READ may verify a saved packet after its mutation expiry, but it grants
+    read-only access to the committed receipt/audit and cannot authorize cleanup.
+    """
     def verify(self, packet: OwnerApprovalPacket, authority: FrozenCanaryAuthority,
                *, action: str, now: int) -> VerifiedOwnerDecision: ...
 
@@ -331,13 +339,17 @@ class CanaryApprovalApplication:
         if (packet.authority_digest != authority.digest
                 or packet.principal_binding_digest != authority.principal_binding_digest
                 or packet.expires_at != authority.lifecycle_expires_at
-                or not packet.issued_at <= now < packet.expires_at):
+                or packet.issued_at > now
+                or action not in ("DECISION", "CLEANUP", AUDIT_READ_ACTION)):
             raise ValueError("APPROVAL_PACKET_SCOPE_OR_EXPIRY_MISMATCH")
-        if action == "DECISION" and not now < authority.decision_expires_at:
-            raise ValueError("APPROVAL_DECISION_EXPIRED")
-        if action == "CLEANUP" and (not authority.cleanup.enabled
-                                     or not now < authority.cleanup.expires_at):
-            raise ValueError("CLEANUP_AUTHORITY_EXPIRED_OR_MISSING")
+        if action != AUDIT_READ_ACTION:
+            if now >= packet.expires_at:
+                raise ValueError("APPROVAL_PACKET_SCOPE_OR_EXPIRY_MISMATCH")
+            if action == "DECISION" and not now < authority.decision_expires_at:
+                raise ValueError("APPROVAL_DECISION_EXPIRED")
+            if action == "CLEANUP" and (not authority.cleanup.enabled
+                                         or not now < authority.cleanup.expires_at):
+                raise ValueError("CLEANUP_AUTHORITY_EXPIRED_OR_MISSING")
         verified = self.verifier.verify(packet, authority, action=action, now=now)
         if (type(verified) is not VerifiedOwnerDecision
                 or verified.packet_digest != packet.digest
@@ -348,13 +360,26 @@ class CanaryApprovalApplication:
                 or not isinstance(verified.verifier_id, str) or not verified.verifier_id
                 or type(verified.verified_at) is not int
                 or not packet.issued_at <= verified.verified_at <= now
-                or verified.verified_at >= packet.expires_at):
+                or (action != AUDIT_READ_ACTION and verified.verified_at >= packet.expires_at)):
             raise ValueError("OWNER_DECISION_VERIFICATION_FAILED")
         if verified.assurance == "TEST_SIMULATION" and self.mode != "MOCK":
             raise ValueError("TEST_SIMULATION_CANNOT_AUTHORIZE_LIVE_PROVIDER")
         return verified
 
+    def _assert_current_authority(self, authority: FrozenCanaryAuthority) -> None:
+        binding_digest = canonical_digest({
+            "accountId": self.binding.account_id,
+            "bucket": self.binding.bucket,
+            "region": self.binding.region,
+        })
+        if self.revision != authority.source_revision:
+            raise ValueError("APPLICATION_SOURCE_DRIFT")
+        if (binding_digest != authority.resource_binding_digest
+                or self.binding.region != authority.region):
+            raise ValueError("APPLICATION_PRIVATE_BINDING_DRIFT")
+
     def _adapter(self, authority: FrozenCanaryAuthority) -> CanaryAdapter:
+        self._assert_current_authority(authority)
         adapter = self.adapter_factory()
         if (type(adapter) is not CanaryAdapter or adapter.path.resolve() != self.path.resolve()
                 or adapter.binding != self.binding or adapter.mode != self.mode
@@ -364,28 +389,56 @@ class CanaryApprovalApplication:
 
     def decide(self, packet: OwnerApprovalPacket) -> dict:
         authority, saved = self._load_authority(self._batch_for_digest(packet.authority_digest))
+        self._assert_current_authority(authority)
         verified = self._verified(packet, authority, action="DECISION")
         if packet.decision not in ("APPROVE_ONCE", "REJECT"):
             raise ValueError("INVALID_DECISION")
-        existing_packet, assurance, verifier_id, choice, _verified_at, _cleanup_status = saved
-        if existing_packet is not None and (existing_packet != packet.digest or choice != packet.decision):
-            raise ValueError("APPROVAL_ALREADY_CONSUMED")
-        with closing(self._db()) as db:
-            db.execute("UPDATE application_authority SET packet_digest=?,assurance=?,verifier_id=?,choice=?,verified_at=? WHERE batch_id=?",
-                       (packet.digest, verified.assurance, verified.verifier_id, packet.decision,
-                        verified.verified_at, authority.batch_id))
-        adapter = self._adapter(authority)
+        self._claim_packet(authority, packet, verified)
         if self._canary_decision_exists(authority.batch_id):
+            adapter = self._adapter(authority)
             result = adapter.reconcile(authority.batch_id, authority.principal_binding_digest)
             return self._result_envelopes(adapter, authority, result)
-        result = adapter.decide(authority.batch_id, authority.scope_digest,
-                                authority.principal_binding_digest, packet.decision)
+        adapter = self._adapter(authority)
+        try:
+            result = adapter.decide(authority.batch_id, authority.scope_digest,
+                                    authority.principal_binding_digest, packet.decision)
+        except ValueError as exc:
+            # A concurrent duplicate of the winning packet may arrive between
+            # the existence read and the adapter's durable one-use decision.
+            if str(exc) != "UNAUTHORIZED_OR_CONSUMED" or not self._canary_decision_exists(authority.batch_id):
+                raise
+            result = adapter.reconcile(authority.batch_id, authority.principal_binding_digest)
+            return self._result_envelopes(adapter, authority, result)
         return result
+
+    def _claim_packet(self, authority: FrozenCanaryAuthority, packet: OwnerApprovalPacket,
+                      verified: VerifiedOwnerDecision) -> None:
+        with closing(self._db()) as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT packet_digest,assurance,verifier_id,choice FROM application_authority "
+                             "WHERE batch_id=? AND authority_digest=?",
+                             (authority.batch_id, authority.digest)).fetchone()
+            if not row:
+                raise ValueError("CANARY_AUTHORITY_INTEGRITY_FAILURE")
+            if row[0] is None:
+                updated = db.execute("UPDATE application_authority SET packet_digest=?,assurance=?,"
+                                     "verifier_id=?,choice=?,verified_at=? "
+                                     "WHERE batch_id=? AND packet_digest IS NULL",
+                                     (packet.digest, verified.assurance, verified.verifier_id,
+                                      packet.decision, verified.verified_at, authority.batch_id))
+                if updated.rowcount != 1:
+                    raise ValueError("APPROVAL_ALREADY_CONSUMED")
+            elif (row[0] != packet.digest or row[3] != packet.decision):
+                raise ValueError("APPROVAL_ALREADY_CONSUMED")
+            # Same-packet replay is read-only; it cannot replace the winning
+            # verifier identity, timestamp, or decision audit.
+            db.commit()
 
     def cleanup(self, packet: OwnerApprovalPacket) -> dict:
         if type(packet) is not OwnerApprovalPacket:
             raise ValueError("INVALID_APPROVAL_PACKET")
         authority, saved = self._load_authority(self._batch_for_digest(packet.authority_digest))
+        self._assert_current_authority(authority)
         verified = self._verified(packet, authority, action="CLEANUP")
         packet_digest, assurance, verifier_id, choice, _verified_at, cleanup_status = saved
         if (packet_digest != packet.digest or choice != "APPROVE_ONCE"
@@ -407,8 +460,10 @@ class CanaryApprovalApplication:
         if type(packet) is not OwnerApprovalPacket:
             raise ValueError("INVALID_APPROVAL_PACKET")
         authority, saved = self._load_authority(self._batch_for_digest(packet.authority_digest))
+        self._verified(packet, authority, action=AUDIT_READ_ACTION)
         if saved[0] != packet.digest or saved[3] not in ("APPROVE_ONCE", "REJECT"):
             raise ValueError("CANARY_DECISION_NOT_VERIFIED")
+        self._assert_current_authority(authority)
         adapter = self._adapter(authority)
         return adapter.receipt(authority.batch_id, authority.principal_binding_digest)
 
@@ -416,12 +471,22 @@ class CanaryApprovalApplication:
         if type(packet) is not OwnerApprovalPacket:
             raise ValueError("INVALID_APPROVAL_PACKET")
         authority, saved = self._load_authority(self._batch_for_digest(packet.authority_digest))
+        read_authorization = self._verified(packet, authority, action=AUDIT_READ_ACTION)
         packet_digest, assurance, verifier_id, choice, verified_at, cleanup_status = saved
         if packet_digest != packet.digest or choice not in ("APPROVE_ONCE", "REJECT"):
             raise ValueError("CANARY_DECISION_NOT_VERIFIED")
         with closing(self._db()) as db:
             operations = db.execute("SELECT step,state FROM operations WHERE batch_id=? ORDER BY rowid",
                                     (authority.batch_id,)).fetchall()
+        operation_states = dict(operations)
+        delete_state = operation_states.get(CLEANUP_ACTION)
+        effective_cleanup_status = cleanup_status
+        if delete_state == "CALLING" and cleanup_status == "NOT_REQUESTED":
+            effective_cleanup_status = "UNKNOWN"
+        elif delete_state == "ACK" and cleanup_status == "NOT_REQUESTED":
+            effective_cleanup_status = "DELETED_CONFIRMED"
+        elif delete_state in ("INTENT", "REFUSED") and cleanup_status == "NOT_REQUESTED":
+            effective_cleanup_status = "REFUSED_NO_CALL"
         return {
             "schemaVersion": "awsops-issue90-application-audit/1",
             "batchId": authority.batch_id,
@@ -435,7 +500,12 @@ class CanaryApprovalApplication:
             "allowedActions": list(authority.allowed_actions),
             "cleanupAuthority": authority.cleanup.public_dict(),
             "operations": [{"step": step, "state": state} for step, state in operations],
-            "cleanupStatus": cleanup_status,
+            "cleanupAttempted": delete_state in ("CALLING", "ACK"),
+            "cleanupOperationState": delete_state or "NOT_REQUESTED",
+            "cleanupStatus": effective_cleanup_status,
+            "readAuthorization": "VERIFIED_READ_ONLY",
+            "readVerifierId": read_authorization.verifier_id,
+            "readAuthorizedAt": read_authorization.verified_at,
             "provenance": "SYNTHETIC" if self.mode == "MOCK" else "TRUSTED_PROVIDER_READ",
             "limitation": "SYNTHETIC_ONLY" if self.mode == "MOCK" else "FRESHNESS_NOT_VERIFIED",
         }

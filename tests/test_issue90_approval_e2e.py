@@ -5,8 +5,10 @@ import io
 import json
 from pathlib import Path
 import sys
+from threading import Barrier
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,8 +56,9 @@ class FakeSdkCanaryProvider(Boto3CanaryProvider):
 
 class SimulatedOwnerVerifier:
     """Test-only proof generator; it is not imported by application code."""
-    def __init__(self, *, wrong_principal: bool = False):
+    def __init__(self, *, wrong_principal: bool = False, verifier_id="TEST_ONLY_SIMULATOR"):
         self.wrong_principal = wrong_principal
+        self.verifier_id = verifier_id
         self.actions = []
 
     def verify(self, packet, authority, *, action, now):
@@ -69,7 +72,7 @@ class SimulatedOwnerVerifier:
             principal_binding_digest=principal,
             decision=packet.decision,
             assurance="TEST_SIMULATION",
-            verifier_id="TEST_ONLY_SIMULATOR",
+            verifier_id=self.verifier_id,
             verified_at=now,
         )
 
@@ -138,19 +141,23 @@ class ApprovalApplicationProof(unittest.TestCase):
             four = flow.receipt(packet)
             assert_four_envelope_contract(self, four)
             self.assertEqual([item["kind"] for item in four], ["Batch", "Decision", "Run", "Evidence"])
-            self.assertEqual(four[2]["record"]["simulatedWrites"], 5)
+            self.assertEqual(four[2]["record"]["simulatedWrites"], 4)
             audit = flow.audit(packet)
             self.assertEqual(audit["verification"], "TEST_SIMULATION")
             self.assertEqual(audit["provenance"], "SYNTHETIC")
             self.assertEqual(audit["limitation"], "SYNTHETIC_ONLY")
             self.assertEqual(audit["cleanupStatus"], "DELETED_CONFIRMED")
+            self.assertTrue(audit["cleanupAttempted"])
+            self.assertEqual(audit["cleanupOperationState"], "ACK")
+            self.assertEqual(audit["readAuthorization"], "VERIFIED_READ_ONLY")
             self.assertEqual([event["step"] for event in audit["operations"]],
                              ["create", "tags", "public_block", "policy", "delete"])
             exported = json.dumps({"batch": batch, "four": four, "audit": audit})
             self.assertNotIn(SYNTHETIC_ACCOUNT, exported)
             self.assertNotIn(SYNTHETIC_BUCKET, exported)
             self.assertNotIn("TEST_ONLY_SIMULATED_APPROVAL", exported)
-            self.assertEqual(verifier.actions, ["DECISION", "DECISION", "CLEANUP", "CLEANUP"])
+            self.assertEqual(verifier.actions, ["DECISION", "DECISION", "CLEANUP", "CLEANUP",
+                                                "AUDIT_READ", "AUDIT_READ"])
 
     def test_reject_is_audited_without_provider_writes_or_cleanup_authority(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -174,8 +181,12 @@ class ApprovalApplicationProof(unittest.TestCase):
             self.assertEqual(result["run"]["record"]["simulatedWrites"], 1)
             self.assertEqual(flow.cleanup(packet), {"status": "DELETED", "deleted": True})
             self.assertEqual(s3.writes, ["create", "delete"])
-            self.assertEqual(verifier.actions, ["DECISION", "CLEANUP"])
-            self.assertEqual(flow.audit(packet)["cleanupStatus"], "DELETED")
+            self.assertEqual(flow.receipt(packet)[2]["record"]["simulatedWrites"], 1)
+            audit = flow.audit(packet)
+            self.assertEqual(audit["cleanupStatus"], "DELETED")
+            self.assertTrue(audit["cleanupAttempted"])
+            self.assertEqual(verifier.actions,
+                             ["DECISION", "CLEANUP", "AUDIT_READ", "AUDIT_READ"])
 
     def test_uncertain_policy_and_delete_are_reconciled_without_replay(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -198,8 +209,10 @@ class ApprovalApplicationProof(unittest.TestCase):
             self.assertEqual(flow.cleanup(packet), {"status": "UNKNOWN", "deleted": False})
             self.assertEqual(flow.cleanup(packet)["status"], "ABSENT_AFTER_UNKNOWN")
             self.assertEqual(s3.writes.count("delete"), 1)
-            self.assertEqual(flow.audit(packet)["operations"][-1],
-                             {"step": "delete", "state": "CALLING"})
+            self.assertEqual(flow.receipt(packet)[2]["record"]["simulatedWrites"], 4)
+            audit = flow.audit(packet)
+            self.assertEqual(audit["operations"][-1], {"step": "delete", "state": "CALLING"})
+            self.assertTrue(audit["cleanupAttempted"])
 
     def test_cleanup_expiry_advanced_during_preflight_stops_sdk_delete(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -271,6 +284,97 @@ class ApprovalApplicationProof(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "APPROVAL_DECISION_EXPIRED"):
                 flow.decide(packet)
             self.assertEqual(factory_calls[0], 0)
+
+    def test_current_source_and_private_binding_drift_block_before_provider_factory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow, s3, _clock, factory_calls, _batch, _authority, packet, _verifier = make_case(directory)
+            factory_calls[0] = 0
+            flow.revision = "b" * 40
+            with self.assertRaisesRegex(ValueError, "APPLICATION_SOURCE_DRIFT"):
+                flow.decide(packet)
+            self.assertEqual(factory_calls[0], 0)
+            self.assertEqual(s3.writes, [])
+
+            flow.revision = SOURCE
+            flow.binding = CanaryBinding(SYNTHETIC_ACCOUNT,
+                                         "awsops-dev-issue90-s3-canary-foreign")
+            with self.assertRaisesRegex(ValueError, "APPLICATION_PRIVATE_BINDING_DRIFT"):
+                flow.decide(packet)
+            self.assertEqual(factory_calls[0], 0)
+            self.assertEqual(s3.writes, [])
+
+    def test_distinct_packet_race_has_one_audit_winner_and_replay_is_read_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow, s3, _clock, factory_calls, _batch, _authority, packet, _ = make_case(directory)
+            other = replace(packet, packet_id="TEST_PACKET_ISSUE90_OTHER")
+            barrier = Barrier(2)
+            delegate = SimulatedOwnerVerifier()
+
+            class RacingVerifier:
+                def verify(self, value, authority, *, action, now):
+                    result = delegate.verify(value, authority, action=action, now=now)
+                    if action == "DECISION":
+                        barrier.wait(timeout=10)
+                    return result
+
+            flow.verifier = RacingVerifier()
+            factory_calls[0] = 0
+
+            def decide(value):
+                try:
+                    return (value, flow.decide(value), None)
+                except ValueError as exc:
+                    return (value, None, str(exc))
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                outcomes = list(pool.map(decide, (packet, other)))
+            winners = [row for row in outcomes if row[1] is not None]
+            losers = [row for row in outcomes if row[2] is not None]
+            self.assertEqual(len(winners), 1)
+            self.assertEqual([row[2] for row in losers], ["APPROVAL_ALREADY_CONSUMED"])
+            winning_packet = winners[0][0]
+            losing_packet = other if winning_packet.digest == packet.digest else packet
+            self.assertEqual(factory_calls[0], 1)
+            self.assertEqual(s3.writes, ["create", "tags", "public_block", "policy"])
+
+            winning_audit = flow.audit(winning_packet)
+            self.assertEqual(winning_audit["packetDigest"], winning_packet.digest)
+            self.assertEqual(winning_audit["decision"], "APPROVE_ONCE")
+            self.assertEqual(winning_audit["verifierId"], "TEST_ONLY_SIMULATOR")
+
+            # Verification is pure; the durable CAS, not the verifier, consumes
+            # the decision. A replay cannot rewrite the winning audit identity.
+            flow.verifier = SimulatedOwnerVerifier(verifier_id="TEST_ONLY_REPLAY_VERIFIER")
+            replay = flow.decide(winning_packet)
+            self.assertEqual(replay["run"]["record"]["simulatedWrites"], 4)
+            self.assertEqual(flow.audit(winning_packet)["verifierId"], "TEST_ONLY_SIMULATOR")
+            self.assertEqual(s3.writes, ["create", "tags", "public_block", "policy"])
+            self.assertEqual(factory_calls[0], 2)  # Initial winner plus read-only replay.
+            with self.assertRaisesRegex(ValueError, "APPROVAL_ALREADY_CONSUMED"):
+                flow.decide(losing_packet)
+            self.assertEqual(factory_calls[0], 2)
+
+    def test_expired_packet_blocks_mutation_but_allows_verified_durable_read(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow, s3, clock, factory_calls, _batch, _authority, packet, verifier = make_case(directory)
+            flow.decide(packet)
+            writes = list(s3.writes)
+            clock[0] = packet.expires_at
+            factory_calls[0] = 0
+            with self.assertRaisesRegex(ValueError, "APPROVAL_PACKET_SCOPE_OR_EXPIRY_MISMATCH"):
+                flow.decide(packet)
+            with self.assertRaisesRegex(ValueError, "APPROVAL_PACKET_SCOPE_OR_EXPIRY_MISMATCH"):
+                flow.cleanup(packet)
+            self.assertEqual(factory_calls[0], 0)
+            self.assertEqual(s3.writes, writes)
+
+            audit = flow.audit(packet)
+            self.assertEqual(audit["readAuthorization"], "VERIFIED_READ_ONLY")
+            self.assertEqual(audit["cleanupAttempted"], False)
+            receipt = flow.receipt(packet)
+            self.assertEqual(receipt[2]["record"]["simulatedWrites"], 4)
+            self.assertEqual(s3.writes, writes)
+            self.assertEqual(verifier.actions[-2:], ["AUDIT_READ", "AUDIT_READ"])
 
     def test_decision_and_initial_audit_commit_together_for_restart_recovery(self):
         with tempfile.TemporaryDirectory() as directory:

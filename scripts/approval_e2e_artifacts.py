@@ -21,9 +21,10 @@ sys.path[:0] = [str(ROOT / "src"), str(ROOT / "tests")]
 from awsops.execution import s3_canary
 from test_issue90_approval_e2e import make_case
 
-DEFAULT_OUTPUT = Path.home() / ".AGENTS-temp/awsops/approval-e2e-20261016"
 FIXED_TIME = 1_800_000_000
 UUIDS = iter(f"{number:032x}" for number in range(1, 100))
+FAKE_ACCOUNT = "999999999999"
+FAKE_BUCKET = "awsops-dev-issue90-s3-canary-zzzzzzzzzzzz"
 
 
 def deterministic_uuid():
@@ -35,15 +36,37 @@ def write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def emit_case(root: Path, scenario: str, operation, source_revision: str) -> None:
-    (root / scenario).mkdir(parents=True, exist_ok=True)
+def validate_receipt(receipt: list[dict]) -> None:
+    if [item.get("kind") for item in receipt] != ["Batch", "Decision", "Run", "Evidence"]:
+        raise ValueError("INVALID_FOUR_ENVELOPE_RECEIPT")
+    evidence = receipt[3].get("record", {})
+    if evidence.get("provenance") != "SYNTHETIC" or evidence.get("limitation") != "SYNTHETIC_ONLY":
+        raise ValueError("SIMULATED_EVIDENCE_LABEL_MISSING")
+    exported = json.dumps(receipt, sort_keys=True)
+    if FAKE_ACCOUNT in exported or FAKE_BUCKET in exported or "TEST_ONLY_SIMULATED_APPROVAL" in exported:
+        raise ValueError("UNSANITIZED_TEST_ARTIFACT")
+
+
+def emit_case(root: Path, scenario: str, operation, source_revision: str) -> dict:
     with patch.object(s3_canary.uuid, "uuid4", side_effect=deterministic_uuid):
         with tempfile.TemporaryDirectory(prefix="awsops-approval-e2e-") as scratch:
             flow, _sdk, _clock, _factory_calls, _batch, _authority, packet, _verifier = make_case(
                 Path(scratch), source_revision=source_revision, clock=[FIXED_TIME])
             packet = operation(flow, packet) or packet
-            write_json(root / scenario / "four-envelope.json", flow.receipt(packet))
-            write_json(root / scenario / "application-audit.json", flow.audit(packet))
+            receipt = flow.receipt(packet)
+            audit = flow.audit(packet)
+            validate_receipt(receipt)
+            audit_text = json.dumps(audit, sort_keys=True)
+            if (audit.get("provenance") != "SYNTHETIC"
+                    or audit.get("limitation") != "SYNTHETIC_ONLY"
+                    or FAKE_ACCOUNT in audit_text or FAKE_BUCKET in audit_text
+                    or "TEST_ONLY_SIMULATED_APPROVAL" in audit_text):
+                raise ValueError("UNSANITIZED_TEST_AUDIT")
+            receipt_name = scenario + ".receipt.json"
+            audit_name = scenario + ".audit.json"
+            write_json(root / receipt_name, receipt)
+            write_json(root / audit_name, audit)
+            return {"name": scenario, "receipt": receipt_name, "audit": audit_name}
 
 
 def success(flow, packet):
@@ -84,35 +107,33 @@ def uncertain_delete(flow, packet):
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--output", type=Path, required=True,
+                        help="new or empty disposable output directory")
     args = parser.parse_args()
     output = args.output.expanduser().resolve()
+    if output.exists() and any(output.iterdir()):
+        parser.error("output directory must be new or empty")
     output.mkdir(parents=True, exist_ok=True)
     head = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=ROOT, check=True, text=True,
         stdout=subprocess.PIPE).stdout.strip()
 
-    for scenario, operation in (
-        ("success-with-cleanup", success),
-        ("partial-setup-cleanup", partial_cleanup),
-        ("uncertain-policy", uncertain_policy),
-        ("uncertain-delete", uncertain_delete),
-        ("rejected", reject),
-    ):
-        emit_case(output, scenario, operation, head)
+    cases = [
+        emit_case(output, "success", success, head),
+        emit_case(output, "uncertain-policy", uncertain_policy, head),
+        emit_case(output, "reject", reject, head),
+        emit_case(output, "partial-setup-cleanup", partial_cleanup, head),
+        emit_case(output, "uncertain-delete", uncertain_delete, head),
+    ]
 
-    write_json(output / "manifest.json", {
-        "schemaVersion": "awsops-issue90-approval-e2e-artifacts/1",
+    write_json(output / "app-e2e-summary.json", {
+        "schemaVersion": "awsops-canary-e2e/1",
+        "approval": "TEST_SIMULATION",
+        "provider": "FAKE_SDK",
+        "actualAwsCalls": 0,
+        "reportedAttemptCountsAreActualAwsCalls": False,
         "sourceRevision": head,
-        "artifactClass": "SYNTHETIC_ONLY",
-        "approvalAssurance": "TEST_SIMULATION",
-        "providerMode": "MOCK",
-        "awsCalls": 0,
-        "core2Import": "Use each scenario/four-envelope.json as the four-envelope v1 array.",
-        "audit": "Separate application-audit.json; not part of the four-envelope v1 schema.",
-        "scenarios": ["success-with-cleanup", "partial-setup-cleanup", "uncertain-policy",
-                      "uncertain-delete", "rejected"],
-        "limitation": "No human approval, live provider read, compliance convergence, or AWS action is evidenced.",
+        "cases": cases,
     })
     print(output)
     return 0

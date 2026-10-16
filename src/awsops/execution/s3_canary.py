@@ -397,20 +397,12 @@ class CanaryAdapter:
             nonlocal claimed
             if int(self.clock()) >= expires_at:
                 raise ValueError("CLEANUP_AUTHORITY_EXPIRED")
-            original = json.loads(row[1])
-            candidate = deepcopy(original)
-            record = candidate["run"]["record"]
-            key = "simulatedWrites" if self.mode == "MOCK" else "realWrites"
-            record[key] = record["results"][0][key] = record[key] + 1
-            candidate["evidence"]["record"]["realWrites"] = record["realWrites"]
-            record["status"] = "NEEDS_REVIEW"
             with closing(self._db()) as db:
                 db.execute("BEGIN IMMEDIATE")
                 updated = db.execute("UPDATE operations SET state='CALLING' WHERE batch_id=? AND step='delete' AND state='INTENT'",
                                      (batch_id,))
                 if updated.rowcount != 1:
                     raise ValueError("DELETE_CLAIM_UNAVAILABLE")
-                db.execute("UPDATE canaries SET result=? WHERE batch_id=?", (json.dumps(candidate), batch_id))
                 db.commit()
             # A delayed durable claim must not authorize a call after cleanup expiry.
             if int(self.clock()) >= expires_at:
@@ -418,7 +410,6 @@ class CanaryAdapter:
                     db.execute("BEGIN IMMEDIATE")
                     db.execute("UPDATE operations SET state='REFUSED' WHERE batch_id=? AND step='delete' AND state='CALLING'",
                                (batch_id,))
-                    db.execute("UPDATE canaries SET result=? WHERE batch_id=?", (json.dumps(original), batch_id))
                     db.commit()
                 raise ValueError("CLEANUP_AUTHORITY_EXPIRED")
             claimed = True
