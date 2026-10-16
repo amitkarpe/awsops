@@ -1,5 +1,38 @@
 # AGENTS.md
 
+## MVP-FIRST DEVELOPMENT POLICY
+
+Owner override, 16 October 2026. Defence Factory is an MVP / advanced prototype,
+not an enterprise production platform. **BUILD → DEMONSTRATE → IMPROVE.**
+
+1. Working functionality before enterprise hardening.
+2. Deliver the smallest complete end-to-end vertical slice.
+3. Fix real defects; defer hypothetical future problems.
+4. Reuse existing code, tools, roles and workflows.
+5. No unnecessary frameworks, layers or infrastructure.
+6. Minimal meaningful tests and evidence only; reuse completed proof.
+7. Do not repeatedly request GO for routine development.
+8. DOT is the sole implementer and owns implementation, testing and safe source
+   merges when repository gates permit. No Direct, Factory, Codex X or other writer.
+9. Optional hardening must NOT block MVP milestones.
+10. Enterprise security, scalability, multi-tenant complexity and comprehensive
+    edge-case coverage are future phases.
+
+### Mandatory safety boundaries
+
+- Personal AWS LAB only; never company, office, GovTech or PROD accounts.
+- Human **Approve Once** for each fixed real-remediation batch.
+- Preserve protected awsops Issue #89 fixtures.
+- No root credentials, secret exposure or accidental destructive actions.
+- Live IAM installation and remediation require exact, separate owner authorization.
+- Keep MOCK and REAL evidence distinct. Private bindings stay out of public GitHub.
+
+These are real boundaries, not a reason to invent additional approval ceremonies.
+This policy supersedes conflicting older workflow preferences, not these boundaries.
+Repository-only work and safe source merges need no repeated GO; source acceptance
+never authorizes AWS installation, remediation or publication to a new audience.
+
+
 Repository: `amitkarpe/awsops`
 
 ## Bootstrap

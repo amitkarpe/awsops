@@ -1,133 +1,63 @@
-# Issue90 current scope
+# Specification — Defence Factory MVP
 
-Owner directive 2026-10-15: Dot native implementation, no controller/X dependency.
-M1 defines the inert [Defence Factory v1 boundary](contracts/defence-factory/README.md).
-Personal LAB alias amit only for future verified reads; old aliases below cannot be
-registered through this contract. Preserve #89 fixtures and all IAM/trust/security gates.
-M1/M2 source changes grant no live remediation authority; existing live Approve stays disabled.
-No AWS call, runtime activation, new permission or resource in M1.
+## MVP-FIRST DEVELOPMENT POLICY
 
-## Preserved legacy runtime specification
+Owner override, 16 October 2026. Defence Factory is an MVP / advanced prototype,
+not an enterprise production platform. **BUILD → DEMONSTRATE → IMPROVE.**
 
-# Specification
+1. Working functionality before enterprise hardening.
+2. Deliver the smallest complete end-to-end vertical slice.
+3. Fix real defects; defer hypothetical future problems.
+4. Reuse existing code, tools, roles and workflows.
+5. No unnecessary frameworks, layers or infrastructure.
+6. Minimal meaningful tests and evidence only; reuse completed proof.
+7. Do not repeatedly request GO for routine development.
+8. DOT is the sole implementer and owns implementation, testing and safe source
+   merges when repository gates permit. No Direct, Factory, Codex X or other writer.
+9. Optional hardening must NOT block MVP milestones.
+10. Enterprise security, scalability, multi-tenant complexity and comprehensive
+    edge-case coverage are future phases.
 
-Status: ACTIVE - Home read-only v1 supported; M3 live acceptance deferred; M4 unauthorized.
+### Mandatory safety boundaries
 
-## Goal and layering
+- Personal AWS LAB only; never company, office, GovTech or PROD accounts.
+- Human **Approve Once** for each fixed real-remediation batch.
+- Preserve protected awsops Issue #89 fixtures.
+- No root credentials, secret exposure or accidental destructive actions.
+- Live IAM installation and remediation require exact, separate owner authorization.
+- Keep MOCK and REAL evidence distinct. Private bindings stay out of public GitHub.
 
-Read evidence -> normalized finding -> fresh freeze -> native human choice
--> durable receipt -> independent provider readback. Remediation is disabled.
-Domain/decision records remain independent of LibreChat and AWS clients.
-There is no generic model-facing AWS or decision API.
+These are real boundaries, not a reason to invent additional approval ceremonies.
+This policy supersedes conflicting older workflow preferences, not these boundaries.
+Repository-only work and safe source merges need no repeated GO; source acceptance
+never authorizes AWS installation, remediation or publication to a new audience.
 
-## Evidence and preparation
+## Current vertical slice — Issue #90
 
-- Exactly four private registered LAB bindings: lab-dev, lab-poc, lab-qa,
-  lab-sec; expected controller/read-role identities and ap-southeast-1 Region.
-- Fixed bounded SDK reads verify returned Region and expected bucket owner.
-  Partial, unavailable, UNKNOWN or stale evidence cannot become preparation.
-- Digests bind actual policy, identity, resource, Region and evaluator version.
-  Provider readback compares policy evidence, not a compliance label alone.
-- Candidate input nominates alias/resource reference/expected digest. It never
-  supplies a frozen scope, provider policy, account ID, role or AWS operation.
-- Prepare rereads provider truth and expires within five minutes. Model input,
-  JSON value types and digests are not authorization.
+Backend awsops and existing frontend agentcore2: read/import findings → group and
+select resources → human Approve Once → approved LAB operation → provider readback
+and exported evidence. Reuse delivered M1–M4 source; do not rebuild it.
 
+- First personal LAB alias: amit; Region ap-southeast-1. Exact identity stays private.
+- Existing account-local Config read role/proof is preserved; it does not grant write
+  authority. Reuse the OIDC provider and workflow conventions.
+- PR #93 proposes ONE reusable PowerUserAccess-based LAB execution role for the MVP.
+  No cross-account controller/dispatcher architecture. A second service role is
+  considered only when an actual AWS operation technically requires one.
+- First live milestone is one new disposable S3 canary, after separate installation
+  and exact-operation approval. SG and EC2 operations follow later.
+- Fixed reviewed operations only; no arbitrary model-supplied AWS command. Verify
+  identity/target, record the approved batch and outcome, read back provider state.
+  Unknown write outcome is reconciled before any retry. Never count MOCK as REAL.
+- Basic cost awareness: USD10 total experiment target; no claim that Budgets is a
+  hard cap. No new infrastructure or paid service is authorized by this source work.
+- Current source mode has no live apply authority. IAM installation and live
+  remediation remain held until their exact separate owner decisions.
 
-## Supported Home read-only v1
+## Preserved completed/deferred work
 
-Home is the supported NEW runtime. The retained `amit` EC2 is stopped and is
-recovery state only. `python scripts/home_demo.py validate` is the canonical
-fail-closed local validation command. It performs loopback GETs only and requires:
-
-- config2 `READY`, `partial=false`, exactly four aliases, eight checks and two controls;
-- sec2 application health;
-- exactly one `ask_compliance_agent` MCP tool and zero actions;
-- the existing Status / Explain / no-change Plan browser evidence, rendered-output
-  binding and Archive cleanup.
-
-Owner-private configuration remains outside Git under the existing schemas.
-Cloudflare quick tunnel is optional demo transport, not permanent infrastructure.
-The validator creates no AWS capability and performs no cloud mutation.
-
-## Durable native decisions
-
-- One private SQLite ledger records PREPARE_FROZEN and NATIVE_DECISION.
-- Exact server-owned tool/principal/tenant/conversation/action/generation/call
-  binding is persisted as a digest. The platform owns authentication and claims.
-- Final choices return only after commit. Replay, mismatch, expiry or storage
-  failure cannot continue the native job. Audit reads never mint continuation.
-- Reject records REJECTED. Synthetic Approve records APPROVE_BLOCKED and maps
-  to reject; no executor exists. Live Approve remains prohibited.
-- Hash links/triggers detect ordinary corruption under trusted local server/
-  filesystem administration; they are not an externally anchored audit service.
-
-## Trusted pause producer and private processes
-
-- An exact source-pinned insertion runs BEFORE native approvals.pause/card
-  publication. The actual running generation/user/tenant/agent is validated.
-- One exact reject-only tool nominates a candidate. The provider process reads
-  fresh evidence, freezes it and commits its native registration before reply.
-- Native identity and candidate are rechecked after provider work. Only then
-  may the pending action receive the committed batch/scope and reduced expiry.
-- Failure/lost acknowledgement or losing the subsequent native pause claim
-  can leave orphan PREPARE evidence, never readiness or execution authority.
-  Preserve/reconcile it; do not silently rebind or manufacture a decision.
-- Only ['reject'] is offered on the native card. Unrelated tools bypass the
-  canary integration; mixed/reserved lookalikes and edited input fail closed.
-- Receipt and provider processes are separate. The receipt child receives no
-  credentials. The provider child uses only the configured existing local SDK
-  profile, not copied parent/browser tokens. Bounded pipes expose no listener.
-- A bound REJECTED receipt permits fresh read-only comparison after reopening
-  state, without restoring the planning cache/job. Missing, expired, changed,
-  partial or unknown evidence cannot report unchanged. Readback output must be
-  retained in the final canary evidence packet; no new ledger event is claimed.
-- Runtime controller tests explicitly stub external auth/store/model services.
-  They cannot certify native login, complete application startup or browser E2E.
-
-## Personal LAB credential standing authority
-
-For this repository's **personal LAB/DEV demo surfaces only**, Amit grants G
-standing authority to manage ordinary application/demo user credentials without
-a new approval for each account operation. G may perform the change directly
-when tooling allows or delegate it to the matching X/Codex worker.
-
-Within this boundary, G/X may:
-
-- reuse existing project credentials from the retained private `.env`, GitHub
-  repository/environment secret or variable stores, and AWS Secrets Manager;
-- create an application/demo user when the required LAB identity is absent;
-- assign or reset a LAB application password/credential when needed to restore
-  an approved demo or development journey;
-- keep the same credential synchronized across the approved private stores when
-  that is already the project pattern;
-- share the LAB username/password back to Amit through the private chat/session
-  or another private owner channel when needed for manual testing.
-
-Do not place secret values in this public repository, Issues, PRs, Actions logs,
-or public evidence. Prefer reusing an existing credential over generating a new
-one when the existing private source is valid. This standing authority covers
-application/demo credentials for config/sec/sync and related personal-LAB
-surfaces; it does **not** authorize PROD/company credentials, AWS IAM/SSO/access
-keys, broad secret rotation, OLD-environment credential copying, or unrelated
-identity-system changes.
-
-## Deployment and rollback
-
-Issue #11 / PR #13 remain deferred. Their isolated canary contract is preserved,
-but no canary may launch unless Amit explicitly reprioritizes M3 live acceptance. Source pins,
-capacity, normal native authentication and isolated writable state must all
-pass before a live run. New native auth account/session-secret provisioning
-requires its explicit gate; do not reuse the old database or extract its keys.
-
-The source patch utility still edits only marked offline candidates. Verify
-both producer and resume components before startup. Partial apply/drift must
-refuse startup; rollback only restores its exact files and never deletes audit.
-No existing service restart, auth bypass, public DNS/ingress/network, IAM/OIDC,
-new AWS resource, company/PROD or old-repository mutation is authorized.
-
-M3 repository work is complete, but REAL authenticated native Reject, durable
-receipt, fresh provider readback and cleanup remain DEFERRED. M4 is NOT STARTED
-and has no mutation authority while that priority remains deferred.
-Public proof uses aliases/digests, never private account/resource/native IDs,
-policies, login material or browser state.
+Issue #86 read-only proof remains accepted. Issue #89 fixtures remain unchanged.
+Issue #11 / PR #13 legacy native canary is deferred, not revived by this policy.
+Existing domain decisions, receipts and runtime code are reused; no legacy approval,
+credential-management or alias list expands Issue #90 authority. Source/history and
+architecture documents remain references, not new live authorization.

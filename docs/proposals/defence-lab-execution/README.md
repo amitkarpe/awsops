@@ -1,100 +1,100 @@
-# Defence Factory personal-LAB Power User review
+# Defence Factory MVP: one personal-LAB execution role
 
-15 October 2026. Owning Issue90, existing PR93. Dot is sole native implementer.
-Owner direction: https://github.com/amitkarpe/awsops/pull/93#issuecomment-6194680568
+Owner MVP-first override, 16 October 2026. Owning Issue #90, existing PR #93.
+This replaces the S3-only proposal AND the later three-role controller/dispatcher
+proposal. Those private installation packets are superseded, not apply authority.
 
-## Superseding design
+## Smallest working architecture
 
-The former S3-only/five-action proposal and its installation request are superseded.
-Do not install the old private packet. Source-only acceptance or merge of PR93 does
-not authorize IAM installation or live dispatch. The existing
-four-action Config read role, OIDC provider, protected Issue89 fixtures and public
-access settings remain unchanged. No AWS call, IAM installation or live dispatch
-occurred during this revision.
+Use the existing GitHub OIDC provider and manual workflow conventions with **ONE
+reusable PowerUserAccess-based LAB execution role**, directly assumed through the
+reviewed repository/Environment-bound OIDC trust. No new central controller,
+dispatcher, cross-account broker, Organizations discovery or per-service grant cycle.
+Keep the existing four-action Config read role unchanged; reuse its proven identity
+pattern, not its permissions. The new write-capable role is a separately approved
+installation, not an expansion silently attached to the read role.
 
-One reusable account-specific role template is proposed for explicitly registered
-personal LAB accounts. First rollout is owner-designated personal LAB alias amit,
-Singapore only. No office/dev/PROD or automatic additional-account registration.
+First target is owner-designated personal LAB alias amit, ap-southeast-1 only.
+Exact account/role/resource values, trust bindings and rendered hashes stay private.
+The existing protected Environment/main-only/manual-dispatch practices are reused.
+A fixed short job verifies STS account/role/Region, checks a fresh batch-bound human
+Approve Once receipt, runs only the reviewed operation, verifies provider state and
+exports a sanitized receipt. Request a 900-second session and use a five-minute job
+limit; do not claim these revoke all credentials or bound AWS service sessions.
+No static keys, arbitrary model-supplied code/commands or automatic mutation replay.
 
-Identity separation:
-1. A distinct GitHub OIDC controller can assume only explicitly registered target
-   dispatcher roles. It has no broad service-write permissions.
-2. A target-account dispatcher can start one fixed reviewed SSM document version,
-   read bounded execution receipts, and pass only its exact same-account service
-   execution role to SSM.
-3. An AWS-owned service execution role uses AWS-managed PowerUserAccess with one
-   deny-category boundary. It is not directly assumable by GitHub. The same template
-   supports reviewed S3, security-group and EC2 compliance operations without
-   adding service-specific permission grants for every capability.
+PowerUserAccess is broad across S3, SG, EC2 and SSM service APIs. The operation
+catalog and owner approval control what the product executes. Adding an ordinary
+supported service operation should not require another per-service IAM allowlist.
+No AdministratorAccess. Retain a compact safety overlay for identity administration,
+protected fixtures and disallowed accounts/Region/destruction/public changes; it is
+not an enterprise perimeter or a promise of exhaustive API coverage.
 
-Exact role names, rendered trusts, target registration, protected resources and
-policy/document hashes remain in the private review material. Public templates from
-the previous narrow design are retired here to prevent accidental use.
+## Is a second role necessary?
 
-## Guardrails and acknowledged residual risk
+**Not for the first short S3 canary.** Run its fixed calls directly under the single
+OIDC execution role. No SSM service role or iam:PassRole is needed for that path.
 
-The proposed boundary denies identity/account administration, protected targets,
-other Regions, known foreign resource ownership, common destructive/public-exposure
-operations, audit disablement, delegated arbitrary execution and major spend paths.
-Per-batch controls require an immutable scope, exact resource revisions, expiry,
-authenticated human Approve Once or Reject, atomic decision consumption, stable
-idempotency token, durable receipts, drift checks and independent provider readback.
-The current source runbook is unconditionally blocked and contains no provider calls.
+AWS does require an assume/service role when a custom SSM aws:executeScript step
+calls AWS APIs. If that specific AWS-owned execution path is later needed, reuse an
+appropriate approved service role, or propose ONE minimal second role plus PassRole
+limited to that exact same-account role and SSM. Do not add a third dispatcher or
+pre-build this extension now. PowerUserAccess does not itself grant iam:PassRole.
+Reference: https://docs.aws.amazon.com/systems-manager/latest/userguide/automation-document-script-considerations.html
 
-A broad AWS policy plus a short deny overlay is NOT a complete security perimeter
-or hard cost cap. Ordinary data reads and some resource-creation/spend actions remain
-possible. Resource-account condition keys are absent for some APIs; endpoint Region
-is not a guarantee about all effects. Protected resources also need indirect dependency
-review. Managed-policy versions may change. Fixed trusted code, private effective
-permission verification, and review of these residuals are installation prerequisites.
-There is no generic model-accessible AWS mutation tool.
+## MVP journey and delivered work
 
-AWS documentation currently identifies PowerUserAccess v12, including service-linked
-role administration exceptions; the proposed overlay denies those exceptions.
-The actual policy version and effective access in the LAB are NOT_VERIFIED.
-Reference: https://docs.aws.amazon.com/aws-managed-policy/latest/reference/PowerUserAccess.html
-PassRole reference: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_passrole.html
+1. Reuse existing Config read evidence and bounded synthetic CSV/JSON import.
+2. Reuse existing grouped findings/selection in agentcore2; keep its MOCK badge.
+3. Reuse immutable batch and Approve Once/Reject semantics. A browser/imported
+   assertion is not a trusted real-operation approval.
+4. First REAL operation: one new disposable, empty S3 canary only after exact
+   installation and live-operation approvals. A fixed default-encryption check/
+   reconciliation is the initial candidate; secure default may yield NO_CHANGE.
+   Do not weaken it to manufacture a demo. No protected Issue #89 targets or
+   public-access changes. SG and EC2 follow after this slice is demonstrated.
+5. Read back provider results, export sanitized evidence and keep Config freshness
+   separate. UNKNOWN or ambiguous write acknowledgement requires readback before
+   retry; no blind replay or fabricated VERIFIED result. Keep basic rollback and
+   cleanup notes for the exact canary, with destructive cleanup separately approved.
 
-## Evidence and acceptance limits
+Delivered M1–M4 source and MOCK evidence are reused, not rebuilt or repeatedly tested.
+The live operation remains unperformed. This design is not a runnable AWS deployment.
+The next small source milestone is connecting the existing frozen decision/receipt
+seam to a fixed S3-canary adapter with one focused fake-provider check, before its
+separately approved live proof. No multi-account orchestration or new framework.
 
-- LOCAL_SOURCE_REVIEW=PASS: revised policy/trust model, private-only renderer and
-  inert multi-service scope review prepared outside the public publication packet.
-- OFFLINE_CHECKS=75_PASS: local policy-subset checks, private-output restrictions,
-  fixed trust/dispatcher boundaries, negative cases and intentional residual ALLOW
-  examples. Existing synthetic intake/freeze/Reject checks also PASS.
-- These checks are NOT AWS IAM simulation, SCP validation, actual role assumption,
-  provider ownership, hosted viewer acceptance or a REAL remediation proof.
-- Revised detailed source/tests are retained privately; they are not claimed to be
-  committed in this sanitized-summary revision. Earlier detailed publication was
-  withheld to preserve the public/private boundary; no private material is published.
-- CI=NOT_RUN_SUMMARY_ONLY. Prior CI/source evidence is not reused as live authority.
-- INSTALLATION=HELD; LIVE_DISPATCH=HELD; NEW_AWS_RESOURCES=0.
+## Essential safety and honest limits
 
-## One remaining external gate
+- Personal LAB only; no company, GovTech, office or PROD access, root credentials,
+  secret exposure, accidental destructive action or unknown-account onboarding.
+- Human Approve Once for the exact fixed batch, target identity verification,
+  protected-resource exclusions, basic cost awareness and audit/readback evidence.
+- PowerUserAccess includes broad reads, writes and spending paths. Its documented
+  service-linked-role exceptions are not blanket authority for this application.
+  Keep identity-administration restrictions in the reviewed installation scope.
+- Policy versions and actual permissions must be checked for the live installation,
+  but enterprise-grade policy simulation is NOT a repository-development gate.
+- USD10 total experiment target; price/bound the first operation and stop on unknown
+  cost. AWS Budgets alerts are NOT a hard spending cap. APIs are not guaranteed free.
+- Optional security hardening, scaling, multi-tenancy and exhaustive edge-case tests
+  are deferred. Do not turn these real boundaries into speculative milestone gates.
 
-First complete exact-account private verification using an approved non-root access
-path: fresh identity/role binding, protected target/dependency inventory, actual
-managed-policy version, trust, boundary, SCP/resource-policy effects and cost safeguards.
-No root fallback, unknown account or assumed authority from the old read-only proof.
+PowerUserAccess reference:
+https://docs.aws.amazon.com/aws-managed-policy/latest/reference/PowerUserAccess.html
 
-Only when that packet is complete, request ONE revised installation-only decision
-for the exact new identities, boundaries, protected Environment and blocked document
-in the designated personal LAB, within USD10 total experiment spend. No broad policy
-activation or REAL canary is approved now. The earlier narrow installation question
-cannot authorize this materially different design. No repeated GO is required for
-safe source preparation.
+## Acceptance and next authority
 
-Future canary execution requires its own frozen exact-target authority. First target
-must be newly disposable and free of genuine data/clients. No public-access changes,
-protected fixtures, bulk live remediation, permanent compute, schedule or paid model
-calls. Secure defaults may produce NO_CHANGE; never weaken a resource to force a demo.
+Source-only policy/design updates can merge under the owner MVP directive when
+ordinary repository gates pass. No IAM installation or remediation follows from
+merge. Public files are sanitized; detailed private bindings remain outside GitHub.
+Earlier 75 offline checks describe the superseded three-role design and are retained
+as historical evidence, NOT relabeled as validation of this one-role architecture.
+Only focused documentation/boundary consistency checks are required for this change.
 
-Rollback: stop new admissions, reconcile in-flight execution, preserve receipts and
-verify session expiry; remove only newly installed components under exact authority.
-No automatic deletion, unsafe configuration restoration or existing-role/provider
-changes. Cost accounting must include in-flight estimates and a safety margin;
-budget alerts are not hard caps and API calls are not guaranteed free.
-
-NEXT=Complete private non-root/effective-access verification before requesting the
-single revised exact-account installation decision. MOCK, source and REAL evidence
-remain separate. The existing companion MOCK GUI is preserved.
+IAM_INSTALLATION=HELD
+LIVE_DISPATCH=HELD
+AWS_POLICY_SIMULATION=NOT_VERIFIED (not required for source-only acceptance)
+NEXT=Fixed S3 canary adapter through the existing approval/evidence seam. Present
+one exact installation decision and a separate exact canary decision when ready;
+no repeated GO for source development.

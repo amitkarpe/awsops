@@ -1,30 +1,23 @@
-# Defence Factory current progress
+# Defence Factory MVP progress
 
-15 October 2026. Issue90 owns this delivery; Dot implements directly.
+16 October 2026. Issue90; DOT sole native implementer.
 
-## Accepted source
+Completed source: PR91/92 shared contract, bounded synthetic intake, candidate
+catalog, frozen approval scope and non-executing receipt seam. Companion agentcore2
+PR40/41 grouped MOCK journey and PR43 version label are reused. No rebuild or
+repeated E2E. Real viewer and hosted label proof remain separate from source.
 
-PR91/92 merged the shared contract, bounded synthetic CSV/JSON intake, candidate
-control catalog, immutable offline scope and non-executing approval seam. Existing
-synthetic intake/freeze/Reject checks pass. Imported or MOCK data cannot authorize
-REAL execution; unknown/partial evidence is never converted into compliance.
-The existing #86 Config read proof is reused, not rerun.
+Current PR93 installs the MVP-first DEVELOPMENT POLICY in AGENTS/SPEC and simplifies
+the DESIGN to one reusable PowerUserAccess-based LAB role using existing OIDC.
+This does not install AWS IAM. Optional enterprise hardening is deferred. Existing
+Config read role and #89 protected fixtures are unchanged.
 
-## Current design review
+The prior 75 local tests apply to the superseded three-role design, retained as
+historical evidence only. Current documentation consistency checks establish the
+new policy and source scope; no live policy simulation or AWS result is claimed.
 
-PR93 supersedes the former five-action S3-only proposal with one reusable personal-LAB
-PowerUserAccess pattern behind a narrow OIDC controller and registered dispatcher.
-Read the [sanitized review packet](../proposals/defence-lab-execution/README.md).
-Detailed source/tests and exact bindings are owner-private. 75 local checks pass;
-AWS policy simulation and actual effective access are NOT_VERIFIED.
-
-The earlier connection-expiry note and narrow installation request are superseded.
-The remaining prerequisite is approved non-root private target/effective-policy
-verification, then one exact revised installation-only decision. Source merge is
-not AWS authorization. IAM installation and REAL dispatch remain HELD.
-
-No AWS call, resource creation, public-access change or Issue89 mutation occurred
-in this design revision. No new infrastructure cost. Future API costs are not assumed
-free; USD10 total experiment limit requires preflight and is not enforced by alerts.
-Companion MOCK GUI/source acceptance remains separate from actual viewer and REAL
-provider evidence. The roadmap is not fully live-complete.
+Next: fixed S3-canary adapter through the existing batch decision/evidence seam.
+LIVE blockers: exact separate IAM-installation authorization/non-root target access,
+then exact disposable-canary Approve Once. No extra GO for repository implementation.
+Cost target USD10 total; budgets alert, not cap. No AWS calls or resources in this
+source-policy update. MOCK stays MOCK.

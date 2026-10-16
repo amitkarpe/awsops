@@ -1,21 +1,20 @@
-# Current context — Defence Factory Issue90
+# Current context — Defence Factory MVP
 
-Updated 15 October 2026. Dot is sole native implementer; no Direct, Factory or X.
+Updated 16 October 2026. DOT implements directly; no delegated writer.
+AGENTS.md and SPEC.md contain the owner MVP-FIRST DEVELOPMENT POLICY.
 
-- M1/M2 source delivery is merged in PR91/92. Existing #86 Config read proof remains
-  accepted; the four-action read role is unchanged.
-- Issue89 fixtures remain protected and unauthorized for mutation.
-- PR93 owns the reusable personal-LAB PowerUserAccess design. The earlier S3-only
-  proposal and its installation request are superseded.
-- First proposed target is owner-designated personal LAB alias amit, Singapore only.
-  No office/dev/PROD or implicit additional-account authority.
-- Public source review: [sanitized packet](docs/proposals/defence-lab-execution/README.md).
-  Detailed bindings, rendered policy and installation material stay owner-private.
-- Local source checks pass; actual effective IAM/SCP verification is NOT_VERIFIED.
-  Installation and REAL dispatch are HELD regardless of repository merge status.
-- Next: approved non-root private target/effective-policy verification, followed by
-  one revised exact-account installation decision. No root fallback.
-- MOCK/source, hosted GUI, actual viewer and REAL AWS proof are separate evidence.
+M1/M2 source merged PR91/92; existing M4 offline approval/evidence seam and companion
+MOCK GUI are reused. #86 Config read proof remains accepted; read role unchanged.
+#89 fixtures remain protected. The former S3-only and three-role IAM proposals are
+superseded by one reusable PowerUserAccess-based LAB role in PR93. Existing OIDC,
+short fixed manual execution, identity check, Approve Once and provider readback.
+No separate dispatcher or cross-account architecture for this MVP.
 
-Earlier runtime history is retained in Git history and the existing architecture
-and current-evidence documents; it cannot expand this owning Issue's authority.
+[Current design](docs/proposals/defence-lab-execution/README.md).
+Source-only merge is permitted under current owner authority; IAM installation and
+REAL remediation each require their own exact separate owner approval. No root,
+company/PROD access, secret exposure, public changes or destructive shortcuts.
+
+Next source milestone: connect the existing frozen decision/receipt seam to the
+first fixed disposable S3-canary adapter; minimal meaningful validation only.
+Actual viewer, hosted release, MOCK and REAL AWS evidence stay distinct.
