@@ -98,9 +98,14 @@ review the exact bucket and frozen digest. A TTY, deterministic phrase, digest,
 imported JSON or model message is not independent human approval. Since this
 slice has no separately trusted approval factor, live `approve` fails closed
 with `TRUSTED_HUMAN_APPROVAL_BINDING_REQUIRED` before provider construction or
-AWS requests. The external gate is an owner-authenticated, single-use approval
-bound to this batch, scope digest, expiry, source revision, exact resource,
-cost bound and cleanup terms, verified by an already trusted system. The
+AWS requests. The external gate is an owner-authenticated, single-use frozen
+approval packet bound to this batch, scope digest, expiry, source revision,
+exact resource and cost bound, verified by an already trusted system. That one
+packet may authorize the four remediation actions and conditional DeleteBucket
+cleanup if it also explicitly binds the exact task-created resource, fresh
+ownership and empty readback conditions, and the cleanup action and expiry.
+This does not require a second human interaction when the same authenticated
+packet covers both. A batch-only packet cannot authorize cleanup. The
 existing `DecisionStore` is not that factor: it records `APPROVE_BLOCKED`, sets
 `dispatch_allowed=false`, and its native adapter resolves approval as Reject;
 the native platform authentication wiring is also explicitly pending.
@@ -114,9 +119,11 @@ requires it; mode, write counts and provenance carry the actual distinction.
 
 There is no runnable live sequence in this source slice. Even `prepare` performs
 provider reads, so it belongs to a later concrete live slice. Both `approve` and
-`cleanup` fail closed before provider construction. Live cleanup needs its own
-single-use trusted owner approval bound to the exact task-created resource,
-fresh empty-state readback and delete action; a batch approval cannot substitute.
+`cleanup` fail closed before provider construction because no trusted verifier
+for the required frozen packet exists. Cleanup is authorized only when that
+packet explicitly includes its exact resource, fresh ownership/empty-state
+readback conditions and delete action; a packet that omits cleanup cannot
+authorize it.
 Private bucket/account details do not enter a public PR or receipt. `reject`
 performs zero provider writes. Partial cleanup is supported only when the exact
 task creation is ACK and setup rows form a contiguous ACK prefix followed only
@@ -137,9 +144,12 @@ object, version or delete marker may be deleted by this command.
 The rough incremental cost assumption is one empty S3 bucket, zero stored
 objects and fewer than 100 request calls for one bounded sequence: expected
 well below USD0.01, subject to actual request pricing and usage. It is not a
-hard cap. Before live creation, Manager must reconcile observed prior spend
-across both workers against the USD100 total ceiling, reverify the private
-identity, and obtain the separately trusted batch approval. Before cleanup,
-obtain the distinct cleanup approval and fresh exact readback. Do not infer
-those gates from source acceptance or fake receipts. See [AWS S3 pricing](https://aws.amazon.com/s3/pricing/)
-for the live rate check.
+hard cap. The authoritative [Manager Issue #1 decision](https://github.com/amitkarpe/agent-ops/issues/1#issuecomment-6212167235)
+sets a USD100 total account-spend cap separately for October 2026 and November
+2026, with no rollover and existing costs included. These are separate monthly
+caps, not USD200 of shared authority. At the start of an actual live batch,
+perform one month-to-date spend check, estimate the bounded sequence and reserve
+cleanup cost, then track estimated versus actual spend through the lifecycle.
+There are no per-API budget checks. The [approved budget apply is complete](https://github.com/amitkarpe/agent-ops/issues/1#issuecomment-6212872776).
+Reverify private identity and the required packet/readback gates before live
+work. See [AWS S3 pricing](https://aws.amazon.com/s3/pricing/) for the rate basis.
