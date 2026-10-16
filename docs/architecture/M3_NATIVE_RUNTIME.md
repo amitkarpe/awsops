@@ -86,6 +86,52 @@ This operation does not append a decision, offer a continuation or mutate AWS.
 Its receipt-linked result must be included in the final durable evidence
 packet; a third ledger event or automatic native UI publication is not claimed.
 
+## Issue #11 owner-decision bridge source seam
+
+The legacy source trace is `pause_gate.cjs.snapshot` (`req.user`, tenant, running
+job, generation and exact action) -> `beforePause` fresh provider preparation
+and binding -> the platform's paused-job claim ->
+`native_gate.cjs.prepareNativeRequest` and `persistNativeDecision` ->
+`DecisionStore` / `NativeDecisionAdapter`. That path remains reject-only: an
+Approve request is durably `APPROVE_BLOCKED` with a reject resolution.
+
+The separate canary source seam uses `native_gate.cjs.prepareNativeCanaryRequest`
+and `afterNativeCanaryClaim`. It validates host `req.user`, tenant, exact action,
+job generation, frozen batch/scope/authority and expiry, then rereads the exact
+running job after the platform's paused-job compare-and-set. The pinned
+`ApprovalLifecycle.resolve` CAS clears `pendingAction` and `pendingActionId`, so
+the post-CAS check binds the saved pre-CAS action to the running row's owner,
+tenant and generation without expecting those cleared fields to remain. A
+caller boolean by itself cannot produce the handoff.
+`NativeCanaryDecision.from_host_callback`
+binds that handoff to the durable `FrozenCanaryAuthority`; the application
+ledger remains the one-use packet claim and audit. The legacy reject-only
+`DecisionStore` is not consumed or weakened.
+
+The offline harness crosses the actual JavaScript native gate and feeds its
+post-claim result to `NativeCanaryApprovalAdapter`. The harness uses a
+test-only verifier and MOCK provider. Production has no mounted dispatcher or
+independently trusted owner-to-packet verifier, so it remains fail-closed with
+`NATIVE_CANARY_ADAPTER_UNAVAILABLE` / `TRUSTED_HUMAN_APPROVAL_BINDING_REQUIRED`
+before any provider construction. The missing activation prerequisite is an
+existing host callback that supplies the authenticated owner mapping and
+independent packet verifier at this source seam. This source candidate does not
+install or activate that host integration.
+
+The stable producer command exercises the actual native gate, host claim
+handoff, Python adapter and application path with a test-only simulated
+verifier and the existing Fake SDK:
+
+```sh
+python3 scripts/approval_e2e_artifacts.py --native-callback --output ~/.AGENTS-temp/awsops/issue11-native-run-1
+```
+
+It emits the unchanged `awsops-canary-e2e/1` summary, canonical four-envelope
+receipts and separate lifecycle audits expected by Core2. The output remains
+`TEST_SIMULATION`, `FAKE_SDK`, `SYNTHETIC` / `SYNTHETIC_ONLY`, and zero actual
+AWS calls. This proves the source seam and artifact contract only; it does not
+prove authenticated native UI, a mounted callback, or live approval.
+
 ## Immutable source and offline rollback
 
 Upstream repository ID 600596928 now resolves to `LibreChat-AI/LibreChat`.

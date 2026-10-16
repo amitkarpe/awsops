@@ -20,6 +20,8 @@ sys.path[:0] = [str(ROOT / "src"), str(ROOT / "tests")]
 
 from awsops.execution import s3_canary
 from test_issue90_approval_e2e import make_case
+from test_native_canary_approval import SimulatedNativeVerifier, native_context
+from awsops.runtime.native_canary_approval import NativeCanaryApprovalAdapter
 
 FIXED_TIME = 1_800_000_000
 def synthetic_uuid_hex(number: int) -> str:
@@ -78,6 +80,33 @@ def emit_case(root: Path, scenario: str, operation, source_revision: str) -> dic
             return {"name": scenario, "receipt": receipt_name, "audit": audit_name}
 
 
+def emit_native_case(root: Path, scenario: str, decision: str, operation, source_revision: str) -> dict:
+    """Run the same artifact contract through the post-claim callback seam."""
+    with patch.object(s3_canary.uuid, "uuid4", side_effect=deterministic_uuid):
+        with tempfile.TemporaryDirectory(prefix="awsops-native-approval-e2e-") as scratch:
+            flow, sdk, _clock, _factory_calls, _batch, authority, _packet, _verifier = make_case(
+                Path(scratch), source_revision=source_revision, clock=[FIXED_TIME])
+            context = native_context(authority, now=FIXED_TIME, decision=decision)
+            bridge = NativeCanaryApprovalAdapter(flow, SimulatedNativeVerifier(context))
+            operation(bridge, context, flow)
+            receipt = bridge.receipt(context)
+            audit = bridge.audit(context)
+            validate_receipt(receipt)
+            audit_text = json.dumps(audit, sort_keys=True)
+            if (audit.get("provenance") != "SYNTHETIC"
+                    or audit.get("limitation") != "SYNTHETIC_ONLY"
+                    or FAKE_ACCOUNT in audit_text or FAKE_BUCKET in audit_text
+                    or context.digest in audit_text):
+                raise ValueError("UNSANITIZED_NATIVE_TEST_AUDIT")
+            if sdk.writes.count("delete") > 1:
+                raise ValueError("NATIVE_CALLBACK_REPLAYED_CLEANUP")
+            receipt_name = scenario + ".receipt.json"
+            audit_name = scenario + ".audit.json"
+            write_json(root / receipt_name, receipt)
+            write_json(root / audit_name, audit)
+            return {"name": scenario, "receipt": receipt_name, "audit": audit_name}
+
+
 def success(flow, packet):
     flow.decide(packet)
     flow.cleanup(packet)
@@ -114,10 +143,39 @@ def uncertain_delete(flow, packet):
     flow.cleanup(packet)
 
 
+def native_success(bridge, context, flow):
+    bridge.decide(context)
+    bridge.cleanup(context)
+
+
+def native_reject(bridge, context, _flow):
+    bridge.decide(context)
+
+
+def native_partial_cleanup(bridge, context, flow):
+    flow.adapter_factory().provider.s3.fail_tags_preflight_after_create = True
+    bridge.decide(context)
+    bridge.cleanup(context)
+
+
+def native_uncertain_policy(bridge, context, flow):
+    flow.adapter_factory().provider.s3.uncertain = "policy"
+    bridge.decide(context)
+
+
+def native_uncertain_delete(bridge, context, flow):
+    bridge.decide(context)
+    flow.adapter_factory().provider.s3.uncertain = "delete"
+    bridge.cleanup(context)
+    bridge.cleanup(context)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True,
                         help="new or empty disposable output directory")
+    parser.add_argument("--native-callback", action="store_true",
+                        help="exercise the Issue #11 callback seam with TEST_SIMULATION and MOCK only")
     args = parser.parse_args()
     output = args.output.expanduser().resolve()
     if output.exists() and any(output.iterdir()):
@@ -127,13 +185,22 @@ def main() -> int:
         ["git", "rev-parse", "HEAD"], cwd=ROOT, check=True, text=True,
         stdout=subprocess.PIPE).stdout.strip()
 
-    cases = [
-        emit_case(output, "success", success, head),
-        emit_case(output, "uncertain-policy", uncertain_policy, head),
-        emit_case(output, "reject", reject, head),
-        emit_case(output, "partial-setup-cleanup", partial_cleanup, head),
-        emit_case(output, "uncertain-delete", uncertain_delete, head),
-    ]
+    if args.native_callback:
+        cases = [
+            emit_native_case(output, "success", "approve", native_success, head),
+            emit_native_case(output, "uncertain-policy", "approve", native_uncertain_policy, head),
+            emit_native_case(output, "reject", "reject", native_reject, head),
+            emit_native_case(output, "partial-setup-cleanup", "approve", native_partial_cleanup, head),
+            emit_native_case(output, "uncertain-delete", "approve", native_uncertain_delete, head),
+        ]
+    else:
+        cases = [
+            emit_case(output, "success", success, head),
+            emit_case(output, "uncertain-policy", uncertain_policy, head),
+            emit_case(output, "reject", reject, head),
+            emit_case(output, "partial-setup-cleanup", partial_cleanup, head),
+            emit_case(output, "uncertain-delete", uncertain_delete, head),
+        ]
 
     write_json(output / "app-e2e-summary.json", {
         "schemaVersion": "awsops-canary-e2e/1",
