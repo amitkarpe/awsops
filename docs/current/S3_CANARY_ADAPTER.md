@@ -51,11 +51,47 @@ this is not an observed hosted/live release claim.
 The existing `DecisionStore`, native gate, `APPROVE_BLOCKED` and legacy Reject-only
 behavior remain unchanged. No consumer/schema mirror change or frontend work.
 
+## Approval application integration and Core2 artifact contract
+
+`src/awsops/application/s3_canary_approval.py` is the bounded application seam
+around the durable adapter. It freezes the batch, principal binding, source
+revision, exact resource digest, four setup actions, expiry and incremental
+cost ceiling in a private authority record. A single owner packet can also bind
+conditional cleanup, including the exact task-created resource, fresh owner and
+empty-state readback conditions, DeleteBucket and cleanup expiry. If cleanup is
+omitted, it is not authorized. There is no required second approval when one
+packet explicitly covers both stages.
+
+The application accepts an injected verifier interface; no concrete trusted
+owner callback exists today. Its normal live operator route remains
+`TRUSTED_HUMAN_APPROVAL_BINDING_REQUIRED` before provider construction. The
+simulated verifier exists only in `tests/test_issue90_approval_e2e.py` and only
+authorizes a test-only fake SDK whose mode is `MOCK`. The fixture output is
+`SYNTHETIC_ONLY` / `TEST_SIMULATION`, never human approval, trusted provider
+readback, compliance convergence or live AWS evidence. The legacy native
+DecisionStore and reject-only adapter are unchanged.
+
+From the repository root, generate the deterministic Core2 handoff with:
+
+```sh
+python3 scripts/approval_e2e_artifacts.py
+```
+
+The command writes under `~/.AGENTS-temp/awsops/approval-e2e-20261016/`.
+Each scenario's `four-envelope.json` is an array ordered Batch, Decision, Run,
+Evidence and can be passed directly to the existing Core2 v1 intake/viewer.
+`application-audit.json` is separate private lifecycle context and does not
+change the v1 contract. The manifest labels every artifact synthetic and records
+the source revision. Five scenarios cover complete setup plus cleanup,
+acknowledged partial setup plus cleanup, uncertain policy and DeleteBucket
+acknowledgements, and Reject. The command creates no AWS clients or requests.
+
 ## Focused offline proof
 
 ```sh
 python3 -m unittest discover -s tests -p test_s3_canary.py -v
 node contracts/defence-factory/intake-check.cjs
+python3 scripts/approval_e2e_artifacts.py
 ```
 
 One fake-provider proof covers approval/readback, Reject, stale, drift, identity,

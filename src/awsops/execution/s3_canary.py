@@ -145,7 +145,7 @@ class CanaryAdapter:
 
     def prepare(self, principal: str) -> dict:
         require_text(principal, r"[a-f0-9]{64}", "trusted principal binding")
-        o = self._read(allow_absent=self.mode == "APPROVED_LAB_WRITE")
+        o = self._read(allow_absent=self.mode in ("MOCK", "APPROVED_LAB_WRITE"))
         if self.mode == "APPROVED_LAB_WRITE":
             # This milestone creates its own canary. Existing buckets are never targets.
             if o.exists:
@@ -193,24 +193,31 @@ class CanaryAdapter:
                         "batchId": batch_id, "scopeDigest": scope_digest, "choice": choice,
                         "decidedAt": stamp(now), "expiresAt": batch["expiresAt"],
                         "principalBindingDigest": principal, "receiptId": "receipt-canary-" + uuid.uuid4().hex}
+            result = self._result(batch, decision)
+            if choice == "REJECT":
+                result["run"]["record"]["status"] = "REJECTED"
             # Consume rejected decisions too. Commit BEFORE any provider operation.
-            db.execute("UPDATE canaries SET decision=? WHERE batch_id=?", (json.dumps(decision), batch_id))
+            # Persist a reconcilable same-run audit atomically with the one-use
+            # decision, including a crash immediately after this commit.
+            db.execute("UPDATE canaries SET decision=?,result=? WHERE batch_id=?",
+                       (json.dumps(decision), json.dumps(result), batch_id))
             db.commit()
-        result = self._result(batch, decision)
-        if choice == "REJECT":
-            result["run"]["record"]["status"] = "REJECTED"
-        else:
+        if choice != "REJECT":
             try:
-                before = self._read(allow_absent=self.mode == "APPROVED_LAB_WRITE")
+                before = self._read(allow_absent=self.mode in ("MOCK", "APPROVED_LAB_WRITE"))
                 if (self._evidence_digest(before) == batch["targets"][0]["evidenceDigest"] and before.policy is None
                         and batch["frozenAt"] <= stamp(int(self.clock())) < batch["expiresAt"]):
                     if self.mode == "MOCK":
-                        def apply_mock_policy(before_call: Callable[[], None]) -> None:
-                            before_call()
-                            self.provider.put_policy(self.binding, self._policy())
+                        lifecycle = ("create_bucket", "tag_bucket", "block_public_access", "put_policy")
+                        if all(callable(getattr(self.provider, method, None)) for method in lifecycle):
+                            self._apply_live(batch_id, batch, result)
+                        else:
+                            def apply_mock_policy(before_call: Callable[[], None]) -> None:
+                                before_call()
+                                self.provider.put_policy(self.binding, self._policy())
 
-                        if self._attempt(batch_id, "policy", result, batch["expiresAt"], apply_mock_policy):
-                            result["run"]["record"]["results"][0]["execution"] = "SUCCEEDED"
+                            if self._attempt(batch_id, "policy", result, batch["expiresAt"], apply_mock_policy):
+                                result["run"]["record"]["results"][0]["execution"] = "SUCCEEDED"
                     else:
                         self._apply_live(batch_id, batch, result)
                     if result["run"]["record"]["realWrites"] or result["run"]["record"]["simulatedWrites"]:
@@ -367,10 +374,12 @@ class CanaryAdapter:
         return [envelope("Batch", json.loads(row[0])), envelope("Decision", json.loads(row[2])),
                 result["run"], result["evidence"]]
 
-    def cleanup(self, batch_id: str, principal: str) -> dict:
+    def cleanup(self, batch_id: str, principal: str, *, expires_at: int) -> dict:
         """Delete only an acknowledged task-created empty bucket; retain receipts."""
-        if self.mode != "APPROVED_LAB_WRITE":
+        if self.mode not in ("MOCK", "APPROVED_LAB_WRITE"):
             raise ValueError("LIVE_CLEANUP_ONLY")
+        if type(expires_at) is not int or int(self.clock()) >= expires_at:
+            raise ValueError("CLEANUP_AUTHORITY_EXPIRED")
         with closing(self._db()) as db:
             row = db.execute("SELECT principal,result,binding FROM canaries WHERE batch_id=?", (batch_id,)).fetchone()
             ops = dict(db.execute("SELECT step,state FROM operations WHERE batch_id=?", (batch_id,)))
@@ -386,13 +395,32 @@ class CanaryAdapter:
 
         def before_call() -> None:
             nonlocal claimed
+            if int(self.clock()) >= expires_at:
+                raise ValueError("CLEANUP_AUTHORITY_EXPIRED")
+            original = json.loads(row[1])
+            candidate = deepcopy(original)
+            record = candidate["run"]["record"]
+            key = "simulatedWrites" if self.mode == "MOCK" else "realWrites"
+            record[key] = record["results"][0][key] = record[key] + 1
+            candidate["evidence"]["record"]["realWrites"] = record["realWrites"]
+            record["status"] = "NEEDS_REVIEW"
             with closing(self._db()) as db:
                 db.execute("BEGIN IMMEDIATE")
                 updated = db.execute("UPDATE operations SET state='CALLING' WHERE batch_id=? AND step='delete' AND state='INTENT'",
                                      (batch_id,))
                 if updated.rowcount != 1:
                     raise ValueError("DELETE_CLAIM_UNAVAILABLE")
+                db.execute("UPDATE canaries SET result=? WHERE batch_id=?", (json.dumps(candidate), batch_id))
                 db.commit()
+            # A delayed durable claim must not authorize a call after cleanup expiry.
+            if int(self.clock()) >= expires_at:
+                with closing(self._db()) as db:
+                    db.execute("BEGIN IMMEDIATE")
+                    db.execute("UPDATE operations SET state='REFUSED' WHERE batch_id=? AND step='delete' AND state='CALLING'",
+                               (batch_id,))
+                    db.execute("UPDATE canaries SET result=? WHERE batch_id=?", (json.dumps(original), batch_id))
+                    db.commit()
+                raise ValueError("CLEANUP_AUTHORITY_EXPIRED")
             claimed = True
 
         try:
