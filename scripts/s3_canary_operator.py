@@ -80,6 +80,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--scope-digest")
     args = parser.parse_args(argv)
     try:
+        if args.operation == "approve":
+            raise ValueError(
+                "TRUSTED_HUMAN_APPROVAL_BINDING_REQUIRED: live approval needs an independently trusted, "
+                "single-use owner approval bound to this batch and scope; TTY text and CLI digests are not proof"
+            )
         if args.operation != "prepare" and not args.batch_id:
             raise ValueError("BATCH_ID_REQUIRED")
         if args.operation in ("approve", "reject") and not args.scope_digest:

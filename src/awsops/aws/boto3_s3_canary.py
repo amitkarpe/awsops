@@ -160,44 +160,52 @@ class Boto3CanaryProvider:
         return Observation(binding.account_id, REGION, binding.bucket, owned, bool(empty),
                            int(self.clock()), policy, exists=True, public_blocked=blocked)
 
-    def create_bucket(self, binding: CanaryBinding) -> None:
+    def create_bucket(self, binding: CanaryBinding, before_call: Callable[[], None]) -> None:
         if binding != self.binding or not self._operation("create"):
             raise ValueError("CREATION_NOT_JOURNALED")
         self._identity()
         if self._head():
             raise ValueError("BUCKET_ALREADY_EXISTS")
+        before_call()
         self.s3.create_bucket(Bucket=binding.bucket,
                               CreateBucketConfiguration={"LocationConstraint": REGION})
 
-    def tag_bucket(self, binding: CanaryBinding, frozen_at: str) -> None:
+    def tag_bucket(self, binding: CanaryBinding, frozen_at: str,
+                   before_call: Callable[[], None]) -> None:
         if binding != self.binding or not self._operation("create", "ACK") or not self._operation("tags"):
             raise ValueError("TAGGING_NOT_JOURNALED")
         observed = self.inspect(binding)
         if not observed.exists or not observed.empty or observed.policy is not None:
             raise ValueError("CANARY_STATE_DRIFT")
         tags = frozen_tags(binding, frozen_at)
+        tag_set = [{"Key": k, "Value": v} for k, v in tags.items()]
+        before_call()
         self.s3.put_bucket_tagging(Bucket=binding.bucket, ExpectedBucketOwner=binding.account_id,
-                                   Tagging={"TagSet": [{"Key": k, "Value": v} for k, v in tags.items()]})
+                                   Tagging={"TagSet": tag_set})
 
-    def block_public_access(self, binding: CanaryBinding) -> None:
+    def block_public_access(self, binding: CanaryBinding, before_call: Callable[[], None]) -> None:
         if binding != self.binding or not self._operation("tags", "ACK") or not self._operation("public_block"):
             raise ValueError("PUBLIC_BLOCK_NOT_JOURNALED")
         observed = self.inspect(binding)
         if not observed.disposable or not observed.empty or observed.policy is not None:
             raise ValueError("CANARY_STATE_DRIFT")
+        before_call()
         self.s3.put_public_access_block(Bucket=binding.bucket, ExpectedBucketOwner=binding.account_id,
             PublicAccessBlockConfiguration={"BlockPublicAcls": True, "IgnorePublicAcls": True,
                                             "BlockPublicPolicy": True, "RestrictPublicBuckets": True})
 
-    def put_policy(self, binding: CanaryBinding, policy: dict) -> None:
+    def put_policy(self, binding: CanaryBinding, policy: dict,
+                   before_call: Callable[[], None]) -> None:
         if (binding != self.binding or canonical_digest(policy) != canonical_digest(fixed_policy(binding.bucket))
                 or not self._operation("public_block", "ACK") or not self._operation("policy")):
             raise ValueError("POLICY_NOT_JOURNALED_OR_FIXED")
         observed = self.inspect(binding)
         if not observed.disposable or not observed.empty or not observed.public_blocked or observed.policy is not None:
             raise ValueError("CANARY_STATE_DRIFT")
+        body = json.dumps(policy, sort_keys=True, separators=(",", ":"))
+        before_call()
         self.s3.put_bucket_policy(Bucket=binding.bucket, ExpectedBucketOwner=binding.account_id,
-                                  Policy=json.dumps(policy, sort_keys=True, separators=(",", ":")))
+                                  Policy=body)
 
     def delete_bucket(self, binding: CanaryBinding) -> None:
         if (binding != self.binding or not self._operation("create", "ACK")

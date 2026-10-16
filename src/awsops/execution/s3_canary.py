@@ -69,10 +69,11 @@ class CanaryProvider(Protocol):
     # APPROVED_LAB_WRITE; this module does not construct such a provider.
     mode: str
     def inspect(self, binding: CanaryBinding) -> Observation: ...
-    def put_policy(self, binding: CanaryBinding, policy: dict) -> None: ...
-    def create_bucket(self, binding: CanaryBinding) -> None: ...
-    def tag_bucket(self, binding: CanaryBinding, frozen_at: str) -> None: ...
-    def block_public_access(self, binding: CanaryBinding) -> None: ...
+    def put_policy(self, binding: CanaryBinding, policy: dict,
+                   before_call: Callable[[], None]) -> None: ...
+    def create_bucket(self, binding: CanaryBinding, before_call: Callable[[], None]) -> None: ...
+    def tag_bucket(self, binding: CanaryBinding, frozen_at: str, before_call: Callable[[], None]) -> None: ...
+    def block_public_access(self, binding: CanaryBinding, before_call: Callable[[], None]) -> None: ...
     def delete_bucket(self, binding: CanaryBinding) -> None: ...
 
 
@@ -201,53 +202,95 @@ class CanaryAdapter:
                 if (self._evidence_digest(before) == batch["targets"][0]["evidenceDigest"] and before.policy is None
                         and batch["frozenAt"] <= stamp(int(self.clock())) < batch["expiresAt"]):
                     if self.mode == "MOCK":
-                        if self._attempt(batch_id, "policy", result,
-                                         lambda: self.provider.put_policy(self.binding, self._policy())):
+                        def apply_mock_policy(before_call: Callable[[], None]) -> None:
+                            before_call()
+                            self.provider.put_policy(self.binding, self._policy())
+
+                        if self._attempt(batch_id, "policy", result, batch["expiresAt"], apply_mock_policy):
                             result["run"]["record"]["results"][0]["execution"] = "SUCCEEDED"
                     else:
                         self._apply_live(batch_id, batch, result)
-                    self._readback(result)
+                    if result["run"]["record"]["realWrites"] or result["run"]["record"]["simulatedWrites"]:
+                        self._readback(result)
             except Exception:
                 pass
         self._save(batch_id, result)
         return {"batch": envelope("Batch", deepcopy(batch)),
                 "decision": envelope("Decision", decision), **result}
 
-    def _attempt(self, batch_id: str, step: str, result: dict, call: Callable[[], None]) -> bool:
-        """Durably claim one call before invoking it. Uncertain calls are never replayed."""
+    def _attempt(self, batch_id: str, step: str, result: dict, expires_at: str,
+                 call: Callable[[Callable[[], None]], None]) -> bool:
+        """Journal intent, then count only a claimed SDK mutation boundary."""
         with closing(self._db()) as db:
             db.execute("INSERT INTO operations VALUES (?,?,'INTENT')", (batch_id, step))
-        r = result["run"]["record"]
         key = "simulatedWrites" if self.mode == "MOCK" else "realWrites"
-        r[key] = r["results"][0][key] = r[key] + 1
-        r["status"] = "NEEDS_REVIEW"
-        r["results"][0]["execution"] = "UNKNOWN"
-        result["evidence"]["record"]["realWrites"] = r["realWrites"]
-        self._save(batch_id, result)
+        claimed = False
+
+        def before_call() -> None:
+            nonlocal claimed
+            if claimed or not stamp(int(self.clock())) < expires_at:
+                raise ValueError("MUTATION_BOUNDARY_EXPIRED_OR_REUSED")
+            original = deepcopy(result)
+            candidate = deepcopy(result)
+            next_run = candidate["run"]["record"]
+            next_run[key] = next_run["results"][0][key] = next_run[key] + 1
+            next_run["status"] = "NEEDS_REVIEW"
+            next_run["results"][0]["execution"] = "UNKNOWN"
+            candidate["evidence"]["record"]["realWrites"] = next_run["realWrites"]
+            with closing(self._db()) as db:
+                db.execute("BEGIN IMMEDIATE")
+                updated = db.execute("UPDATE operations SET state='CALLING' WHERE batch_id=? AND step=? AND state='INTENT'",
+                                     (batch_id, step))
+                if updated.rowcount != 1:
+                    raise ValueError("MUTATION_CLAIM_UNAVAILABLE")
+                db.execute("UPDATE canaries SET result=? WHERE batch_id=?", (json.dumps(candidate), batch_id))
+                db.commit()
+            # A slow local commit can consume the remaining approval window.
+            if not stamp(int(self.clock())) < expires_at:
+                with closing(self._db()) as db:
+                    db.execute("BEGIN IMMEDIATE")
+                    db.execute("UPDATE operations SET state='REFUSED' WHERE batch_id=? AND step=? AND state='CALLING'",
+                               (batch_id, step))
+                    db.execute("UPDATE canaries SET result=? WHERE batch_id=?", (json.dumps(original), batch_id))
+                    db.commit()
+                raise ValueError("MUTATION_BOUNDARY_EXPIRED")
+            result.clear()
+            result.update(candidate)
+            claimed = True
+
         try:
-            call()
+            call(before_call)
         except Exception:
+            if not claimed:
+                with closing(self._db()) as db:
+                    db.execute("UPDATE operations SET state='REFUSED' WHERE batch_id=? AND step=? AND state='INTENT'",
+                               (batch_id, step))
+            return False
+        if not claimed:
+            with closing(self._db()) as db:
+                db.execute("UPDATE operations SET state='REFUSED' WHERE batch_id=? AND step=? AND state='INTENT'",
+                           (batch_id, step))
             return False
         with closing(self._db()) as db:
             db.execute("UPDATE operations SET state='ACK' WHERE batch_id=? AND step=?", (batch_id, step))
         return True
 
     def _apply_live(self, batch_id: str, batch: dict, result: dict) -> None:
-        if not self._attempt(batch_id, "create", result,
-                             lambda: self.provider.create_bucket(self.binding)):
+        if not self._attempt(batch_id, "create", result, batch["expiresAt"],
+                             lambda claim: self.provider.create_bucket(self.binding, claim)):
             return
-        if not self._attempt(batch_id, "tags", result,
-                             lambda: self.provider.tag_bucket(self.binding, batch["frozenAt"])):
+        if not self._attempt(batch_id, "tags", result, batch["expiresAt"],
+                             lambda claim: self.provider.tag_bucket(self.binding, batch["frozenAt"], claim)):
             return
-        if not self._attempt(batch_id, "public_block", result,
-                             lambda: self.provider.block_public_access(self.binding)):
+        if not self._attempt(batch_id, "public_block", result, batch["expiresAt"],
+                             lambda claim: self.provider.block_public_access(self.binding, claim)):
             return
         # The fixed policy is written only after fresh owner/tag/emptiness/PAB proof.
         before_policy = self._read()
         if before_policy.policy is not None:
             return
-        if self._attempt(batch_id, "policy", result,
-                         lambda: self.provider.put_policy(self.binding, self._policy())):
+        if self._attempt(batch_id, "policy", result, batch["expiresAt"],
+                         lambda claim: self.provider.put_policy(self.binding, self._policy(), claim)):
             result["run"]["record"]["results"][0]["execution"] = "SUCCEEDED"
 
     def _result(self, batch: dict, decision: dict) -> dict:
@@ -290,15 +333,21 @@ class CanaryAdapter:
             raise ValueError("NO_RECONCILABLE_RUN")
         result = json.loads(row[1])
         write_ops = {step: state for step, state in ops.items() if step != "delete"}
-        attempted = len(write_ops)
+        attempted = sum(state in ("CALLING", "ACK") for state in write_ops.values())
         if attempted:
             r = result["run"]["record"]
             key = "simulatedWrites" if self.mode == "MOCK" else "realWrites"
             r[key] = r["results"][0][key] = max(r[key], attempted)
             result["evidence"]["record"]["realWrites"] = r["realWrites"]
-            if "INTENT" in write_ops.values():
+            if "CALLING" in write_ops.values():
                 r["status"] = "NEEDS_REVIEW"
                 r["results"][0]["execution"] = "UNKNOWN"
+            elif all(write_ops.get(step) == "ACK" for step in
+                     ("create", "tags", "public_block", "policy")):
+                # Recover a crash after the final SDK ACK but before decide()
+                # saved its completed execution result. Readback remains an
+                # independent observation and does not establish compliance.
+                r["results"][0]["execution"] = "SUCCEEDED"
         if result["run"]["record"]["status"] == "NEEDS_REVIEW" and "delete" not in ops:
             self._readback(result)
             self._save(batch_id, result)
