@@ -7,11 +7,20 @@ const pause=require('../integration/librechat/pause_gate.cjs');
 const patch=require('../integration/librechat/rehearse_patch.cjs');
 const runtimeConfig=require('../integration/librechat/runtime_config.cjs');
 const mcpGuard=require('../integration/canary/mcp_guard.cjs');
+const fixtureModel=require('../integration/canary/fixture_model.cjs');
 const root=path.resolve(__dirname,'..');
 const python=process.env.AWSOPS_TEST_PYTHON || '/usr/bin/python3';
 const fixture=path.join(root,'artifacts/native-upstream/client.js');
 const hasFixture=fs.existsSync(fixture);
 if(process.env.AWSOPS_REQUIRE_NATIVE_FIXTURE==='1' && !hasFixture)throw Error('Pinned producer required');
+test('deterministic fixture labels canary tool request as synthetic, leaving decision to human',()=>{
+  const result=fixtureModel.responseFor({model:fixtureModel.MODEL,messages:[{role:'user',content:'review'}],
+    tools:[{function:{name:fixtureModel.CANARY_TOOL}}]},{});
+  assert.equal(result.content,fixtureModel.SYNTHETIC_LABEL);
+  assert.deepEqual(result.tool_calls.map(call=>call.function),[
+    {name:fixtureModel.CANARY_TOOL,arguments:'{"control":"s3_canary"}'}]);
+  assert.deepEqual(JSON.parse(result.tool_calls[0].function.arguments),{control:'s3_canary'});
+});
 function setup(t){
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'awsops-pause-'));
   t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
@@ -186,7 +195,17 @@ test('runtime config reapply is bound to immutable backup and rejects backup sym
   fs.writeFileSync(path.join(app,'app/node_modules/js-yaml/index.js'),
     'exports.load=value=>JSON.parse(value);exports.dump=value=>JSON.stringify(value,null,2);\n');
   const config=path.join(app,'app/librechat.yaml');
-  fs.writeFileSync(config,JSON.stringify({endpoints:{agents:{toolApproval:{allow:[],ask:[],deny:[],hooks:[]}}},mcpServers:{}}),{mode:0o600});
+  const legacyFixture={name:runtimeConfig.FIXTURE_ENDPOINT,apiKey:'fixture-only',baseURL:'http://localhost:4312/v1',
+    models:{default:[runtimeConfig.FIXTURE_MODEL],fetch:false},titleConvo:false};
+  const original={endpoints:{custom:[legacyFixture],allowedAddresses:['localhost:4312'],
+    agents:{toolApproval:{allow:[],ask:[],deny:[],hooks:[]}}},mcpServers:{}};
+  fs.writeFileSync(config,JSON.stringify(original),{mode:0o600});
+  const yaml={load:value=>JSON.parse(value),dump:value=>JSON.stringify(value,null,2)};
+  const rendered=JSON.parse(runtimeConfig.transform(Buffer.from(JSON.stringify(original)),yaml,app,root).toString());
+  assert.equal(rendered.endpoints.custom[0].baseURL,runtimeConfig.FIXTURE_URL);
+  assert.deepEqual(rendered.endpoints.allowedAddresses,['127.0.0.1:4312']);
+  const drifted=structuredClone(original);drifted.endpoints.custom[0].baseURL='https://unexpected.example';
+  assert.throws(()=>runtimeConfig.transform(Buffer.from(JSON.stringify(drifted)),yaml,app,root),/FIXTURE_ENDPOINT_DRIFT/);
   runtimeConfig.configure(app,root);
   runtimeConfig.configure(app,root);
   const staged=JSON.parse(fs.readFileSync(config,'utf8'));

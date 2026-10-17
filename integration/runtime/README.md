@@ -55,3 +55,31 @@ provider/read evidence where the active Issue allows it; EC2 is not the default
 developer workstation.
 
 See `home/README.md` and `docs/architecture/HOME_DEMO_RUNTIME.md`.
+
+## Issue90 isolated activation source contract
+
+`issue90-isolated-launcher.sh` is a separate, bounded operator entrypoint for
+the exact `/opt/awsops-native-canary` root. After the reviewed bundle and
+runtime config are installed, the fixed commands are:
+
+```sh
+sudo /opt/awsops-native-canary/awsops/integration/runtime/issue90-isolated-launcher.sh start
+sudo /opt/awsops-native-canary/awsops/integration/runtime/issue90-isolated-launcher.sh stop
+```
+
+It starts only three uniquely named transient units for MongoDB, the
+deterministic local model stimulus, and LibreChat. Each has a 30-minute hard
+runtime and is stopped with exact PID, process start-time, and cgroup checks.
+The app receives the existing `AWSOPS_NATIVE_CONFIG` and `AWSOPS_READ_CONFIG`
+paths and must listen only on `127.0.0.1:4311`; the fixture and database must
+listen only on `127.0.0.1:4312` and `127.0.0.1:27111`. Wildcard and extra
+listeners fail closed. The UI remains host-local; this launcher creates no
+route, public domain, or tunnel. A previously authorized private interactive
+path must be independently available before a real human review can occur.
+
+The deterministic fixture can emit only a
+`SYNTHETIC_MODEL_STIMULUS_ONLY; HUMAN_DECISION_REQUIRED` canary tool request.
+That request is not a decision, authentication, or approval. Only the real
+authenticated owner's Reject in the existing UI creates a decision. No
+synthetic or automated browser action counts as human evidence. The launcher
+does not contact AWS or create cloud resources.

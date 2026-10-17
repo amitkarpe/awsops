@@ -79,6 +79,21 @@
     },
     {
       "group": "ssm-user",
+      "legacy_git_blobs": [
+        "c6146f6f9939ad46ea48b3c085b1159a34688b4c"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/integration/canary/fixture_model.cjs",
+      "target": "awsops/integration/canary/fixture_model.cjs"
+    },
+    {
+      "group": "ssm-user",
       "legacy_absent": true,
       "legacy_group": "ssm-user",
       "legacy_mode": "0644",
@@ -141,6 +156,19 @@
       "sha256": null,
       "source": "awsops/integration/librechat/runtime_config.cjs",
       "target": "awsops/integration/librechat/runtime_config.cjs"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_absent": true,
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_only",
+      "mode": "0755",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/integration/runtime/issue90-isolated-launcher.sh",
+      "target": "awsops/integration/runtime/issue90-isolated-launcher.sh"
     },
     {
       "group": "ssm-user",
