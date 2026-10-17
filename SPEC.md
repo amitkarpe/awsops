@@ -51,8 +51,10 @@ and exported evidence. Reuse delivered M1–M4 source; do not rebuild it.
 - Fixed reviewed operations only; no arbitrary model-supplied AWS command. Verify
   identity/target, record the approved batch and outcome, read back provider state.
   Unknown write outcome is reconciled before any retry. Never count MOCK as REAL.
-- Basic cost awareness: USD10 total experiment target; no claim that Budgets is a
-  hard cap. No new infrastructure or paid service is authorized by this source work.
+- Cost ceiling: follow the existing approved total-account monthly ceiling and
+  reserve rules; the USD10 figure here is a stale historical target, not the active
+  ceiling. Budgets is not a hard cap. No new infrastructure or paid service is
+  authorized by this source work.
 - Current source mode has no live apply authority. IAM installation and live
   remediation remain held until their exact separate owner decisions.
 
