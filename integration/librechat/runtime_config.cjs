@@ -24,6 +24,24 @@ function desiredMcp(root) {
     args:[path.join(root,'awsops/integration/canary/mcp_guard.cjs')],
     timeout:15000, initTimeout:10000, chatMenu:false, serverInstructions:true};
 }
+function atomic(file, data, priorStat, suffix) {
+  const temp = file + suffix;
+  const fd = fs.openSync(temp,'wx',priorStat.mode & 0o777);
+  try {
+    fs.fchownSync(fd,priorStat.uid,priorStat.gid);
+    fs.fchmodSync(fd,priorStat.mode & 0o777);
+    fs.writeFileSync(fd,data);
+    fs.fsyncSync(fd);
+  } catch (error) {
+    fs.closeSync(fd);
+    try { fs.unlinkSync(temp); } catch {}
+    throw error;
+  }
+  fs.closeSync(fd);
+  fs.renameSync(temp,file);
+  const dir = fs.openSync(path.dirname(file),fs.constants.O_RDONLY);
+  try { fs.fsyncSync(dir); } finally { fs.closeSync(dir); }
+}
 function transform(raw, yaml, appRoot, sourceRoot) {
   const config = yaml.load(raw.toString('utf8')) || {};
   ownObject(config.endpoints, 'ENDPOINTS'); ownObject(config.mcpServers, 'MCP');
@@ -81,10 +99,7 @@ function configure(appRoot, sourceRoot=path.resolve(__dirname,'../..')) {
     const stagedHash = crypto.createHash('sha256').update(updated).digest('hex');
     if (crypto.createHash('sha256').update(original).digest('hex') !== stagedHash) fail('CONFIG_BACKUP_DRIFT');
   }
-  const temp = file + '.awsops-staged';
-  const fd = fs.openSync(temp,'wx',st.mode & 0o777);
-  try { fs.writeFileSync(fd,updated); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
-  fs.renameSync(temp,file);
+  atomic(file,updated,st,'.awsops-staged');
   return {state:'CONFIGURED', tool:TOOL, backup:BACKUP};
 }
 function rollback(appRoot) {
@@ -97,10 +112,7 @@ function rollback(appRoot) {
   const sourceRoot = path.join(appRoot,'awsops');
   const expected = transform(fs.readFileSync(backup),yaml,appRoot,appRoot);
   if (!fs.readFileSync(file).equals(expected)) fail('CONFIG_ROLLBACK_DRIFT');
-  const temp = file + '.awsops-rollback';
-  const fd = fs.openSync(temp,'wx',st.mode & 0o777);
-  try { fs.writeFileSync(fd,fs.readFileSync(backup)); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
-  fs.renameSync(temp,file);
+  atomic(file,fs.readFileSync(backup),st,'.awsops-rollback');
   fs.unlinkSync(backup);
   return {state:'ROLLED_BACK'};
 }
@@ -114,4 +126,4 @@ if (require.main === module) {
     process.exitCode = 2;
   }
 }
-module.exports={configure,rollback,transform,desiredMcp,TOOL,BACKUP};
+module.exports={configure,rollback,transform,desiredMcp,atomic,TOOL,BACKUP};
