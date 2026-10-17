@@ -21,6 +21,7 @@ SAFE_ERROR_CODES = {
     "MIGRATION_FILE_SYMLINK", "ISOLATED_ROOT_REQUIRED", "BUNDLE_PATH_UNSAFE",
     "MIGRATION_MANIFEST_UNSUPPORTED", "MIGRATION_SOURCE_PIN_INVALID",
     "MIGRATION_RECOVERY_POLICY_INVALID",
+    "MIGRATION_BACKUP_VERIFY_FAILED", "MIGRATION_TARGET_CHANGED_DURING_BACKUP",
     "MIGRATION_MANIFEST_EMPTY", "MIGRATION_MANIFEST_INVALID",
     "BUNDLE_FILE_DIGEST_MISMATCH", "RENDERED_CONTROLLER_PIN_MISMATCH",
     "SOURCE_REVISION_MISMATCH", "BUNDLE_ARCHIVE_REQUIRED",
@@ -227,6 +228,114 @@ def _write_exclusive(path: Path, data: bytes, mode: int, uid: int, gid: int) -> 
         raise
 
 
+def _read_regular_nofollow(path: Path, uid: int, gid: int, mode: int,
+                           error_code: str = "MIGRATION_BACKUP_VERIFY_FAILED") -> bytes:
+    path_info = path.lstat()
+    if (stat.S_ISLNK(path_info.st_mode) or not stat.S_ISREG(path_info.st_mode)
+            or path_info.st_uid != uid or path_info.st_gid != gid
+            or stat.S_IMODE(path_info.st_mode) != mode):
+        fail(error_code)
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(path, flags)
+    try:
+        info = os.fstat(fd)
+        if (not stat.S_ISREG(info.st_mode) or info.st_dev != path_info.st_dev
+                or info.st_ino != path_info.st_ino
+                or info.st_uid != uid or info.st_gid != gid
+                or stat.S_IMODE(info.st_mode) != mode):
+            fail(error_code)
+        chunks = []
+        while True:
+            chunk = os.read(fd, 1024 * 1024)
+            if not chunk:
+                return b"".join(chunks)
+            chunks.append(chunk)
+    finally:
+        os.close(fd)
+
+
+def _verify_apply_backups(root: Path, backup: Path, states: list[tuple], journal: dict) -> None:
+    uid, gid = os.geteuid(), os.getegid()
+    try:
+        backup_info = backup.lstat()
+        if (stat.S_ISLNK(backup_info.st_mode) or not stat.S_ISDIR(backup_info.st_mode)
+                or backup_info.st_uid != uid or backup_info.st_gid != gid
+                or stat.S_IMODE(backup_info.st_mode) != 0o700
+                or backup.resolve(strict=True) != root / BACKUP):
+            fail("MIGRATION_BACKUP_VERIFY_FAILED")
+
+        expected_journal = (json.dumps(journal, sort_keys=True, separators=(",", ":")) + "\n").encode()
+        journal_path = backup / "journal.json"
+        if _read_regular_nofollow(journal_path, uid, gid, 0o600) != expected_journal:
+            fail("MIGRATION_BACKUP_VERIFY_FAILED")
+
+        expected_entries = {"journal.json"}
+        for item, target, prior, prior_meta, _already_installed in states:
+            if prior is None:
+                continue
+            prior_name = hashlib.sha256(item["target"].encode()).hexdigest()
+            expected_entries.add(prior_name)
+            prior_path = backup / prior_name
+            copied = _read_regular_nofollow(prior_path, uid, gid, 0o600)
+            copied_meta = {"uid": prior_meta["uid"], "gid": prior_meta["gid"],
+                           "mode": prior_meta["mode"], "sha256": sha(copied),
+                           "git_blob": git_blob(copied)}
+            if copied != prior or copied_meta != prior_meta:
+                fail("MIGRATION_BACKUP_VERIFY_FAILED")
+
+        if {entry.name for entry in backup.iterdir()} != expected_entries:
+            fail("MIGRATION_BACKUP_VERIFY_FAILED")
+
+    except ValueError as exc:
+        if str(exc) in {"MIGRATION_BACKUP_VERIFY_FAILED",
+                        "MIGRATION_TARGET_CHANGED_DURING_BACKUP"}:
+            raise
+        fail("MIGRATION_BACKUP_VERIFY_FAILED")
+    except (OSError, KeyError, TypeError):
+        fail("MIGRATION_BACKUP_VERIFY_FAILED")
+
+
+def _verify_targets_unchanged(root: Path, states: list[tuple]) -> None:
+    for item, target, prior, prior_meta, _already_installed in states:
+        try:
+            checked_path(root, item["target"])
+            info = target.lstat()
+        except FileNotFoundError:
+            if prior is not None:
+                fail("MIGRATION_TARGET_CHANGED_DURING_BACKUP")
+            continue
+        if prior is None or not stat.S_ISREG(info.st_mode) or stat.S_ISLNK(info.st_mode):
+            fail("MIGRATION_TARGET_CHANGED_DURING_BACKUP")
+        try:
+            current_bytes = _read_regular_nofollow(
+                target, info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode),
+                "MIGRATION_TARGET_CHANGED_DURING_BACKUP")
+        except (OSError, ValueError):
+            fail("MIGRATION_TARGET_CHANGED_DURING_BACKUP")
+        current = {"sha256": sha(current_bytes), "git_blob": git_blob(current_bytes),
+                   "uid": info.st_uid, "gid": info.st_gid,
+                   "mode": format(stat.S_IMODE(info.st_mode), "04o")}
+        if current != prior_meta:
+            fail("MIGRATION_TARGET_CHANGED_DURING_BACKUP")
+
+
+def _ensure_target_directories(root: Path, states: list[tuple], uid: int, gid: int) -> None:
+    for item, target, _prior, _prior_meta, already_installed in states:
+        if already_installed or target.parent.exists():
+            continue
+        missing = []
+        parent = target.parent
+        while parent != root and not parent.exists():
+            missing.append(parent)
+            parent = parent.parent
+        if (parent.is_symlink() or not parent.is_dir()
+                or not parent.resolve(strict=True).is_relative_to(root)):
+            fail("MIGRATION_DIRECTORY_UNAVAILABLE")
+        for directory in reversed(missing):
+            directory.mkdir(mode=0o755)
+            os.chown(directory, uid, gid)
+
+
 def _atomic(path: Path, data: bytes, mode: int, uid: int, gid: int) -> None:
     fd, name = tempfile.mkstemp(prefix=".awsops-stage-", dir=path.parent)
     temp = Path(name)
@@ -256,17 +365,44 @@ def apply(bundle: Path, manifest_path: Path, archive: Path, root: Path) -> dict:
     states = []
     for item in files:
         target = checked_path(root, item["target"])
-        already_installed = _installed_exact(target, item, uid, gid)
-        if not (already_installed or _legacy_ok(target, item, manifest)):
-            fail("LEGACY_TARGET_DRIFT")
-        if target.exists():
+        try:
             info = target.lstat()
-            prior = target.read_bytes()
+        except FileNotFoundError:
+            prior, prior_meta = None, None
+            allowed_absent = (manifest.get("version") == 2
+                              and {"state": "ABSENT"} in item.get("recovery_preconditions", []))
+            if manifest.get("version") != 2:
+                allowed_absent = item["legacy_presence_policy"] in (
+                    "absent_only", "absent_or_exact_known_legacy")
+            if not allowed_absent:
+                fail("LEGACY_TARGET_DRIFT")
+            already_installed = False
+        else:
+            if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+                fail("LEGACY_TARGET_DRIFT")
+            prior = _read_regular_nofollow(
+                target, info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode),
+                "LEGACY_TARGET_DRIFT")
             prior_meta = {"uid": info.st_uid, "gid": info.st_gid,
                           "mode": format(stat.S_IMODE(info.st_mode), "04o"),
                           "sha256": sha(prior), "git_blob": git_blob(prior)}
-        else:
-            prior, prior_meta = None, None
+            already_installed = (prior_meta["sha256"] == item["sha256"]
+                                 and info.st_uid == uid and info.st_gid == gid
+                                 and prior_meta["mode"] == item["mode"])
+            if not already_installed:
+                if manifest.get("version") == 2:
+                    allowed = prior_meta in item["recovery_preconditions"]
+                else:
+                    owner, group = pwd.getpwuid(info.st_uid).pw_name, grp.getgrgid(info.st_gid).gr_name
+                    allowed_blobs = (set(item.get("legacy_git_blobs", []))
+                                     | set(item.get("legacy_git_blob_alternates", [])))
+                    allowed = (item["legacy_presence_policy"] != "absent_only"
+                               and (owner, group, prior_meta["mode"]) == (
+                                   item.get("legacy_owner"), item.get("legacy_group"),
+                                   item.get("legacy_mode"))
+                               and prior_meta["git_blob"] in allowed_blobs)
+                if not allowed:
+                    fail("LEGACY_TARGET_DRIFT")
         states.append((item, target, prior, prior_meta, already_installed))
     if states and all(row[4] for row in states):
         if backup.exists() or backup.is_symlink():
@@ -288,18 +424,6 @@ def apply(bundle: Path, manifest_path: Path, archive: Path, root: Path) -> dict:
     journal = {"version": 2, "migration_id": manifest["migration_id"], "files": []}
     try:
         for item, target, prior, prior_meta, _already_installed in states:
-            if not target.parent.exists():
-                missing = []
-                parent = target.parent
-                while parent != root and not parent.exists():
-                    missing.append(parent)
-                    parent = parent.parent
-                if (parent.is_symlink() or not parent.is_dir()
-                        or not parent.resolve(strict=True).is_relative_to(root)):
-                    fail("MIGRATION_DIRECTORY_UNAVAILABLE")
-                for directory in reversed(missing):
-                    directory.mkdir(mode=0o755)
-                    os.chown(directory, uid, gid)
             prior_name = hashlib.sha256(item["target"].encode()).hexdigest()
             if prior is not None:
                 prior_path = backup / prior_name
@@ -323,6 +447,10 @@ def apply(bundle: Path, manifest_path: Path, archive: Path, root: Path) -> dict:
             os.fsync(dir_fd)
         finally:
             os.close(dir_fd)
+        _verify_apply_backups(root, backup, states, journal)
+        _verify_targets_unchanged(root, states)
+        _ensure_target_directories(root, states, uid, gid)
+        _verify_targets_unchanged(root, states)
         for item, target, _prior, _prior_meta, already_installed in states:
             if not already_installed:
                 _atomic(target, checked_path(bundle, item["target"]).read_bytes(),
