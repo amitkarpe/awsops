@@ -26,6 +26,17 @@ const CANARY_SOURCE_VERSION = 'v1.0.0-mock';
 const REGION = 'ap-southeast-1';
 const FIXTURE_KEYS = ['apiKey','baseURL','models','name','titleConvo'];
 const FIXTURE_MODEL_KEYS = ['default','fetch'];
+const CONFIG_RESUME_DIAGNOSTIC_CODES = new Set([
+  'ISOLATED_ROOT_REQUIRED','INVALID_ARGS','CONFIG_RESUME_SOURCE_PIN_MISMATCH','CONFIG_RESUME_BASELINE_INVALID',
+  'CONFIG_RESUME_NATIVE_PRESTATE_DRIFT','NATIVE_CONFIG_METADATA_DRIFT','NATIVE_CONFIG_SCHEMA_DRIFT',
+  'NATIVE_CONFIG_DATABASE_UNSAFE','NATIVE_READ_CONFIG_UNAVAILABLE','NATIVE_READ_CONFIG_UNSUPPORTED',
+  'NATIVE_TARGET_BINDING_MISMATCH','CONFIG_RESUME_PRIVATE_FILE_DRIFT','CONFIG_RESUME_BASELINE_DRIFT',
+  'CONFIG_RESUME_PRIOR_BACKUP_DRIFT','CONFIG_RESUME_RECONCILE_REQUIRED','CONFIG_BACKUP_DRIFT',
+  'CONFIG_PATH_UNSAFE','CONFIG_FILE_UNSAFE','CONFIG_RESUME_FIXTURE_DRIFT','FIXTURE_ENDPOINT_DRIFT',
+  'FIXTURE_ADDRESS_DRIFT','MCP_AWSOPS_DRIFT','APPROVAL_MODE_DRIFT','APPROVAL_LIST_DRIFT',
+  'CANARY_APPROVAL_POLICY_DRIFT','APPROVAL_HOOKS_DRIFT','APPROVAL_HOOK_DRIFT',
+  'LEGACY_APPROVAL_HOOK_DRIFT','CONFIG_ROUNDTRIP_FAILED',
+]);
 function fail(code) { throw Error(code); }
 function privatePath(file) {
   if (!path.isAbsolute(file) || fs.realpathSync(file) !== file) fail('CONFIG_PATH_UNSAFE');
@@ -227,9 +238,11 @@ function normalizeNativeConfig(value, root, revision, ownerStat, sourceRoot) {
   if (keysValue.sort().join(',') === [...LEGACY_NATIVE_KEYS].sort().join(',')) {
     const upgraded=expandedLegacyNativeConfig(value,root,revision,ownerStat,sourceRoot);
     const state=path.join(root,'state');
-    const read=validateReadConfig(readPrivateJson(path.join(state,'read.json'),'NATIVE_READ_CONFIG_UNAVAILABLE'));
+    const expectedUid=ownerStat?.uid ?? process.getuid();
+    const read=validateReadConfig(readPrivateJson(path.join(state,'read.json'),
+      'NATIVE_READ_CONFIG_UNAVAILABLE',8192,expectedUid));
     const bindingPath=path.join(state,'binding.private.json');
-    const binding=readPrivateJson(bindingPath,'NATIVE_TARGET_BINDING_UNAVAILABLE',4096);
+    const binding=readPrivateJson(bindingPath,'NATIVE_TARGET_BINDING_UNAVAILABLE',4096,expectedUid);
     if (!binding || typeof binding !== 'object' || Array.isArray(binding) ||
         Object.keys(binding).sort().join(',') !== 'account_id,bucket' ||
         binding.account_id !== read.source_account_id ||
@@ -800,13 +813,14 @@ function projectConfigShape(appRoot) {
   return projectFixtureShape(fs.readFileSync(file),yaml);
 }
 if (require.main === module) {
+  const diagnosticAction=process.argv[2]==='diagnose-config-resume';
   try {
   const [action,root,...extra] = process.argv.slice(2);
     const digestAction=['resume-config-only','rollback-config-only'].includes(action);
-    const preflightAction=action==='preflight-config-resume';
+    const preflightAction=['preflight-config-resume','diagnose-config-resume'].includes(action);
     if (!['apply','rollback','inspect-native-config','migrate-source-revision','rollback-source-revision',
           'prepare-native-binding','project-config-shape','resume-config-only','rollback-config-only',
-          'preflight-config-resume'].includes(action) || !root ||
+          'preflight-config-resume','diagnose-config-resume'].includes(action) || !root ||
         (action === 'prepare-native-binding' ? extra.length !== 1 : digestAction ? extra.length !== 3 :
           preflightAction ? extra.length !== 3 : extra.length !== 0)) fail('INVALID_ARGS');
     const result = action === 'apply' ? configure(root,root) : action === 'rollback' ? rollback(root) :
@@ -816,10 +830,16 @@ if (require.main === module) {
       action === 'project-config-shape' ? projectConfigShape(root) :
       action === 'resume-config-only' ? resumeConfigOnly(root,extra[0],extra[1],extra[2]) :
       action === 'rollback-config-only' ? rollbackConfigResume(root,extra[0],extra[1],extra[2]) :
-      action === 'preflight-config-resume' ? preflightConfigResume(root,extra[0],extra[1],extra[2]) :
+      preflightAction ? preflightConfigResume(root,extra[0],extra[1],extra[2]) :
       prepareNativeCanaryBinding(root,extra[0]);
     process.stdout.write(JSON.stringify(result) + '\n');
-  } catch {
+  } catch (error) {
+    if (diagnosticAction) {
+      const code=CONFIG_RESUME_DIAGNOSTIC_CODES.has(error?.message) ? error.message : 'UNCLASSIFIED';
+      process.stdout.write(JSON.stringify({state:'REFUSED',code})+'\n');
+      process.exitCode=2;
+      return;
+    }
     process.stderr.write('ISOLATED_RUNTIME_CONFIG_REFUSED\n');
     process.exitCode = 2;
   }
@@ -830,4 +850,4 @@ module.exports={configure,rollback,transform,desiredMcp,atomic,readPrivateBackup
   preflightConfigResume,resumeConfigOnly,rollbackConfigResume,configureResume,
   CONFIG_RESUME_YAML_BACKUP,CONFIG_RESUME_NATIVE_BACKUP,
   CONFIG_RESUME_NATIVE_JOURNAL,D090_SOURCE_REVISION,LEGACY_NATIVE_GATE_COMMIT,TOOL,FIXTURE_ENDPOINT,
-  FIXTURE_MODEL,FIXTURE_URL,BACKUP,NATIVE_SOURCE_BACKUP};
+  FIXTURE_MODEL,FIXTURE_URL,BACKUP,NATIVE_SOURCE_BACKUP,normalizeNativeConfig};

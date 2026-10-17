@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'), assert=require('node:assert/strict');
 const fs=require('node:fs'), path=require('node:path'), os=require('node:os'), vm=require('node:vm');
-const {execFileSync}=require('node:child_process');
+const {execFileSync,spawnSync}=require('node:child_process');
 const gate=require('../integration/librechat/native_gate.cjs');
 const pause=require('../integration/librechat/pause_gate.cjs');
 const patch=require('../integration/librechat/rehearse_patch.cjs');
@@ -324,6 +324,11 @@ test('config-only resume moves exact d090 state and rolls back without touching 
     application_database:path.join(state,'canary.sqlite'),application_binding:bindingPath,source_version:'v1.0.0-mock'};
   const nativePath=path.join(state,'native.json'),nativeBytes=Buffer.from(JSON.stringify(originalNative,null,2)+'\n');
   fs.writeFileSync(nativePath,nativeBytes,{mode:0o600});
+  const originalGetUid=process.getuid;process.getuid=()=>0;
+  try {
+    assert.deepEqual(runtimeConfig.normalizeNativeConfig(legacy,root,runtimeConfig.D090_SOURCE_REVISION,
+      fs.statSync(nativePath),path.join(root,'awsops')),originalNative);
+  } finally {process.getuid=originalGetUid;}
   const originalMigration=path.join(root,'.awsops-issue90-migration-v1');fs.mkdirSync(originalMigration,{mode:0o700});
   fs.writeFileSync(path.join(originalMigration,'journal.json'),'accepted-41-target-journal\n',{mode:0o600});
   const originalYamlBackup=path.join(root,runtimeConfig.BACKUP);fs.writeFileSync(originalYamlBackup,'existing-yaml-backup\n',{mode:0o600});
@@ -332,6 +337,12 @@ test('config-only resume moves exact d090 state and rolls back without touching 
   const hash=value=>require('node:crypto').createHash('sha256').update(value).digest('hex');
   const unknown={...yaml,endpoints:{...yaml.endpoints,custom:[{name:'foreign',apiKey:'private-sentinel'}]}};
   fs.writeFileSync(yamlPath,JSON.stringify(unknown),{mode:0o600});
+  const diagnostic=spawnSync(process.execPath,[path.resolve(__dirname,'../integration/librechat/runtime_config.cjs'),
+    'diagnose-config-resume',root,targetRevision,
+    require('node:crypto').createHash('sha256').update(bindingBytes).digest('hex'),
+    require('node:crypto').createHash('sha256').update(databaseBytes).digest('hex')],{encoding:'utf8'});
+  assert.equal(diagnostic.status,2,diagnostic.stderr || diagnostic.stdout);assert.equal(diagnostic.stderr,'');
+  assert.deepEqual(JSON.parse(diagnostic.stdout),{state:'REFUSED',code:'CONFIG_RESUME_FIXTURE_DRIFT'});
   assert.throws(()=>runtimeConfig.resumeConfigOnly(root,targetRevision,hash(bindingBytes),hash(databaseBytes)),/CONFIG_RESUME_FIXTURE_DRIFT/);
   assert.deepEqual(fs.readFileSync(nativePath),nativeBytes);
   assert.equal(fs.existsSync(path.join(state,runtimeConfig.CONFIG_RESUME_NATIVE_BACKUP)),false);
