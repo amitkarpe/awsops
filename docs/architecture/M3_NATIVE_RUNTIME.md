@@ -71,10 +71,14 @@ private files. A narrowly guarded migration accepts only the exact six-field
 native-gate v1 config from source commit
 `1ee21e15017a066413bf705c96749ab7bf9cffd2`; it preserves `agent_id`, Python,
 source-root and native-database paths, then adds the current source pin and
-fixed canary paths. It requires the existing private M2 `read.json` contract
-(`amit`, `ap-southeast-1`, registered LAB aliases) and the owner-private target
-binding to match that source account and the fixed disposable-bucket pattern.
-Unknown schemas, aliases, or bindings fail before the config backup or write.
+fixed canary paths. Before migration, the bounded `prepare-native-binding`
+operation may create the absent private target binding from the validated M2
+`read.json` account scope and the fixed disposable-bucket name supplied by the
+authorized installation plan. It never replaces an existing binding. The
+read-config contract is `amit`, `ap-southeast-1`, and the four registered LAB
+aliases; the target account must match its source account. Unknown schemas,
+aliases, or existing bindings fail before the config backup or write. This
+binding is resource scope only and does not establish human identity or consent.
 The original bytes are backed up and read back before atomic replacement;
 rollback restores those exact bytes. The target account and bucket are resource
 scope only, never a substitute for the authenticated `req.user` identity.

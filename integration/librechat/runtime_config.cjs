@@ -96,6 +96,44 @@ function validateReadConfig(value) {
     fail('NATIVE_READ_CONFIG_UNSUPPORTED');
   return value;
 }
+function prepareNativeCanaryBinding(root, bucket) {
+  if (!path.isAbsolute(root) || fs.realpathSync(root) !== root) fail('ISOLATED_ROOT_REQUIRED');
+  if (typeof bucket !== 'string' || !/^awsops-dev-issue90-s3-canary-[a-z0-9]{12}$/.test(bucket))
+    fail('NATIVE_TARGET_SCOPE_UNSUPPORTED');
+  const state=path.join(root,'state');
+  const stateStat=fs.lstatSync(state);
+  if (!stateStat.isDirectory() || stateStat.isSymbolicLink() || stateStat.uid !== process.getuid() ||
+      (stateStat.mode & 0o777) !== 0o700) fail('NATIVE_STATE_DIRECTORY_UNSAFE');
+  const read=validateReadConfig(readPrivateJson(path.join(state,'read.json'),'NATIVE_READ_CONFIG_UNAVAILABLE'));
+  const bindingPath=path.join(state,'binding.private.json');
+  const expected={account_id:read.source_account_id,bucket};
+  let bindingStat;
+  try { bindingStat=fs.lstatSync(bindingPath); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  if (bindingStat) {
+    const existing=readPrivateJson(bindingPath,'NATIVE_TARGET_BINDING_MISMATCH',4096);
+    if (!existing || typeof existing !== 'object' || Array.isArray(existing) ||
+        Object.keys(existing).sort().join(',') !== 'account_id,bucket' ||
+        existing.account_id !== expected.account_id || existing.bucket !== expected.bucket)
+      fail('NATIVE_TARGET_BINDING_MISMATCH');
+    return {state:'ALREADY_BOUND'};
+  }
+  const data=Buffer.from(JSON.stringify(expected,null,2)+'\n');
+  const temp=path.join(state,`.binding.private.${process.pid}.${crypto.randomBytes(8).toString('hex')}.tmp`);
+  const fd=fs.openSync(temp,'wx',0o600);
+  try { fs.fchmodSync(fd,0o600); fs.writeFileSync(fd,data); fs.fsyncSync(fd); }
+  finally { fs.closeSync(fd); }
+  try {
+    fs.linkSync(temp,bindingPath);
+    const dirfd=fs.openSync(state,fs.constants.O_RDONLY);
+    try { fs.fsyncSync(dirfd); } finally { fs.closeSync(dirfd); }
+  } catch (error) {
+    if (error.code === 'EEXIST') fail('NATIVE_TARGET_BINDING_RACE');
+    throw error;
+  } finally { fs.unlinkSync(temp); }
+  const written=readPrivateJson(bindingPath,'NATIVE_TARGET_BINDING_READBACK',4096);
+  if (!isDeepStrictEqual(written,expected)) fail('NATIVE_TARGET_BINDING_READBACK');
+  return {state:'BOUND'};
+}
 function expandedLegacyNativeConfig(value, root, revision) {
   const legacy=validateLegacyNativeConfig(value,root);
   return {...legacy,source_revision:revision,
@@ -357,9 +395,12 @@ function rollback(appRoot) {
 if (require.main === module) {
   try {
     const [action,root,...extra] = process.argv.slice(2);
-    if (!['apply','rollback','migrate-source-revision','rollback-source-revision'].includes(action) || extra.length || !root) fail('INVALID_ARGS');
+    if (!['apply','rollback','migrate-source-revision','rollback-source-revision','prepare-native-binding'].includes(action) || !root ||
+        (action === 'prepare-native-binding' ? extra.length !== 1 : extra.length !== 0)) fail('INVALID_ARGS');
     const result = action === 'apply' ? configure(root,root) : action === 'rollback' ? rollback(root) :
-      action === 'migrate-source-revision' ? migrateNativeSourceRevision(root) : rollbackNativeSourceRevision(root);
+      action === 'migrate-source-revision' ? migrateNativeSourceRevision(root) :
+      action === 'rollback-source-revision' ? rollbackNativeSourceRevision(root) :
+      prepareNativeCanaryBinding(root,extra[0]);
     process.stdout.write(JSON.stringify(result) + '\n');
   } catch {
     process.stderr.write('ISOLATED_RUNTIME_CONFIG_REFUSED\n');
@@ -368,4 +409,4 @@ if (require.main === module) {
 }
 module.exports={configure,rollback,transform,desiredMcp,atomic,readPrivateBackup,migrateNativeSourceRevision,
   rollbackNativeSourceRevision,validateNativeConfig,validateLegacyNativeConfig,validateReadConfig,
-  LEGACY_NATIVE_GATE_COMMIT,TOOL,FIXTURE_ENDPOINT,FIXTURE_MODEL,FIXTURE_URL,BACKUP,NATIVE_SOURCE_BACKUP};
+  prepareNativeCanaryBinding,LEGACY_NATIVE_GATE_COMMIT,TOOL,FIXTURE_ENDPOINT,FIXTURE_MODEL,FIXTURE_URL,BACKUP,NATIVE_SOURCE_BACKUP};

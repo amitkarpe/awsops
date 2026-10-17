@@ -271,8 +271,12 @@ test('known historical native-gate v1 config upgrades without changing owner or 
     source_account_id:account,profile:'amit',accounts:[
       {alias:'lab-dev',account_id:account},{alias:'lab-poc',account_id:'000000000002'},
       {alias:'lab-qa',account_id:'000000000003'},{alias:'lab-sec',account_id:'000000000004'}]}),{mode:0o600});
-  fs.writeFileSync(path.join(state,'binding.private.json'),JSON.stringify({account_id:account,
-    bucket:'awsops-dev-issue90-s3-canary-0123456789ab'}),{mode:0o600});
+  const bucket='awsops-dev-issue90-s3-canary-0123456789ab';
+  assert.deepEqual(runtimeConfig.prepareNativeCanaryBinding(root,bucket),{state:'BOUND'});
+  const bindingBytes=fs.readFileSync(path.join(state,'binding.private.json'));
+  const derivedBinding=JSON.parse(bindingBytes);
+  assert.deepEqual(derivedBinding,{account_id:account,bucket});
+  assert.equal(Object.hasOwn(derivedBinding,'agent_id'),false);
   assert.deepEqual(runtimeConfig.migrateNativeSourceRevision(root),{state:'UPDATED'});
   const migrated=JSON.parse(fs.readFileSync(native,'utf8'));
   assert.equal(migrated.agent_id,legacy.agent_id);
@@ -286,6 +290,9 @@ test('known historical native-gate v1 config upgrades without changing owner or 
   assert.deepEqual(runtimeConfig.rollbackNativeSourceRevision(root),{state:'ROLLED_BACK'});
   assert.deepEqual(fs.readFileSync(native),original);
   assert.equal(fs.existsSync(path.join(state,runtimeConfig.NATIVE_SOURCE_BACKUP)),false);
+  assert.throws(()=>runtimeConfig.prepareNativeCanaryBinding(root,'awsops-dev-issue90-s3-canary-abcdefabcdef'),
+    /NATIVE_TARGET_BINDING_MISMATCH/);
+  assert.deepEqual(fs.readFileSync(path.join(state,'binding.private.json')),bindingBytes);
 
   const unknown={...legacy,unexpected:true};fs.writeFileSync(native,JSON.stringify(unknown)+'\n',{mode:0o600});
   const refused=fs.readFileSync(native);
