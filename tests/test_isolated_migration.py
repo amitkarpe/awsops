@@ -16,6 +16,179 @@ from integration.librechat import isolated_migration as migration
 
 
 class IsolatedMigrationTests(unittest.TestCase):
+    def test_versioned_config_resume_is_separate_and_reversible(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory); bundle = base / "bundle"; root = base / "isolated"
+            bundle.mkdir(); root.mkdir(mode=0o700)
+            target_revision = "f" * 40
+            dependency = (Path(__file__).resolve().parents[1] / "integration/librechat/native_store.cjs").read_bytes()
+            helper = root / "awsops/integration/librechat/native_store.cjs"
+            helper.parent.mkdir(parents=True, exist_ok=True); helper.write_bytes(dependency); helper.chmod(0o644)
+            rels = {
+                "awsops/integration/librechat/runtime_config.cjs": b"target runtime config\n",
+                "awsops/integration/runtime/issue90-isolated-launcher.sh": b"target TCP launcher\n",
+                "awsops/SOURCE_REVISION": (target_revision + "\n").encode(),
+            }
+            files = []
+            for rel, data in rels.items():
+                source = bundle / rel; source.parent.mkdir(parents=True, exist_ok=True); source.write_bytes(data)
+                live = root / rel; live.parent.mkdir(parents=True, exist_ok=True)
+                if rel == "awsops/SOURCE_REVISION":
+                    prior = b"d090c98561e87e4be1ad234891f3f78bc665aa6f\n"
+                else:
+                    prior=(b"exact d090 runtime_config predecessor\n" if rel.endswith("runtime_config.cjs")
+                           else b"exact d090 launcher predecessor\n")
+                live.write_bytes(prior); live.chmod(0o644)
+                info = live.stat()
+                prior_tuple = {"sha256": hashlib.sha256(prior).hexdigest(),
+                    "git_blob": migration.git_blob(prior), "uid": info.st_uid, "gid": info.st_gid,
+                    "mode": format(info.st_mode & 0o777, "04o")}
+                files.append({"target": rel, "sha256": hashlib.sha256(data).hexdigest(),
+                    "mode": "0644", "owner": "ssm-user", "group": "ssm-user",
+                    "recovery_preconditions": [prior_tuple]})
+            receipt = root / "state/receipt.sqlite3"; receipt.parent.mkdir(mode=0o700)
+            receipt.write_bytes(b"read-only receipt baseline")
+            receipt_hash = hashlib.sha256(receipt.read_bytes()).hexdigest()
+            prior_backup = root / migration.BACKUP; prior_backup.mkdir(mode=0o700)
+            prior_journal = prior_backup / "journal.json"; prior_journal.write_bytes(b"original 41-target journal\n")
+            prior_journal_bytes = prior_journal.read_bytes()
+            old_yaml_backup = root / ".awsops-issue90-runtime-config.original"
+            old_yaml_backup.write_bytes(b"preserved YAML backup\n"); old_yaml_bytes = old_yaml_backup.read_bytes()
+            archive = base / "resume.tar.gz"; archive.write_bytes(b"config-only source bundle")
+            manifest = {"version": 1, "kind": migration.CONFIG_RESUME_KIND,
+                "build_template": False, "isolated_root": str(root),
+                "backup": migration.CONFIG_RESUME_BACKUP, "migration_id": "config-resume-test-v1",
+                "predecessor_source_revision": "d090c98561e87e4be1ad234891f3f78bc665aa6f",
+                "dependencies": migration.CONFIG_RESUME_DEPENDENCIES,
+                "target": {"source_revision": target_revision,
+                    "bundle_sha256": hashlib.sha256(archive.read_bytes()).hexdigest()},
+                "files": files}
+            manifest_path = base / "resume.json"; manifest_path.write_text(json.dumps(manifest))
+            prior_root, prior_identity = migration.EXPECTED_ROOT, migration._identity
+            migration.EXPECTED_ROOT = str(root)
+            migration._identity = lambda: (os.getuid(), os.getgid())
+            prior_pins=migration.CONFIG_RESUME_D090_PRESTATES.copy()
+            migration.CONFIG_RESUME_D090_PRESTATES.update({
+                "awsops/integration/librechat/runtime_config.cjs": {
+                    "sha256": hashlib.sha256(b"exact d090 runtime_config predecessor\n").hexdigest(),
+                    "git_blob": migration.git_blob(b"exact d090 runtime_config predecessor\n")},
+                "awsops/integration/runtime/issue90-isolated-launcher.sh": {
+                    "sha256": hashlib.sha256(b"exact d090 launcher predecessor\n").hexdigest(),
+                    "git_blob": migration.git_blob(b"exact d090 launcher predecessor\n")},
+            })
+            try:
+                applied = migration.apply_config_resume(bundle, manifest_path, archive, root)
+                self.assertEqual(applied, {"state": "INSTALLED", "files": 3})
+                self.assertEqual(migration.inspect_config_resume(bundle, manifest_path, archive, root)["state"],
+                                 "INSTALLED")
+                for rel, data in rels.items(): self.assertEqual((root / rel).read_bytes(), data)
+                self.assertEqual(hashlib.sha256(receipt.read_bytes()).hexdigest(), receipt_hash)
+                self.assertEqual(prior_journal.read_bytes(), prior_journal_bytes)
+                self.assertEqual(old_yaml_backup.read_bytes(), old_yaml_bytes)
+                rolled = migration.rollback_config_resume(bundle, manifest_path, archive, root)
+                self.assertEqual(rolled, {"state": "ROLLED_BACK", "files": 3})
+                for rel in rels:
+                    live = root / rel
+                    if rel == "awsops/SOURCE_REVISION":
+                        expected=b"d090c98561e87e4be1ad234891f3f78bc665aa6f\n"
+                    else:
+                        expected=(b"exact d090 runtime_config predecessor\n" if rel.endswith("runtime_config.cjs")
+                                  else b"exact d090 launcher predecessor\n")
+                    self.assertEqual(live.read_bytes(), expected)
+                    self.assertEqual(live.stat().st_mode & 0o777, 0o644)
+                self.assertEqual(hashlib.sha256(receipt.read_bytes()).hexdigest(), receipt_hash)
+                self.assertEqual(prior_journal.read_bytes(), prior_journal_bytes)
+                self.assertEqual(old_yaml_backup.read_bytes(), old_yaml_bytes)
+                self.assertEqual(migration.inspect_config_resume(bundle, manifest_path, archive, root)["state"],
+                                 "ROLLED_BACK_OR_NOT_APPLIED")
+            finally:
+                migration.EXPECTED_ROOT = prior_root
+                migration._identity = prior_identity
+                migration.CONFIG_RESUME_D090_PRESTATES.clear()
+                migration.CONFIG_RESUME_D090_PRESTATES.update(prior_pins)
+
+    def test_config_resume_refuses_prestate_drift_before_journal_or_target_write(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory); bundle = base / "bundle"; root = base / "isolated"
+            bundle.mkdir(); root.mkdir(mode=0o700)
+            target_revision = "e" * 40
+            dependency = (Path(__file__).resolve().parents[1] / "integration/librechat/native_store.cjs").read_bytes()
+            helper = root / "awsops/integration/librechat/native_store.cjs"
+            helper.parent.mkdir(parents=True, exist_ok=True); helper.write_bytes(dependency); helper.chmod(0o644)
+            required = ["awsops/integration/librechat/runtime_config.cjs",
+                "awsops/integration/runtime/issue90-isolated-launcher.sh", "awsops/SOURCE_REVISION"]
+            files = []
+            for rel in required:
+                data = (target_revision + "\n").encode() if rel.endswith("SOURCE_REVISION") else b"new\n"
+                source = bundle / rel; source.parent.mkdir(parents=True, exist_ok=True); source.write_bytes(data)
+                live = root / rel; live.parent.mkdir(parents=True, exist_ok=True)
+                if rel == "awsops/SOURCE_REVISION":
+                    prior=b"d090c98561e87e4be1ad234891f3f78bc665aa6f\n"
+                else:
+                    prior=(b"exact d090 runtime_config predecessor\n" if rel.endswith("runtime_config.cjs")
+                           else b"exact d090 launcher predecessor\n")
+                live.write_bytes(prior)
+                live.chmod(0o644); observed = live.stat()
+                allowed = {"sha256": hashlib.sha256(prior).hexdigest(), "git_blob": migration.git_blob(prior),
+                    "uid": observed.st_uid, "gid": observed.st_gid, "mode": "0644"}
+                files.append({"target": rel, "sha256": hashlib.sha256(data).hexdigest(), "mode": "0644",
+                    "owner": "ssm-user", "group": "ssm-user",
+                    "recovery_preconditions": [allowed]})
+            archive = base / "resume.tar.gz"; archive.write_bytes(b"bundle")
+            manifest = {"version": 1, "kind": migration.CONFIG_RESUME_KIND, "build_template": False,
+                "isolated_root": str(root), "backup": migration.CONFIG_RESUME_BACKUP,
+                "migration_id": "config-resume-refusal-v1",
+                "predecessor_source_revision": "d090c98561e87e4be1ad234891f3f78bc665aa6f",
+                "dependencies": migration.CONFIG_RESUME_DEPENDENCIES,
+                "target": {"source_revision": target_revision,
+                    "bundle_sha256": hashlib.sha256(archive.read_bytes()).hexdigest()}, "files": files}
+            manifest_path = base / "resume.json"; manifest_path.write_text(json.dumps(manifest))
+            prior_root, prior_identity = migration.EXPECTED_ROOT, migration._identity
+            migration.EXPECTED_ROOT = str(root); migration._identity = lambda: (os.getuid(), os.getgid())
+            prior_pins=migration.CONFIG_RESUME_D090_PRESTATES.copy()
+            migration.CONFIG_RESUME_D090_PRESTATES.update({
+                "awsops/integration/librechat/runtime_config.cjs": {
+                    "sha256": hashlib.sha256(b"exact d090 runtime_config predecessor\n").hexdigest(),
+                    "git_blob": migration.git_blob(b"exact d090 runtime_config predecessor\n")},
+                "awsops/integration/runtime/issue90-isolated-launcher.sh": {
+                    "sha256": hashlib.sha256(b"exact d090 launcher predecessor\n").hexdigest(),
+                    "git_blob": migration.git_blob(b"exact d090 launcher predecessor\n")},
+            })
+            try:
+                (root / "awsops/integration/runtime/issue90-isolated-launcher.sh").write_bytes(b"drifted launcher\n")
+                drifted = {rel: (root / rel).read_bytes() for rel in required}
+                with self.assertRaisesRegex(ValueError, "CONFIG_RESUME_PRESTATE_DRIFT"):
+                    migration.apply_config_resume(bundle, manifest_path, archive, root)
+                self.assertFalse((root / migration.CONFIG_RESUME_BACKUP).exists())
+                self.assertEqual({rel: (root / rel).read_bytes() for rel in required}, drifted)
+                for rel in required:
+                    if rel == "awsops/SOURCE_REVISION":
+                        original=b"d090c98561e87e4be1ad234891f3f78bc665aa6f\n"
+                    else:
+                        original=(b"exact d090 runtime_config predecessor\n" if rel.endswith("runtime_config.cjs")
+                                  else b"exact d090 launcher predecessor\n")
+                    (root / rel).write_bytes(original)
+                before={rel:(root / rel).read_bytes() for rel in required}
+                write=migration._write_exclusive
+                corrupted=False
+                def corrupt_backup(path,data,mode,uid,gid):
+                    nonlocal corrupted
+                    write(path,data,mode,uid,gid)
+                    if not corrupted and path.name != "journal.json":
+                        path.write_bytes(b"late backup corruption\n")
+                        path.chmod(0o600); corrupted=True
+                with patch.object(migration,"_write_exclusive",side_effect=corrupt_backup):
+                    with self.assertRaisesRegex(ValueError,"CONFIG_RESUME_BACKUP_DRIFT"):
+                        migration.apply_config_resume(bundle,manifest_path,archive,root)
+                self.assertTrue(corrupted)
+                self.assertEqual({rel:(root / rel).read_bytes() for rel in required},before)
+                self.assertEqual(migration.inspect_config_resume(bundle,manifest_path,archive,root)["state"],
+                                 "RECONCILE_REQUIRED")
+            finally:
+                migration.EXPECTED_ROOT = prior_root; migration._identity = prior_identity
+                migration.CONFIG_RESUME_D090_PRESTATES.clear()
+                migration.CONFIG_RESUME_D090_PRESTATES.update(prior_pins)
+
     def test_inspect_reports_partial_state_without_paths_or_contents(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)

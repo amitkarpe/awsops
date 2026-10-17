@@ -12,7 +12,11 @@ const FIXTURE_MODEL = 'awsops-canary-fixed';
 const FIXTURE_URL = 'http://127.0.0.1:4312/v1';
 const BACKUP = '.awsops-issue90-runtime-config.original';
 const NATIVE_SOURCE_BACKUP = '.awsops-issue90-native-source-revision.original';
+const CONFIG_RESUME_YAML_BACKUP = '.awsops-issue90-config-resume-runtime.original';
+const CONFIG_RESUME_NATIVE_BACKUP = '.awsops-issue90-config-resume-native.original';
+const CONFIG_RESUME_NATIVE_JOURNAL = '.awsops-issue90-config-resume-native.json';
 const LEGACY_SOURCE_REVISION = 'd9545f7cd3aca485a137c5b8e8b8d55f02a004c8';
+const D090_SOURCE_REVISION = 'd090c98561e87e4be1ad234891f3f78bc665aa6f';
 const LEGACY_NATIVE_GATE_COMMIT = '1ee21e15017a066413bf705c96749ab7bf9cffd2';
 const LEGACY_NATIVE_KEYS = ['version','enabled','agent_id','python','source_root','database'];
 const CURRENT_NATIVE_KEYS = ['agent_id','application_binding','application_database','database','enabled',
@@ -101,7 +105,7 @@ function projectFixtureShape(raw, yaml) {
       container_type:addresses === undefined ? 'ABSENT' : addresses === null ? 'NULL' : Array.isArray(addresses) ? 'ARRAY' : 'OTHER',
       count:Array.isArray(addresses) ? addresses.length : null});
 }
-function validateNativeConfig(value, root, ownerStat) {
+function validateNativeConfig(value, root, ownerStat, sourceRoot=path.resolve(__dirname,'../..')) {
   const owner = ownerStat || fs.lstatSync(path.join(root,'state/native.json'));
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
       Object.keys(value).sort().join(',') !== [...CURRENT_NATIVE_KEYS].sort().join(',') ||
@@ -116,7 +120,7 @@ function validateNativeConfig(value, root, ownerStat) {
       typeof value.source_version !== 'string' || !/^v[0-9]+\.[0-9]+\.[0-9]+-mock$/.test(value.source_version))
     fail('NATIVE_CONFIG_SCHEMA_DRIFT');
   try { nativeStore.validateDecisionDatabase(value.database,{root,uid:owner.uid,gid:owner.gid,
-    sourceRoot:path.resolve(__dirname,'../..')}); }
+    sourceRoot}); }
   catch { fail('NATIVE_CONFIG_DATABASE_UNSAFE'); }
   return value;
 }
@@ -133,7 +137,7 @@ function readPrivateJson(file, code, maxBytes=8192, expectedUid=process.getuid()
     return JSON.parse(fs.readFileSync(fd,'utf8'));
   } finally { fs.closeSync(fd); }
 }
-function validateLegacyNativeConfig(value, root, ownerStat) {
+function validateLegacyNativeConfig(value, root, ownerStat, sourceRoot=path.resolve(__dirname,'../..')) {
   const owner = ownerStat || fs.lstatSync(path.join(root,'state/native.json'));
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
       Object.keys(value).sort().join(',') !== [...LEGACY_NATIVE_KEYS].sort().join(',') ||
@@ -145,7 +149,7 @@ function validateLegacyNativeConfig(value, root, ownerStat) {
   try {
     nativeStore.validateLegacyPython(value.python);
     nativeStore.validateDecisionDatabase(value.database,{root,uid:owner.uid,gid:owner.gid,
-      sourceRoot:path.resolve(__dirname,'../..')});
+      sourceRoot});
   } catch { fail('NATIVE_LEGACY_RUNTIME_UNSUPPORTED'); }
   return value;
 }
@@ -211,17 +215,17 @@ function prepareNativeCanaryBinding(root, bucket) {
   if (!isDeepStrictEqual(written,expected)) fail('NATIVE_TARGET_BINDING_READBACK');
   return {state:'BOUND'};
 }
-function expandedLegacyNativeConfig(value, root, revision, ownerStat) {
-  const legacy=validateLegacyNativeConfig(value,root,ownerStat);
+function expandedLegacyNativeConfig(value, root, revision, ownerStat, sourceRoot) {
+  const legacy=validateLegacyNativeConfig(value,root,ownerStat,sourceRoot);
   return {...legacy,python:nativeStore.SYSTEM_PYTHON,source_revision:revision,
     application_database:path.join(root,'state/canary.sqlite'),
     application_binding:path.join(root,'state/binding.private.json'),
     source_version:CANARY_SOURCE_VERSION};
 }
-function normalizeNativeConfig(value, root, revision, ownerStat) {
+function normalizeNativeConfig(value, root, revision, ownerStat, sourceRoot) {
   const keysValue = value && typeof value === 'object' && !Array.isArray(value) ? Object.keys(value) : [];
   if (keysValue.sort().join(',') === [...LEGACY_NATIVE_KEYS].sort().join(',')) {
-    const upgraded=expandedLegacyNativeConfig(value,root,revision,ownerStat);
+    const upgraded=expandedLegacyNativeConfig(value,root,revision,ownerStat,sourceRoot);
     const state=path.join(root,'state');
     const read=validateReadConfig(readPrivateJson(path.join(state,'read.json'),'NATIVE_READ_CONFIG_UNAVAILABLE'));
     const bindingPath=path.join(state,'binding.private.json');
@@ -236,7 +240,7 @@ function normalizeNativeConfig(value, root, revision, ownerStat) {
   }
   if (keysValue.sort().join(',') !== [...CURRENT_NATIVE_KEYS].sort().join(','))
     fail('NATIVE_CONFIG_SCHEMA_UNSUPPORTED');
-  const current=validateNativeConfig(value,root,ownerStat);
+  const current=validateNativeConfig(value,root,ownerStat,sourceRoot);
   if (current.source_revision === revision) return current;
   if (current.source_revision !== LEGACY_SOURCE_REVISION) fail('NATIVE_SOURCE_REVISION_UNEXPECTED');
   return {...current,source_revision:revision};
@@ -370,6 +374,214 @@ function rollbackNativeSourceRevision(root) {
   try { fs.fsyncSync(dir); } finally { fs.closeSync(dir); }
   return {state:'ROLLED_BACK'};
 }
+function privateDigest(file, uid, gid) {
+  const st=fs.lstatSync(file);
+  if (!st.isFile() || st.isSymbolicLink() || st.uid !== uid || st.gid !== gid || (st.mode & 0o777) !== 0o600)
+    fail('CONFIG_RESUME_PRIVATE_FILE_DRIFT');
+  const fd=fs.openSync(file,fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
+  try {
+    const opened=fs.fstatSync(fd);
+    if (!opened.isFile() || opened.dev !== st.dev || opened.ino !== st.ino || opened.uid !== uid ||
+        opened.gid !== gid || (opened.mode & 0o777) !== 0o600) fail('CONFIG_RESUME_PRIVATE_FILE_DRIFT');
+    return crypto.createHash('sha256').update(fs.readFileSync(fd)).digest('hex');
+  } finally { fs.closeSync(fd); }
+}
+function preflightConfigResume(root, targetRevision, expectedBindingSha256, expectedDatabaseSha256) {
+  if (!path.isAbsolute(root) || fs.realpathSync(root)!==root) fail('ISOLATED_ROOT_REQUIRED');
+  if (typeof targetRevision!=='string' || !/^[a-f0-9]{40}$/.test(targetRevision) ||
+      targetRevision===D090_SOURCE_REVISION) fail('CONFIG_RESUME_SOURCE_PIN_MISMATCH');
+  for (const digest of [expectedBindingSha256,expectedDatabaseSha256])
+    if (typeof digest!=='string' || !/^[a-f0-9]{64}$/.test(digest)) fail('CONFIG_RESUME_BASELINE_INVALID');
+  const marker=path.join(root,'awsops/SOURCE_REVISION');
+  const markerStat=fs.lstatSync(marker);
+  if (!markerStat.isFile() || markerStat.isSymbolicLink() || (markerStat.mode&0o777)!==0o644 ||
+      fs.readFileSync(marker,'ascii').trim()!==D090_SOURCE_REVISION)
+    fail('CONFIG_RESUME_SOURCE_PIN_MISMATCH');
+  const {file,st}=nativeTarget(root,{rootReadOnly:process.getuid()===0});
+  const currentBytes=readNativeBytes(file),current=JSON.parse(currentBytes.toString('utf8'));
+  if (keysetCode(current,CURRENT_NATIVE_KEYS)!=='EXACT' || current.source_revision!==D090_SOURCE_REVISION)
+    fail('CONFIG_RESUME_NATIVE_PRESTATE_DRIFT');
+  validateNativeConfig(current,root,st,path.join(root,'awsops'));
+  const read=validateReadConfig(readPrivateJson(path.join(root,'state/read.json'),
+    'NATIVE_READ_CONFIG_UNAVAILABLE',8192,st.uid));
+  const bindingPath=path.join(root,'state/binding.private.json');
+  const binding=readPrivateJson(bindingPath,'NATIVE_TARGET_BINDING_MISMATCH',4096,st.uid);
+  if (!binding || typeof binding!=='object' || Array.isArray(binding) ||
+      Object.keys(binding).sort().join(',')!=='account_id,bucket' ||
+      binding.account_id!==read.source_account_id ||
+      !/^awsops-dev-issue90-s3-canary-[a-z0-9]{12}$/.test(binding.bucket))
+    fail('NATIVE_TARGET_BINDING_MISMATCH');
+  if (privateDigest(bindingPath,st.uid,st.gid)!==expectedBindingSha256 ||
+      privateDigest(current.database,st.uid,st.gid)!==expectedDatabaseSha256)
+    fail('CONFIG_RESUME_BASELINE_DRIFT');
+  const firstBackup=path.join(root,'state',NATIVE_SOURCE_BACKUP);
+  const {data:firstOriginal}=readPrivateBackup(firstBackup,st.uid,st.gid);
+  let derived;
+  try {
+    derived=Buffer.from(JSON.stringify(normalizeNativeConfig(JSON.parse(firstOriginal.toString('utf8')),
+      root,D090_SOURCE_REVISION,st,path.join(root,'awsops')),null,2)+'\n');
+  } catch { fail('CONFIG_RESUME_PRIOR_BACKUP_DRIFT'); }
+  if (!derived.equals(currentBytes)) fail('CONFIG_RESUME_PRIOR_BACKUP_DRIFT');
+  for (const filePath of [path.join(root,'state',CONFIG_RESUME_NATIVE_BACKUP),
+    path.join(root,'state',CONFIG_RESUME_NATIVE_JOURNAL),path.join(root,CONFIG_RESUME_YAML_BACKUP)]) {
+    try { fs.lstatSync(filePath); fail('CONFIG_RESUME_RECONCILE_REQUIRED'); }
+    catch (error) { if (error?.message==='CONFIG_RESUME_RECONCILE_REQUIRED') throw error;
+      if (error.code!=='ENOENT') fail('CONFIG_RESUME_RECONCILE_REQUIRED'); }
+  }
+  const yamlPath=path.join(root,'app/librechat.yaml');
+  privatePath(yamlPath);
+  const yaml=require(path.join(root,'app/node_modules/js-yaml'));
+  const raw=fs.readFileSync(yamlPath),projection=projectFixtureShape(raw,yaml);
+  if (!['EMPTY_UNCONFIGURED','KNOWN_LEGACY_FIXTURE','KNOWN_CURRENT_FIXTURE'].includes(projection.custom.state) ||
+      !['ABSENT','EMPTY','KNOWN_LEGACY','KNOWN_CURRENT'].includes(projection.allowed_addresses.state))
+    fail('CONFIG_RESUME_FIXTURE_DRIFT');
+  transform(raw,yaml,root,root);
+  return {state:'PREWRITE_COMPATIBLE',native:'D090_PINNED',binding:'BASELINE_MATCH',database:'BASELINE_MATCH',
+    fixture:projection.custom.state};
+}
+function writePrivateExclusive(file, data, uid, gid) {
+  const fd=fs.openSync(file,'wx',0o600);
+  try {
+    fs.fchownSync(fd,uid,gid); fs.fchmodSync(fd,0o600); fs.writeFileSync(fd,data); fs.fsyncSync(fd);
+  } finally { fs.closeSync(fd); }
+  const dir=fs.openSync(path.dirname(file),fs.constants.O_RDONLY);
+  try { fs.fsyncSync(dir); } finally { fs.closeSync(dir); }
+  const {data:readback,sha256}=readPrivateBackup(file,uid,gid);
+  if (!readback.equals(data) || sha256 !== crypto.createHash('sha256').update(data).digest('hex'))
+    fail('CONFIG_RESUME_BACKUP_DRIFT');
+}
+function resumeNativeSourcePin(root, expectedTargetRevision, expectedBindingSha256, expectedDatabaseSha256, yamlSnapshot) {
+  if (!path.isAbsolute(root) || fs.realpathSync(root) !== root) fail('ISOLATED_ROOT_REQUIRED');
+  if (typeof expectedTargetRevision!=='string' || !/^[a-f0-9]{40}$/.test(expectedTargetRevision))
+    fail('CONFIG_RESUME_SOURCE_PIN_MISMATCH');
+  for (const digest of [expectedBindingSha256,expectedDatabaseSha256])
+    if (typeof digest !== 'string' || !/^[a-f0-9]{64}$/.test(digest)) fail('CONFIG_RESUME_BASELINE_INVALID');
+  const marker=path.join(root,'awsops/SOURCE_REVISION');
+  const markerStat=fs.lstatSync(marker);
+  if (!markerStat.isFile() || markerStat.isSymbolicLink() || (markerStat.mode & 0o777) !== 0o644)
+    fail('CONFIG_RESUME_SOURCE_MARKER_UNSAFE');
+  const revision=fs.readFileSync(marker,'ascii').trim();
+  if (!/^[a-f0-9]{40}$/.test(revision) || revision===D090_SOURCE_REVISION || revision!==expectedTargetRevision)
+    fail('CONFIG_RESUME_SOURCE_PIN_MISMATCH');
+  const {file,st}=nativeTarget(root);
+  const currentBytes=readNativeBytes(file), current=JSON.parse(currentBytes.toString('utf8'));
+  if (keysetCode(current,CURRENT_NATIVE_KEYS)!=='EXACT' ||
+      ![D090_SOURCE_REVISION,revision].includes(current.source_revision))
+    fail('CONFIG_RESUME_NATIVE_PRESTATE_DRIFT');
+  validateNativeConfig(current,root,st);
+  const read=validateReadConfig(readPrivateJson(path.join(root,'state/read.json'),'NATIVE_READ_CONFIG_UNAVAILABLE',8192,st.uid));
+  const bindingPath=path.join(root,'state/binding.private.json');
+  const binding=readPrivateJson(bindingPath,'NATIVE_TARGET_BINDING_MISMATCH',4096,st.uid);
+  if (!binding || typeof binding!=='object' || Array.isArray(binding) ||
+      Object.keys(binding).sort().join(',')!=='account_id,bucket' ||
+      binding.account_id!==read.source_account_id ||
+      !/^awsops-dev-issue90-s3-canary-[a-z0-9]{12}$/.test(binding.bucket))
+    fail('NATIVE_TARGET_BINDING_MISMATCH');
+  const databasePath=current.database;
+  const bindingDigest=privateDigest(bindingPath,st.uid,st.gid);
+  const databaseDigest=privateDigest(databasePath,st.uid,st.gid);
+  if (bindingDigest!==expectedBindingSha256 || databaseDigest!==expectedDatabaseSha256)
+    fail('CONFIG_RESUME_BASELINE_DRIFT');
+
+  // The immutable first migration backup must still explain the exact d090
+  // config. The second transaction gets a separate backup and journal.
+  const firstBackup=path.join(root,'state',NATIVE_SOURCE_BACKUP);
+  const {data:firstOriginal}=readPrivateBackup(firstBackup,st.uid,st.gid);
+  let derived;
+  try {
+    const original=JSON.parse(firstOriginal.toString('utf8'));
+    derived=Buffer.from(JSON.stringify(normalizeNativeConfig(original,root,D090_SOURCE_REVISION,st),null,2)+'\n');
+  } catch { fail('CONFIG_RESUME_PRIOR_BACKUP_DRIFT'); }
+  const expectedD090=derived;
+  if (current.source_revision===D090_SOURCE_REVISION && !expectedD090.equals(currentBytes))
+    fail('CONFIG_RESUME_PRIOR_BACKUP_DRIFT');
+
+  const state=path.join(root,'state');
+  const backup=path.join(state,CONFIG_RESUME_NATIVE_BACKUP);
+  const journalFile=path.join(state,CONFIG_RESUME_NATIVE_JOURNAL);
+  const updated=Buffer.from(JSON.stringify({...current,source_revision:revision},null,2)+'\n');
+  if (!yamlSnapshot || !/^[a-f0-9]{64}$/.test(yamlSnapshot.sha256) ||
+      !Number.isInteger(yamlSnapshot.uid) || !Number.isInteger(yamlSnapshot.gid) ||
+      !Number.isInteger(yamlSnapshot.mode) || yamlSnapshot.mode<0 || yamlSnapshot.mode>0o777)
+    fail('CONFIG_RESUME_YAML_SNAPSHOT_INVALID');
+  const yamlPath=path.join(root,'app/librechat.yaml'),yamlStat=fs.lstatSync(yamlPath),yamlBytes=fs.readFileSync(yamlPath);
+  if (crypto.createHash('sha256').update(yamlBytes).digest('hex')!==yamlSnapshot.sha256 ||
+      yamlStat.uid!==yamlSnapshot.uid || yamlStat.gid!==yamlSnapshot.gid ||
+      (yamlStat.mode&0o777)!==yamlSnapshot.mode) fail('CONFIG_RESUME_YAML_PRESTATE_DRIFT');
+  let backupStat,journalStat;
+  try { backupStat=fs.lstatSync(backup); } catch (error) { if (error.code!=='ENOENT') throw error; }
+  try { journalStat=fs.lstatSync(journalFile); } catch (error) { if (error.code!=='ENOENT') throw error; }
+  if (backupStat || journalStat) {
+    if (!backupStat || !journalStat) fail('CONFIG_RESUME_RECONCILE_REQUIRED');
+    const {data:saved}=readPrivateBackup(backup,st.uid,st.gid);
+    const journal=readPrivateJson(journalFile,'CONFIG_RESUME_JOURNAL_DRIFT',4096,st.uid);
+    const savedObject=JSON.parse(saved.toString('utf8'));
+    const savedD090=Buffer.from(JSON.stringify({...savedObject,source_revision:D090_SOURCE_REVISION},null,2)+'\n');
+    if (!saved.equals(expectedD090) || !saved.equals(savedD090))
+      fail('CONFIG_RESUME_BACKUP_DRIFT');
+    if (journal.version!==1 || journal.predecessor!==D090_SOURCE_REVISION || journal.target!==revision ||
+        journal.binding_sha256!==bindingDigest || journal.database_sha256!==databaseDigest ||
+        journal.original_sha256!==crypto.createHash('sha256').update(saved).digest('hex') ||
+        journal.native_uid!==st.uid || journal.native_gid!==st.gid ||
+        journal.native_mode!==(st.mode&0o777) || journal.yaml_sha256!==yamlSnapshot.sha256 ||
+        journal.yaml_uid!==yamlSnapshot.uid || journal.yaml_gid!==yamlSnapshot.gid ||
+        journal.yaml_mode!==yamlSnapshot.mode)
+      fail('CONFIG_RESUME_JOURNAL_DRIFT');
+    if (currentBytes.equals(updated)) return {state:'ALREADY_CURRENT'};
+    if (currentBytes.equals(saved)) return {state:'NOT_APPLIED'};
+    fail('CONFIG_RESUME_RECONCILE_REQUIRED');
+  }
+  if (current.source_revision!==D090_SOURCE_REVISION || !expectedD090.equals(currentBytes))
+    fail('CONFIG_RESUME_NATIVE_PRESTATE_DRIFT');
+  const journal={version:1,predecessor:D090_SOURCE_REVISION,target:revision,
+    binding_sha256:bindingDigest,database_sha256:databaseDigest,
+    original_sha256:crypto.createHash('sha256').update(currentBytes).digest('hex'),
+    native_uid:st.uid,native_gid:st.gid,native_mode:st.mode&0o777,
+    yaml_sha256:yamlSnapshot.sha256,yaml_uid:yamlSnapshot.uid,yaml_gid:yamlSnapshot.gid,
+    yaml_mode:yamlSnapshot.mode};
+  writePrivateExclusive(backup,currentBytes,st.uid,st.gid);
+  writePrivateExclusive(journalFile,Buffer.from(JSON.stringify(journal)+'\n'),st.uid,st.gid);
+  const {data:saved}=readPrivateBackup(backup,st.uid,st.gid);
+  if (!saved.equals(currentBytes) || !nativeSnapshotMatches(file,st,currentBytes) ||
+      privateDigest(bindingPath,st.uid,st.gid)!==bindingDigest || privateDigest(databasePath,st.uid,st.gid)!==databaseDigest)
+    fail('CONFIG_RESUME_BACKUP_DRIFT');
+  atomic(file,updated,st,'.awsops-config-resume');
+  const afterStat=fs.lstatSync(file), afterBytes=readNativeBytes(file);
+  const after=validateNativeConfig(JSON.parse(afterBytes.toString('utf8')),root,st);
+  if (!afterBytes.equals(updated) || after.source_revision!==revision || afterStat.uid!==st.uid ||
+      afterStat.gid!==st.gid || (afterStat.mode&0o777)!==(st.mode&0o777) ||
+      privateDigest(bindingPath,st.uid,st.gid)!==bindingDigest || privateDigest(databasePath,st.uid,st.gid)!==databaseDigest)
+    fail('CONFIG_RESUME_READBACK_DRIFT');
+  return {state:'UPDATED'};
+}
+function rollbackNativeSourcePin(root, expectedTargetRevision, expectedBindingSha256, expectedDatabaseSha256) {
+  if (!path.isAbsolute(root) || fs.realpathSync(root)!==root) fail('ISOLATED_ROOT_REQUIRED');
+  const {file,st}=nativeTarget(root),state=path.join(root,'state');
+  const backup=path.join(state,CONFIG_RESUME_NATIVE_BACKUP),journalFile=path.join(state,CONFIG_RESUME_NATIVE_JOURNAL);
+  const {data:saved}=readPrivateBackup(backup,st.uid,st.gid);
+  const journal=readPrivateJson(journalFile,'CONFIG_RESUME_JOURNAL_DRIFT',4096,st.uid);
+  const marker=fs.readFileSync(path.join(root,'awsops/SOURCE_REVISION'),'ascii').trim();
+  if (journal.version!==1 || journal.predecessor!==D090_SOURCE_REVISION ||
+      journal.target!==marker || marker!==expectedTargetRevision ||
+      journal.binding_sha256!==expectedBindingSha256 || journal.database_sha256!==expectedDatabaseSha256 ||
+      journal.original_sha256!==crypto.createHash('sha256').update(saved).digest('hex') ||
+      journal.native_uid!==st.uid || journal.native_gid!==st.gid ||
+      journal.native_mode!==(st.mode&0o777))
+    fail('CONFIG_RESUME_JOURNAL_DRIFT');
+  const original=JSON.parse(saved.toString('utf8'));
+  const currentBytes=readNativeBytes(file);
+  if (currentBytes.equals(saved)) return {state:'ALREADY_ROLLED_BACK'};
+  const expected=Buffer.from(JSON.stringify({...original,source_revision:marker},null,2)+'\n');
+  if (!currentBytes.equals(expected)) fail('CONFIG_RESUME_ROLLBACK_DRIFT');
+  const bindingPath=path.join(state,'binding.private.json');
+  if (privateDigest(bindingPath,st.uid,st.gid)!==expectedBindingSha256 ||
+      privateDigest(original.database,st.uid,st.gid)!==expectedDatabaseSha256)
+    fail('CONFIG_RESUME_BASELINE_DRIFT');
+  validateNativeConfig(original,root,st);
+  atomic(file,saved,st,'.awsops-config-resume-rollback');
+  if (!readNativeBytes(file).equals(saved)) fail('CONFIG_RESUME_ROLLBACK_DRIFT');
+  return {state:'ROLLED_BACK'};
+}
 function ownObject(value, name) {
   if (value == null) return {};
   if (typeof value !== 'object' || Array.isArray(value)) fail('CONFIG_' + name + '_UNSAFE');
@@ -451,12 +663,12 @@ function transform(raw, yaml, appRoot, sourceRoot) {
   if (!isDeepStrictEqual(yaml.load(rendered), config)) fail('CONFIG_ROUNDTRIP_FAILED');
   return Buffer.from(rendered);
 }
-function configure(appRoot, sourceRoot=path.resolve(__dirname,'../..')) {
+function configureWithBackup(appRoot, sourceRoot, backupName) {
   if (!path.isAbsolute(appRoot) || fs.realpathSync(appRoot) !== appRoot ||
       !path.isAbsolute(sourceRoot) || fs.realpathSync(sourceRoot) !== sourceRoot) fail('ISOLATED_ROOT_REQUIRED');
   const file = path.join(appRoot,'app/librechat.yaml');
   const st = privatePath(file);
-  const backup = path.join(appRoot,BACKUP);
+  const backup = path.join(appRoot,backupName);
   const yaml = require(path.join(appRoot,'app/node_modules/js-yaml'));
   let backupStat;
   try { backupStat = fs.lstatSync(backup); }
@@ -466,7 +678,7 @@ function configure(appRoot, sourceRoot=path.resolve(__dirname,'../..')) {
     const expected = transform(original,yaml,appRoot,sourceRoot);
     if (!fs.readFileSync(file).equals(expected)) fail('CONFIG_BACKUP_DRIFT');
     atomic(file,expected,st,'.awsops-staged');
-    return {state:'CONFIGURED', tool:TOOL, backup:BACKUP};
+    return {state:'CONFIGURED', tool:TOOL, backup:backupName};
   } else {
     const original = fs.readFileSync(file);
     const updated = transform(original,yaml,appRoot,sourceRoot);
@@ -484,23 +696,102 @@ function configure(appRoot, sourceRoot=path.resolve(__dirname,'../..')) {
     if (sha256 !== expectedHash || !verified.equals(original) ||
         !fs.readFileSync(file).equals(original)) fail('CONFIG_BACKUP_DRIFT');
     atomic(file,updated,st,'.awsops-staged');
-    return {state:'CONFIGURED', tool:TOOL, backup:BACKUP};
+    return {state:'CONFIGURED', tool:TOOL, backup:backupName};
   }
 }
-function rollback(appRoot) {
+function configure(appRoot, sourceRoot=path.resolve(__dirname,'../..')) {
+  return configureWithBackup(appRoot,sourceRoot,BACKUP);
+}
+function configureResume(appRoot, sourceRoot=path.resolve(__dirname,'../..')) {
+  return configureWithBackup(appRoot,sourceRoot,CONFIG_RESUME_YAML_BACKUP);
+}
+function resumeConfigOnly(root, expectedTargetRevision, expectedBindingSha256, expectedDatabaseSha256) {
+  if (!path.isAbsolute(root) || fs.realpathSync(root)!==root) fail('ISOLATED_ROOT_REQUIRED');
+  const configFile=path.join(root,'app/librechat.yaml');
+  privatePath(configFile);
+  const yaml=require(path.join(root,'app/node_modules/js-yaml'));
+  const raw=fs.readFileSync(configFile);
+  const projection=projectFixtureShape(raw,yaml);
+  if (!['EMPTY_UNCONFIGURED','KNOWN_LEGACY_FIXTURE','KNOWN_CURRENT_FIXTURE'].includes(projection.custom.state) ||
+      !['ABSENT','EMPTY','KNOWN_LEGACY','KNOWN_CURRENT'].includes(projection.allowed_addresses.state))
+    fail('CONFIG_RESUME_FIXTURE_DRIFT');
+  // Render and validate every YAML guard before either the native pin or YAML
+  // is changed; an unknown or malformed fixture cannot leave a half-update.
+  transform(raw,yaml,root,root);
+  const configStat=fs.lstatSync(configFile),yamlSnapshot={sha256:crypto.createHash('sha256').update(raw).digest('hex'),
+    uid:configStat.uid,gid:configStat.gid,mode:configStat.mode&0o777};
+  for (const backupPath of [path.join(root,'state',CONFIG_RESUME_NATIVE_BACKUP),
+    path.join(root,'state',CONFIG_RESUME_NATIVE_JOURNAL),path.join(root,CONFIG_RESUME_YAML_BACKUP)]) {
+    try { fs.lstatSync(backupPath); fail('CONFIG_RESUME_RECONCILE_REQUIRED'); }
+    catch (error) { if (error?.message==='CONFIG_RESUME_RECONCILE_REQUIRED') throw error;
+      if (error.code!=='ENOENT') fail('CONFIG_RESUME_RECONCILE_REQUIRED'); }
+  }
+  const result=resumeNativeSourcePin(root,expectedTargetRevision,expectedBindingSha256,expectedDatabaseSha256,yamlSnapshot);
+  if (result.state==='NOT_APPLIED') fail('CONFIG_RESUME_RECONCILE_REQUIRED');
+  configureResume(root,root);
+  return {state:'RESUMED',native:result.state,fixture:projection.custom.state};
+}
+function rollbackConfigResume(root, expectedTargetRevision, expectedBindingSha256, expectedDatabaseSha256) {
+  if (!path.isAbsolute(root) || fs.realpathSync(root)!==root) fail('ISOLATED_ROOT_REQUIRED');
+  const state=path.join(root,'state'),{file:nativeFile,st:nativeStat}=nativeTarget(root);
+  const nativeBackup=path.join(state,CONFIG_RESUME_NATIVE_BACKUP);
+  const nativeJournal=readPrivateJson(path.join(state,CONFIG_RESUME_NATIVE_JOURNAL),
+    'CONFIG_RESUME_JOURNAL_DRIFT',4096,nativeStat.uid);
+  const {data:originalNative}=readPrivateBackup(nativeBackup,nativeStat.uid,nativeStat.gid);
+  const marker=fs.readFileSync(path.join(root,'awsops/SOURCE_REVISION'),'ascii').trim();
+  if (nativeJournal.version!==1 || nativeJournal.target!==marker ||
+      nativeJournal.predecessor!==D090_SOURCE_REVISION || nativeJournal.target!==expectedTargetRevision ||
+      nativeJournal.binding_sha256!==expectedBindingSha256 ||
+      nativeJournal.database_sha256!==expectedDatabaseSha256 ||
+      nativeJournal.original_sha256!==crypto.createHash('sha256').update(originalNative).digest('hex') ||
+      nativeJournal.native_uid!==nativeStat.uid || nativeJournal.native_gid!==nativeStat.gid ||
+      nativeJournal.native_mode!==(nativeStat.mode&0o777)) fail('CONFIG_RESUME_JOURNAL_DRIFT');
+  const originalConfig=JSON.parse(originalNative.toString('utf8'));
+  const expectedNative=Buffer.from(JSON.stringify({...originalConfig,source_revision:marker},null,2)+'\n');
+  const currentNative=readNativeBytes(nativeFile);
+  if (!currentNative.equals(originalNative) && !currentNative.equals(expectedNative))
+    fail('CONFIG_RESUME_ROLLBACK_DRIFT');
+  const bindingPath=path.join(state,'binding.private.json');
+  if (privateDigest(bindingPath,nativeStat.uid,nativeStat.gid)!==expectedBindingSha256 ||
+      privateDigest(originalConfig.database,nativeStat.uid,nativeStat.gid)!==expectedDatabaseSha256)
+    fail('CONFIG_RESUME_BASELINE_DRIFT');
+  validateNativeConfig(originalConfig,root,nativeStat);
+  const configFile=path.join(root,'app/librechat.yaml'),configStat=fs.lstatSync(configFile);
+  if (configStat.uid!==nativeJournal.yaml_uid || configStat.gid!==nativeJournal.yaml_gid ||
+      (configStat.mode&0o777)!==nativeJournal.yaml_mode) fail('CONFIG_RESUME_YAML_METADATA_DRIFT');
+  const yamlBackup=path.join(root,CONFIG_RESUME_YAML_BACKUP);
+  let yamlResult={state:'NO_CHANGE'};
+  try {
+    fs.lstatSync(yamlBackup);
+    const {data:yamlOriginal,sha256}=readPrivateBackup(yamlBackup,nativeJournal.yaml_uid,nativeJournal.yaml_gid);
+    if (sha256!==nativeJournal.yaml_sha256) fail('CONFIG_RESUME_YAML_BACKUP_DRIFT');
+    const yaml=require(path.join(root,'app/node_modules/js-yaml'));
+    const expectedYaml=transform(yamlOriginal,yaml,root,root),currentYaml=fs.readFileSync(configFile);
+    if (!currentYaml.equals(yamlOriginal) && !currentYaml.equals(expectedYaml)) fail('CONFIG_RESUME_YAML_DRIFT');
+    if (!currentYaml.equals(yamlOriginal)) yamlResult=rollbackWithBackup(root,CONFIG_RESUME_YAML_BACKUP,false);
+  } catch (error) {
+    if (error.code!=='ENOENT') throw error;
+    const currentYaml=fs.readFileSync(configFile);
+    if (crypto.createHash('sha256').update(currentYaml).digest('hex')!==nativeJournal.yaml_sha256)
+      fail('CONFIG_RESUME_YAML_DRIFT');
+  }
+  const nativeResult=rollbackNativeSourcePin(root,expectedTargetRevision,expectedBindingSha256,expectedDatabaseSha256);
+  return {state:'ROLLED_BACK',yaml:yamlResult.state,native:nativeResult.state};
+}
+function rollbackWithBackup(appRoot, backupName, removeBackup=true) {
   if (!path.isAbsolute(appRoot) || fs.realpathSync(appRoot) !== appRoot) fail('ISOLATED_ROOT_REQUIRED');
   const file = path.join(appRoot,'app/librechat.yaml');
   const st = privatePath(file);
-  const backup = path.join(appRoot,BACKUP);
+  const backup = path.join(appRoot,backupName);
   if (!fs.existsSync(backup)) return {state:'NO_CHANGE'};
   const yaml = require(path.join(appRoot,'app/node_modules/js-yaml'));
-  const sourceRoot = path.join(appRoot,'awsops');
   const expected = transform(fs.readFileSync(backup),yaml,appRoot,appRoot);
   if (!fs.readFileSync(file).equals(expected)) fail('CONFIG_ROLLBACK_DRIFT');
   atomic(file,fs.readFileSync(backup),st,'.awsops-rollback');
-  fs.unlinkSync(backup);
+  if (removeBackup) fs.unlinkSync(backup);
   return {state:'ROLLED_BACK'};
 }
+function rollback(appRoot) { return rollbackWithBackup(appRoot,BACKUP,true); }
 function projectConfigShape(appRoot) {
   if (!path.isAbsolute(appRoot) || fs.realpathSync(appRoot) !== appRoot) fail('ISOLATED_ROOT_REQUIRED');
   const file=path.join(appRoot,'app/librechat.yaml');
@@ -510,14 +801,23 @@ function projectConfigShape(appRoot) {
 }
 if (require.main === module) {
   try {
-    const [action,root,...extra] = process.argv.slice(2);
-    if (!['apply','rollback','inspect-native-config','migrate-source-revision','rollback-source-revision','prepare-native-binding','project-config-shape'].includes(action) || !root ||
-        (action === 'prepare-native-binding' ? extra.length !== 1 : extra.length !== 0)) fail('INVALID_ARGS');
+  const [action,root,...extra] = process.argv.slice(2);
+    const digestAction=['resume-config-only','rollback-config-only'].includes(action);
+    const preflightAction=action==='preflight-config-resume';
+    if (!['apply','rollback','inspect-native-config','migrate-source-revision','rollback-source-revision',
+          'prepare-native-binding','project-config-shape','resume-config-only','rollback-config-only',
+          'preflight-config-resume'].includes(action) || !root ||
+        (action === 'prepare-native-binding' ? extra.length !== 1 : digestAction ? extra.length !== 3 :
+          preflightAction ? extra.length !== 3 : extra.length !== 0)) fail('INVALID_ARGS');
     const result = action === 'apply' ? configure(root,root) : action === 'rollback' ? rollback(root) :
       action === 'inspect-native-config' ? inspectNativeConfig(root) :
       action === 'migrate-source-revision' ? migrateNativeSourceRevision(root) :
       action === 'rollback-source-revision' ? rollbackNativeSourceRevision(root) :
-      action === 'project-config-shape' ? projectConfigShape(root) : prepareNativeCanaryBinding(root,extra[0]);
+      action === 'project-config-shape' ? projectConfigShape(root) :
+      action === 'resume-config-only' ? resumeConfigOnly(root,extra[0],extra[1],extra[2]) :
+      action === 'rollback-config-only' ? rollbackConfigResume(root,extra[0],extra[1],extra[2]) :
+      action === 'preflight-config-resume' ? preflightConfigResume(root,extra[0],extra[1],extra[2]) :
+      prepareNativeCanaryBinding(root,extra[0]);
     process.stdout.write(JSON.stringify(result) + '\n');
   } catch {
     process.stderr.write('ISOLATED_RUNTIME_CONFIG_REFUSED\n');
@@ -526,4 +826,8 @@ if (require.main === module) {
 }
 module.exports={configure,rollback,transform,desiredMcp,atomic,readPrivateBackup,migrateNativeSourceRevision,
   inspectNativeConfig,rollbackNativeSourceRevision,validateNativeConfig,validateLegacyNativeConfig,validateReadConfig,
-  prepareNativeCanaryBinding,projectFixtureShape,projectConfigShape,LEGACY_NATIVE_GATE_COMMIT,TOOL,FIXTURE_ENDPOINT,FIXTURE_MODEL,FIXTURE_URL,BACKUP,NATIVE_SOURCE_BACKUP};
+  prepareNativeCanaryBinding,projectFixtureShape,projectConfigShape,resumeNativeSourcePin,rollbackNativeSourcePin,
+  preflightConfigResume,resumeConfigOnly,rollbackConfigResume,configureResume,
+  CONFIG_RESUME_YAML_BACKUP,CONFIG_RESUME_NATIVE_BACKUP,
+  CONFIG_RESUME_NATIVE_JOURNAL,D090_SOURCE_REVISION,LEGACY_NATIVE_GATE_COMMIT,TOOL,FIXTURE_ENDPOINT,
+  FIXTURE_MODEL,FIXTURE_URL,BACKUP,NATIVE_SOURCE_BACKUP};

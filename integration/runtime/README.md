@@ -81,6 +81,31 @@ listeners fail closed. The UI remains host-local; this launcher creates no
 route, public domain, or tunnel. A previously authorized private interactive
 path must be independently available before a real human review can occur.
 
+### Resuming an already completed d090 migration
+
+The accepted 41-target migration is not replayed. The config-only resume uses
+its own `.awsops-issue90-config-resume-v1` journal and exact d090 prestate
+hashes. Before any write, run the staged `runtime_config.cjs
+preflight-config-resume` with the target source revision and the private binding
+and receipt-database baseline hashes. It accepts only the empty/unconfigured or
+exact historical/current fixture shape. Then the root installer runs
+`isolated_migration.py apply-config-resume`; it installs the runtime config,
+TCP-filter launcher, and `SOURCE_REVISION` last. The unchanged
+`native_store.cjs` dependency is checked against its d090 hash and is not
+replaced. As `ssm-user`, run `runtime_config.cjs resume-config-only` with the
+same three pins; it rechecks the native binding/database baselines, writes a
+separate native-config backup, updates only `source_revision`, and applies the
+YAML transformation using its own versioned backup. The receipt database and
+the original 41-target journal/backups remain unchanged.
+
+For rollback, inspect the config-resume journal first. Run
+`runtime_config.cjs rollback-config-only` as `ssm-user` to validate both config
+backups before restoring YAML and native config. Then run
+`isolated_migration.py rollback-config-resume` as root; it prevalidates every
+source backup and restores runtime files before returning `SOURCE_REVISION` to
+d090. A mixed or unknown state is reported for reconciliation; neither path
+replays the original migration or deletes its evidence.
+
 The deterministic fixture can emit only a
 `SYNTHETIC_MODEL_STIMULUS_ONLY; HUMAN_DECISION_REQUIRED` canary tool request.
 That request is not a decision, authentication, or approval. Only the real

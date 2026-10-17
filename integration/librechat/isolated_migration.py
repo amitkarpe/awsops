@@ -16,6 +16,33 @@ import tempfile
 
 EXPECTED_ROOT = "/opt/awsops-native-canary"
 BACKUP = ".awsops-issue90-migration-v1"
+CONFIG_RESUME_BACKUP = ".awsops-issue90-config-resume-v1"
+CONFIG_RESUME_KIND = "issue90-config-only-resume-v1"
+CONFIG_RESUME_TARGETS = {
+    "awsops/integration/librechat/runtime_config.cjs",
+    "awsops/integration/runtime/issue90-isolated-launcher.sh",
+    "awsops/SOURCE_REVISION",
+}
+CONFIG_RESUME_DEPENDENCIES = {
+    "awsops/integration/librechat/native_store.cjs": {
+        "sha256": "d7f7df44625bc67da0638cf72fa471695834e2e4609e10d7417623e8d84118e1",
+        "git_blob": "4ea2803274806da898318a3f02a0f032b6c95d2b",
+    }
+}
+CONFIG_RESUME_D090_PRESTATES = {
+    "awsops/integration/librechat/runtime_config.cjs": {
+        "sha256": "ab01e64efe32bc6aa81b99e9989696f17db1cc3660cc932e4bcbc95a7bb1c464",
+        "git_blob": "efe5832af2b343028629bf5f9e98173ab72badd2",
+    },
+    "awsops/integration/runtime/issue90-isolated-launcher.sh": {
+        "sha256": "901d02d9ce03249b25bd35f6d8e8f14bb7b4934bc2512d0b4057b0acb9af6bfb",
+        "git_blob": "a7abd3bcbf68d89e6c4a8c1772d3614cb3529239",
+    },
+    "awsops/SOURCE_REVISION": {
+        "sha256": "b1c8fd2978941656f6af90ed8b8665b05cc4c66341a1070af94677eba172076a",
+        "git_blob": "9418096258416f7cf72488b4fd3dd9892bf58700",
+    },
+}
 SAFE_ERROR_CODES = {
     "MIGRATION_PATH_UNSAFE", "MIGRATION_PATH_ESCAPE", "MIGRATION_DIRECTORY_DRIFT",
     "MIGRATION_FILE_SYMLINK", "ISOLATED_ROOT_REQUIRED", "BUNDLE_PATH_UNSAFE",
@@ -30,6 +57,15 @@ SAFE_ERROR_CODES = {
     "MIGRATION_DIRECTORY_UNAVAILABLE",
     "MIGRATION_JOURNAL_MISSING", "MIGRATION_JOURNAL_MISMATCH",
     "MIGRATION_INSTALLED_FILE_DRIFT",
+    "CONFIG_RESUME_MANIFEST_UNSUPPORTED", "CONFIG_RESUME_MANIFEST_INVALID",
+    "CONFIG_RESUME_BUNDLE_DRIFT", "CONFIG_RESUME_SOURCE_PIN_MISMATCH",
+    "CONFIG_RESUME_TARGET_UNSAFE", "CONFIG_RESUME_JOURNAL_UNSAFE",
+    "CONFIG_RESUME_JOURNAL_MISMATCH", "CONFIG_RESUME_BACKUP_DRIFT",
+    "CONFIG_RESUME_PRESTATE_DRIFT", "CONFIG_RESUME_RECONCILE_REQUIRED",
+    "CONFIG_RESUME_JOURNAL_MISSING", "CONFIG_RESUME_TARGET_DRIFT",
+    "CONFIG_RESUME_ROLLBACK_DRIFT",
+    "CONFIG_RESUME_DEPENDENCY_PIN_MISMATCH", "CONFIG_RESUME_DEPENDENCY_DRIFT",
+    "CONFIG_RESUME_PREDECESSOR_PIN_MISMATCH",
 }
 
 
@@ -135,6 +171,309 @@ def verify_archive(manifest: dict, archive: Path) -> None:
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     if digest != manifest["target"]["bundle_sha256"]:
         fail("BUNDLE_ARCHIVE_DIGEST_MISMATCH")
+
+
+def _config_resume_manifest(bundle: Path, manifest_path: Path, root: Path) -> tuple[dict, list[dict]]:
+    """Validate the narrow second-stage payload; never route it through v1's 41-file journal."""
+    if root != Path(EXPECTED_ROOT) or not root.is_absolute() or root.resolve(strict=True) != root:
+        fail("ISOLATED_ROOT_REQUIRED")
+    if bundle.resolve(strict=True) != bundle or manifest_path.resolve(strict=True) != manifest_path:
+        fail("BUNDLE_PATH_UNSAFE")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    target = manifest.get("target", {})
+    if (manifest.get("version") != 1 or manifest.get("kind") != CONFIG_RESUME_KIND
+            or manifest.get("build_template") is not False
+            or manifest.get("isolated_root") != EXPECTED_ROOT
+            or manifest.get("backup") != CONFIG_RESUME_BACKUP
+            or manifest.get("predecessor_source_revision") != "d090c98561e87e4be1ad234891f3f78bc665aa6f"
+            or not isinstance(target.get("source_revision"), str)
+            or len(target["source_revision"]) != 40
+            or any(ch not in "0123456789abcdef" for ch in target["source_revision"])
+            or not isinstance(target.get("bundle_sha256"), str)
+            or len(target["bundle_sha256"]) != 64):
+        fail("CONFIG_RESUME_MANIFEST_UNSUPPORTED")
+    if manifest.get("dependencies") != CONFIG_RESUME_DEPENDENCIES:
+        fail("CONFIG_RESUME_DEPENDENCY_PIN_MISMATCH")
+    files = manifest.get("files")
+    required_order = ["awsops/integration/librechat/runtime_config.cjs",
+                      "awsops/integration/runtime/issue90-isolated-launcher.sh",
+                      "awsops/SOURCE_REVISION"]
+    if (not isinstance(files, list) or [item.get("target") for item in files if isinstance(item, dict)] != required_order):
+        fail("CONFIG_RESUME_MANIFEST_INVALID")
+    seen = set()
+    for item in files:
+        if (not isinstance(item, dict) or item.get("target") not in CONFIG_RESUME_TARGETS
+                or item["target"] in seen or item.get("owner") != "ssm-user"
+                or item.get("group") != "ssm-user" or item.get("mode") != "0644"
+                or not isinstance(item.get("sha256"), str) or len(item["sha256"]) != 64):
+            fail("CONFIG_RESUME_MANIFEST_INVALID")
+        conditions = item.get("recovery_preconditions")
+        if not isinstance(conditions, list) or not conditions:
+            fail("CONFIG_RESUME_MANIFEST_INVALID")
+        for expected in conditions:
+            if expected == {"state": "ABSENT"}:
+                continue
+            if (not isinstance(expected, dict)
+                    or set(expected) != {"sha256", "git_blob", "uid", "gid", "mode"}
+                    or not isinstance(expected.get("sha256"), str) or len(expected["sha256"]) != 64
+                    or not isinstance(expected.get("git_blob"), str) or len(expected["git_blob"]) != 40
+                    or type(expected.get("uid")) is not int or expected["uid"] < 0
+                    or type(expected.get("gid")) is not int or expected["gid"] < 0
+                    or not isinstance(expected.get("mode"), str) or len(expected["mode"]) != 4
+                    or any(ch not in "0123456789abcdef" for ch in expected["sha256"] + expected["git_blob"])
+                    or any(ch not in "01234567" for ch in expected["mode"])
+                    or int(expected["mode"], 8) & ~0o777):
+                fail("CONFIG_RESUME_MANIFEST_INVALID")
+        if item["target"] in CONFIG_RESUME_D090_PRESTATES:
+            pinned = CONFIG_RESUME_D090_PRESTATES[item["target"]]
+            if (len(conditions) != 1 or conditions[0].get("sha256") != pinned["sha256"]
+                    or conditions[0].get("git_blob") != pinned["git_blob"]
+                    or conditions[0].get("mode") != "0644"):
+                fail("CONFIG_RESUME_PREDECESSOR_PIN_MISMATCH")
+        data = checked_path(bundle, item["target"]).read_bytes()
+        if sha(data) != item["sha256"]:
+            fail("CONFIG_RESUME_BUNDLE_DRIFT")
+        seen.add(item["target"])
+    marker = checked_path(bundle, "awsops/SOURCE_REVISION").read_text(encoding="ascii").strip()
+    if marker != target["source_revision"]:
+        fail("CONFIG_RESUME_SOURCE_PIN_MISMATCH")
+    return manifest, files
+
+
+def _config_resume_current(target: Path) -> dict | None:
+    try:
+        info = target.lstat()
+    except FileNotFoundError:
+        return None
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+        fail("CONFIG_RESUME_TARGET_UNSAFE")
+    data = _read_regular_nofollow(target, info.st_uid, info.st_gid,
+                                  stat.S_IMODE(info.st_mode), "CONFIG_RESUME_TARGET_UNSAFE")
+    return {"sha256": sha(data), "git_blob": git_blob(data), "uid": info.st_uid,
+            "gid": info.st_gid, "mode": format(stat.S_IMODE(info.st_mode), "04o")}
+
+
+def _verify_config_resume_dependencies(root: Path, uid: int, gid: int) -> None:
+    for rel, expected in CONFIG_RESUME_DEPENDENCIES.items():
+        current = _config_resume_current(checked_path(root, rel))
+        if (current is None or current["sha256"] != expected["sha256"]
+                or current["git_blob"] != expected["git_blob"] or current["uid"] != uid
+                or current["gid"] != gid or current["mode"] != "0644"):
+            fail("CONFIG_RESUME_DEPENDENCY_DRIFT")
+
+
+def _config_resume_read_journal(root: Path, files: list[dict], migration_id: str) -> tuple[dict | None, str]:
+    backup = root / CONFIG_RESUME_BACKUP
+    try:
+        info = backup.lstat()
+    except FileNotFoundError:
+        return None, "ABSENT"
+    backup_owner = pwd.getpwuid(os.geteuid()).pw_name, grp.getgrgid(os.getegid()).gr_name
+    if (stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode)
+            or _owner_group(info) != backup_owner or stat.S_IMODE(info.st_mode) != 0o700):
+        fail("CONFIG_RESUME_JOURNAL_UNSAFE")
+    journal_path = backup / "journal.json"
+    try:
+        raw = _read_regular_nofollow(journal_path, os.geteuid(), os.getegid(), 0o600,
+                                      "CONFIG_RESUME_JOURNAL_UNSAFE")
+        journal = json.loads(raw)
+    except Exception:
+        fail("CONFIG_RESUME_JOURNAL_UNSAFE")
+    if (not isinstance(journal, dict) or journal.get("version") != 1
+            or journal.get("kind") != CONFIG_RESUME_KIND
+            or journal.get("migration_id") != migration_id
+            or len(journal.get("files", [])) != len(files)):
+        fail("CONFIG_RESUME_JOURNAL_MISMATCH")
+    by_target = {row.get("target"): row for row in journal["files"] if isinstance(row, dict)}
+    if set(by_target) != {item["target"] for item in files}:
+        fail("CONFIG_RESUME_JOURNAL_MISMATCH")
+    for item in files:
+        row = by_target[item["target"]]
+        if row.get("installed_sha256") != item["sha256"]:
+            fail("CONFIG_RESUME_JOURNAL_MISMATCH")
+        if row.get("prior") is None:
+            if row.get("prior_meta") is not None or {"state": "ABSENT"} not in item["recovery_preconditions"]:
+                fail("CONFIG_RESUME_JOURNAL_MISMATCH")
+            continue
+        expected_name = hashlib.sha256(item["target"].encode()).hexdigest()
+        if row.get("prior") != expected_name:
+            fail("CONFIG_RESUME_JOURNAL_MISMATCH")
+        prior = backup / row["prior"]
+        data = _read_regular_nofollow(prior, os.geteuid(), os.getegid(), 0o600,
+                                      "CONFIG_RESUME_BACKUP_DRIFT")
+        meta = row.get("prior_meta")
+        if (not isinstance(meta, dict) or set(meta) != {"sha256", "git_blob", "uid", "gid", "mode"}
+                or meta != {"sha256": sha(data), "git_blob": git_blob(data),
+                            "uid": meta.get("uid"), "gid": meta.get("gid"), "mode": meta.get("mode")}
+                or type(meta.get("uid")) is not int or type(meta.get("gid")) is not int
+                or not isinstance(meta.get("mode"), str) or len(meta["mode"]) != 4
+                or meta not in item["recovery_preconditions"]):
+            fail("CONFIG_RESUME_BACKUP_DRIFT")
+    return journal, "VALID"
+
+
+def apply_config_resume(bundle: Path, manifest_path: Path, archive: Path, root: Path) -> dict:
+    manifest, files = _config_resume_manifest(bundle, manifest_path, root)
+    verify_archive(manifest, archive)
+    uid, gid = _identity()
+    _verify_config_resume_dependencies(root, uid, gid)
+    backup = root / CONFIG_RESUME_BACKUP
+    if backup.exists() or backup.is_symlink():
+        _journal, state = _config_resume_read_journal(root, files, manifest["migration_id"])
+        if state != "VALID":
+            fail("CONFIG_RESUME_RECONCILE_REQUIRED")
+        states = [_config_resume_current(checked_path(root, item["target"])) for item in files]
+        if all(value is not None and value["sha256"] == item["sha256"]
+               and value["uid"] == uid and value["gid"] == gid and value["mode"] == item["mode"]
+               for item, value in zip(files, states)):
+            return {"state": "ALREADY_INSTALLED", "files": len(files)}
+        fail("CONFIG_RESUME_RECONCILE_REQUIRED")
+    states = []
+    for item in files:
+        target = checked_path(root, item["target"])
+        current = _config_resume_current(target)
+        if current not in item["recovery_preconditions"]:
+            fail("CONFIG_RESUME_PRESTATE_DRIFT")
+        states.append((item, target, current))
+    backup.mkdir(mode=0o700)
+    os.chown(backup, os.geteuid(), os.getegid())
+    os.chmod(backup, 0o700)
+    root_fd = os.open(root, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(root_fd)
+    finally:
+        os.close(root_fd)
+    journal = {"version": 1, "kind": CONFIG_RESUME_KIND,
+               "migration_id": manifest["migration_id"], "files": []}
+    try:
+        for item, _target, prior in states:
+            if prior is None:
+                journal["files"].append({"target": item["target"], "prior": None,
+                                         "prior_meta": None, "installed_sha256": item["sha256"]})
+            else:
+                name = hashlib.sha256(item["target"].encode()).hexdigest()
+                source = checked_path(root, item["target"])
+                data = _read_regular_nofollow(source, prior["uid"], prior["gid"],
+                                              int(prior["mode"], 8), "CONFIG_RESUME_PRESTATE_DRIFT")
+                if {"sha256": sha(data), "git_blob": git_blob(data), "uid": prior["uid"],
+                    "gid": prior["gid"], "mode": prior["mode"]} != prior:
+                    fail("CONFIG_RESUME_PRESTATE_DRIFT")
+                _write_exclusive(backup / name, data, 0o600, os.geteuid(), os.getegid())
+                journal["files"].append({"target": item["target"], "prior": name,
+                                         "prior_meta": prior, "installed_sha256": item["sha256"]})
+        _write_exclusive(backup / "journal.json",
+                         (json.dumps(journal, sort_keys=True, separators=(",", ":")) + "\n").encode(),
+                         0o600, os.geteuid(), os.getegid())
+        dir_fd = os.open(backup, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+        _config_resume_read_journal(root, files, manifest["migration_id"])
+        for item, target, prior in states:
+            if _config_resume_current(target) != prior:
+                fail("CONFIG_RESUME_PRESTATE_DRIFT")
+        for item, target, prior in states:
+            if prior is None or prior["sha256"] != item["sha256"]:
+                _atomic(target, checked_path(bundle, item["target"]).read_bytes(),
+                        int(item["mode"], 8), uid, gid)
+    except Exception:
+        # The versioned journal is retained for explicit inspection/rollback;
+        # never auto-replay or erase evidence after an uncertain replacement.
+        raise
+    return {"state": "INSTALLED", "files": len(files)}
+
+
+def rollback_config_resume(bundle: Path, manifest_path: Path, archive: Path, root: Path) -> dict:
+    manifest, files = _config_resume_manifest(bundle, manifest_path, root)
+    verify_archive(manifest, archive)
+    uid, gid = _identity()
+    _verify_config_resume_dependencies(root, uid, gid)
+    journal, state = _config_resume_read_journal(root, files, manifest["migration_id"])
+    if state != "VALID" or journal is None:
+        fail("CONFIG_RESUME_JOURNAL_MISSING")
+    by_target = {row["target"]: row for row in journal["files"]}
+    restore = {}
+    installed = set()
+    for item in files:
+        target = checked_path(root, item["target"])
+        current = _config_resume_current(target)
+        row = by_target[item["target"]]
+        if current is None:
+            if row["prior"] is not None:
+                fail("CONFIG_RESUME_TARGET_DRIFT")
+            continue
+        if (current["sha256"] == item["sha256"] and current["uid"] == uid
+                and current["gid"] == gid and current["mode"] == item["mode"]):
+            installed.add(item["target"])
+        elif row["prior_meta"] is not None and current == row["prior_meta"]:
+            continue
+        else:
+            fail("CONFIG_RESUME_TARGET_DRIFT")
+        if row["prior"] is not None:
+            data = _read_regular_nofollow(root / CONFIG_RESUME_BACKUP / row["prior"],
+                                          os.geteuid(), os.getegid(), 0o600,
+                                          "CONFIG_RESUME_BACKUP_DRIFT")
+            meta = row["prior_meta"]
+            if sha(data) != meta["sha256"] or git_blob(data) != meta["git_blob"]:
+                fail("CONFIG_RESUME_BACKUP_DRIFT")
+            restore[item["target"]] = (data, meta)
+    # The source marker is last in manifest order, so restoring in that same
+    # order returns runtime code first and moves the marker back last.
+    for item in files:
+        if item["target"] not in installed:
+            continue
+        target = checked_path(root, item["target"])
+        row = by_target[item["target"]]
+        if row["prior"] is None:
+            target.unlink()
+        else:
+            data, meta = restore[item["target"]]
+            _atomic(target, data, int(meta["mode"], 8), meta["uid"], meta["gid"])
+    for item in files:
+        if _config_resume_current(checked_path(root, item["target"])) != by_target[item["target"]]["prior_meta"]:
+            fail("CONFIG_RESUME_ROLLBACK_DRIFT")
+    return {"state": "ROLLED_BACK", "files": len(files)}
+
+
+def inspect_config_resume(bundle: Path, manifest_path: Path, archive: Path, root: Path) -> dict:
+    manifest, files = _config_resume_manifest(bundle, manifest_path, root)
+    verify_archive(manifest, archive)
+    target_uid, target_gid = _identity()
+    _verify_config_resume_dependencies(root, target_uid, target_gid)
+    backup = root / CONFIG_RESUME_BACKUP
+    try:
+        journal, journal_state = _config_resume_read_journal(root, files, manifest["migration_id"])
+    except ValueError:
+        journal, journal_state = None, "INVALID"
+    prior_states = {"ABSENT", "PRESTATE_EXACT"}
+    targets = []
+    by_target = {row["target"]: row for row in (journal or {}).get("files", [])}
+    for index, item in enumerate(files, 1):
+        current = _config_resume_current(checked_path(root, item["target"]))
+        if current is None:
+            state = "ABSENT"
+        elif (current["sha256"] == item["sha256"] and current["mode"] == item["mode"]
+              and current["uid"] == target_uid and current["gid"] == target_gid):
+            state = "INSTALLED_EXACT"
+        elif current in item["recovery_preconditions"]:
+            state = "PRESTATE_EXACT"
+        else:
+            state = "TARGET_DRIFT"
+        targets.append({"key": f"C{index:02d}", "state": state})
+    states = {row["state"] for row in targets}
+    if journal_state == "ABSENT" and states <= prior_states:
+        overall = "NOT_STARTED"
+    elif journal_state == "VALID" and states == {"INSTALLED_EXACT"}:
+        overall = "INSTALLED"
+    elif journal_state == "VALID" and states <= prior_states:
+        overall = "ROLLED_BACK_OR_NOT_APPLIED"
+    elif journal_state == "VALID" and states <= prior_states | {"INSTALLED_EXACT"}:
+        overall = "PARTIAL_RECONCILE_REQUIRED"
+    else:
+        overall = "RECONCILE_REQUIRED"
+    return {"state": overall, "journal": journal_state,
+            "backup": "PRESENT" if backup.exists() else "ABSENT", "targets": targets}
 
 
 def _identity() -> tuple[int, int]:
@@ -765,7 +1104,9 @@ def rollback(bundle: Path, manifest_path: Path, archive: Path, root: Path) -> di
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=("apply", "rollback", "inspect"))
+    parser.add_argument("action", choices=("apply", "rollback", "inspect",
+                                             "apply-config-resume", "rollback-config-resume",
+                                             "inspect-config-resume"))
     parser.add_argument("--bundle", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--archive", type=Path, required=True)
@@ -774,6 +1115,12 @@ def main() -> int:
     try:
         if args.action == "inspect":
             result = inspect_migration(args.bundle, args.manifest, args.archive, args.root)
+        elif args.action == "apply-config-resume":
+            result = apply_config_resume(args.bundle, args.manifest, args.archive, args.root)
+        elif args.action == "rollback-config-resume":
+            result = rollback_config_resume(args.bundle, args.manifest, args.archive, args.root)
+        elif args.action == "inspect-config-resume":
+            result = inspect_config_resume(args.bundle, args.manifest, args.archive, args.root)
         elif args.action == "apply":
             result = apply(args.bundle, args.manifest, args.archive, args.root)
         else:

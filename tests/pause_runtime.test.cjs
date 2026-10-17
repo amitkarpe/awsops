@@ -293,6 +293,80 @@ test('native source pin migration is old-revision guarded, private, read-back ve
   assert.equal(fs.existsSync(path.join(state,runtimeConfig.NATIVE_SOURCE_BACKUP)),false);
 });
 
+test('config-only resume moves exact d090 state and rolls back without touching original migration or ledger',t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'awsops-config-resume-'));
+  t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const state=path.join(root,'state'),awsops=path.join(root,'awsops'),app=path.join(root,'app');
+  fs.mkdirSync(state,{mode:0o700});fs.mkdirSync(awsops,{mode:0o700});
+  fs.mkdirSync(path.join(awsops,'src'),{recursive:true});
+  fs.cpSync(path.join(__dirname,'../src/awsops'),path.join(awsops,'src/awsops'),{recursive:true});
+  fs.mkdirSync(path.join(app,'node_modules/js-yaml'),{recursive:true});
+  fs.writeFileSync(path.join(app,'node_modules/js-yaml/index.js'),
+    'exports.load=value=>JSON.parse(value);exports.dump=value=>JSON.stringify(value,null,2);\n');
+  const yaml={endpoints:{custom:[],agents:{toolApproval:{allow:[],ask:[],deny:[],hooks:[]}}},mcpServers:{},unrelated:{keep:true}};
+  const yamlBytes=Buffer.from(JSON.stringify(yaml));
+  const yamlPath=path.join(app,'librechat.yaml');fs.writeFileSync(yamlPath,yamlBytes,{mode:0o600});
+  const database=path.join(state,'receipt.sqlite3');seedDecisionStore(database);
+  fs.chmodSync(database,0o600);
+  const account='000000000001',bindingPath=path.join(state,'binding.private.json');
+  const bindingBytes=Buffer.from(JSON.stringify({account_id:account,bucket:'awsops-dev-issue90-s3-canary-0123456789ab'},null,2)+'\n');
+  fs.writeFileSync(bindingPath,bindingBytes,{mode:0o600});
+  const read={region:'ap-southeast-1',source_account_id:account,profile:'amit',accounts:[
+    {alias:'lab-dev',account_id:account},{alias:'lab-poc',account_id:'000000000002'},
+    {alias:'lab-qa',account_id:'000000000003'},{alias:'lab-sec',account_id:'000000000004'}]};
+  fs.writeFileSync(path.join(state,'read.json'),JSON.stringify(read),{mode:0o600});
+  const targetRevision='f'.repeat(40);
+  fs.writeFileSync(path.join(awsops,'SOURCE_REVISION'),runtimeConfig.D090_SOURCE_REVISION+'\n',{mode:0o644});
+  const legacy={version:1,enabled:true,agent_id:'preserved-agent',python:'/usr/bin/python3',source_root:awsops,database};
+  const sourceBackup=path.join(state,runtimeConfig.NATIVE_SOURCE_BACKUP);
+  const legacyBytes=Buffer.from(JSON.stringify(legacy,null,2)+'\n');fs.writeFileSync(sourceBackup,legacyBytes,{mode:0o600});
+  const originalNative={...legacy,source_revision:runtimeConfig.D090_SOURCE_REVISION,
+    application_database:path.join(state,'canary.sqlite'),application_binding:bindingPath,source_version:'v1.0.0-mock'};
+  const nativePath=path.join(state,'native.json'),nativeBytes=Buffer.from(JSON.stringify(originalNative,null,2)+'\n');
+  fs.writeFileSync(nativePath,nativeBytes,{mode:0o600});
+  const originalMigration=path.join(root,'.awsops-issue90-migration-v1');fs.mkdirSync(originalMigration,{mode:0o700});
+  fs.writeFileSync(path.join(originalMigration,'journal.json'),'accepted-41-target-journal\n',{mode:0o600});
+  const originalYamlBackup=path.join(root,runtimeConfig.BACKUP);fs.writeFileSync(originalYamlBackup,'existing-yaml-backup\n',{mode:0o600});
+  const oldJournalBytes=fs.readFileSync(path.join(originalMigration,'journal.json'));
+  const oldYamlBackupBytes=fs.readFileSync(originalYamlBackup),databaseBytes=fs.readFileSync(database);
+  const hash=value=>require('node:crypto').createHash('sha256').update(value).digest('hex');
+  const unknown={...yaml,endpoints:{...yaml.endpoints,custom:[{name:'foreign',apiKey:'private-sentinel'}]}};
+  fs.writeFileSync(yamlPath,JSON.stringify(unknown),{mode:0o600});
+  assert.throws(()=>runtimeConfig.resumeConfigOnly(root,targetRevision,hash(bindingBytes),hash(databaseBytes)),/CONFIG_RESUME_FIXTURE_DRIFT/);
+  assert.deepEqual(fs.readFileSync(nativePath),nativeBytes);
+  assert.equal(fs.existsSync(path.join(state,runtimeConfig.CONFIG_RESUME_NATIVE_BACKUP)),false);
+  assert.equal(fs.existsSync(path.join(root,runtimeConfig.CONFIG_RESUME_YAML_BACKUP)),false);
+  fs.writeFileSync(yamlPath,yamlBytes,{mode:0o600});
+  assert.throws(()=>runtimeConfig.preflightConfigResume(root,targetRevision,hash(bindingBytes),'0'.repeat(64)),/CONFIG_RESUME_BASELINE_DRIFT/);
+  assert.deepEqual(fs.readFileSync(nativePath),nativeBytes);
+  assert.equal(fs.existsSync(path.join(state,runtimeConfig.CONFIG_RESUME_NATIVE_BACKUP)),false);
+  assert.throws(()=>runtimeConfig.preflightConfigResume(root,targetRevision,'0'.repeat(64),hash(databaseBytes)),/CONFIG_RESUME_BASELINE_DRIFT/);
+  assert.deepEqual(fs.readFileSync(nativePath),nativeBytes);
+  assert.equal(fs.existsSync(path.join(state,runtimeConfig.CONFIG_RESUME_NATIVE_BACKUP)),false);
+  assert.deepEqual(runtimeConfig.preflightConfigResume(root,targetRevision,hash(bindingBytes),hash(databaseBytes)),
+    {state:'PREWRITE_COMPATIBLE',native:'D090_PINNED',binding:'BASELINE_MATCH',database:'BASELINE_MATCH',
+      fixture:'EMPTY_UNCONFIGURED'});
+  fs.writeFileSync(path.join(awsops,'SOURCE_REVISION'),targetRevision+'\n',{mode:0o644});
+  const yamlState=runtimeConfig.resumeConfigOnly(root,targetRevision,hash(bindingBytes),hash(databaseBytes));
+  assert.deepEqual(yamlState,{state:'RESUMED',native:'UPDATED',fixture:'EMPTY_UNCONFIGURED'});
+  assert.equal(JSON.parse(fs.readFileSync(nativePath,'utf8')).source_revision,targetRevision);
+  assert.equal(JSON.parse(fs.readFileSync(yamlPath,'utf8')).endpoints.custom[0].baseURL,runtimeConfig.FIXTURE_URL);
+  assert.deepEqual(fs.readFileSync(path.join(state,runtimeConfig.CONFIG_RESUME_NATIVE_BACKUP)),nativeBytes);
+  const resumeNativeBackup=fs.readFileSync(path.join(state,runtimeConfig.CONFIG_RESUME_NATIVE_BACKUP));
+  assert.deepEqual(fs.readFileSync(path.join(state,runtimeConfig.NATIVE_SOURCE_BACKUP)),legacyBytes);
+  assert.deepEqual(fs.readFileSync(database),databaseBytes);assert.deepEqual(fs.readFileSync(bindingPath),bindingBytes);
+  assert.deepEqual(fs.readFileSync(path.join(originalMigration,'journal.json')),oldJournalBytes);
+  assert.deepEqual(fs.readFileSync(originalYamlBackup),oldYamlBackupBytes);
+  assert.deepEqual(runtimeConfig.rollbackConfigResume(root,targetRevision,hash(bindingBytes),hash(databaseBytes)),
+    {state:'ROLLED_BACK',yaml:'ROLLED_BACK',native:'ROLLED_BACK'});
+  assert.deepEqual(fs.readFileSync(nativePath),nativeBytes);assert.deepEqual(fs.readFileSync(yamlPath),yamlBytes);
+  assert.deepEqual(fs.readFileSync(path.join(state,runtimeConfig.CONFIG_RESUME_NATIVE_BACKUP)),resumeNativeBackup);
+  assert.equal(fs.existsSync(path.join(root,runtimeConfig.CONFIG_RESUME_YAML_BACKUP)),true);
+  assert.deepEqual(fs.readFileSync(database),databaseBytes);
+  assert.deepEqual(fs.readFileSync(path.join(originalMigration,'journal.json')),oldJournalBytes);
+  assert.deepEqual(fs.readFileSync(originalYamlBackup),oldYamlBackupBytes);
+});
+
 test('known historical native-gate v1 config upgrades without changing owner or paths and rolls back exactly',t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'awsops-native-legacy-'));
   t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
