@@ -55,7 +55,8 @@ function validateNativeConfig(value, root, ownerStat) {
       typeof value.source_revision !== 'string' || !/^[a-f0-9]{40}$/.test(value.source_revision) ||
       typeof value.source_version !== 'string' || !/^v[0-9]+\.[0-9]+\.[0-9]+-mock$/.test(value.source_version))
     fail('NATIVE_CONFIG_SCHEMA_DRIFT');
-  try { nativeStore.validateDecisionDatabase(value.database,{root,uid:owner.uid,gid:owner.gid}); }
+  try { nativeStore.validateDecisionDatabase(value.database,{root,uid:owner.uid,gid:owner.gid,
+    sourceRoot:path.resolve(__dirname,'../..')}); }
   catch { fail('NATIVE_CONFIG_DATABASE_UNSAFE'); }
   return value;
 }
@@ -83,7 +84,8 @@ function validateLegacyNativeConfig(value, root, ownerStat) {
     fail('NATIVE_LEGACY_SCHEMA_UNSUPPORTED');
   try {
     nativeStore.validateLegacyPython(value.python);
-    nativeStore.validateDecisionDatabase(value.database,{root,uid:owner.uid,gid:owner.gid});
+    nativeStore.validateDecisionDatabase(value.database,{root,uid:owner.uid,gid:owner.gid,
+      sourceRoot:path.resolve(__dirname,'../..')});
   } catch { fail('NATIVE_LEGACY_RUNTIME_UNSUPPORTED'); }
   return value;
 }

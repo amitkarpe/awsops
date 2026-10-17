@@ -18,6 +18,19 @@
     },
     {
       "group": "ssm-user",
+      "legacy_absent": true,
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_only",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "app/api/server/controllers/agents/native_store.cjs",
+      "target": "app/api/server/controllers/agents/native_store.cjs"
+    },
+    {
+      "group": "ssm-user",
       "legacy_git_blob_alternates": [
         "853eeea8dc3e9c8ccc6dfc7c080ad868fbeadda8"
       ],
@@ -156,6 +169,19 @@
       "sha256": null,
       "source": "awsops/integration/librechat/runtime_config.cjs",
       "target": "awsops/integration/librechat/runtime_config.cjs"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_absent": true,
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_only",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/integration/librechat/native_store.cjs",
+      "target": "awsops/integration/librechat/native_store.cjs"
     },
     {
       "group": "ssm-user",
