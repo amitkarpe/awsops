@@ -143,7 +143,9 @@ class NativeCanaryApprovalTests(unittest.TestCase):
                     "conversation_id": "conversation-1", "action_id": "action-1",
                     "generation_id": str(now), "tool_call_id": "call-1",
                     "tool": "approve_s3_canary_once"}, "pause_expires_at": now + 300}
-            result = prepare_native_canary(message, database=ledger, binding_file=binding_file,
+            native_ledger = root / "native.sqlite"
+            result = prepare_native_canary(message, database=ledger, native_database=native_ledger,
+                binding_file=binding_file,
                 read_config=read_config, source_revision="a" * 40, source_version="v1.0.0-mock",
                 source_revision_file=source_file,
                 session_factory=session_factory, provider_factory=provider_factory,
@@ -153,6 +155,11 @@ class NativeCanaryApprovalTests(unittest.TestCase):
             self.assertEqual(result["control"], "s3_canary")
             self.assertEqual(result["expires_at"], now + 300)
             self.assertEqual(fake_s3.writes, [])
+            self.assertEqual(native_ledger.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(ledger.stat().st_mode & 0o777, 0o600)
+            with sqlite3.connect(native_ledger) as db:
+                self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 1)
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM events").fetchone()[0], 0)
             from awsops.application.s3_canary_approval import CanaryApprovalApplication
             from awsops.execution.s3_canary import CanaryBinding
             app = CanaryApprovalApplication(ledger, CanaryBinding(account, bucket),
@@ -163,6 +170,17 @@ class NativeCanaryApprovalTests(unittest.TestCase):
             self.assertEqual(authority.principal_binding_digest,
                 canonical_digest({"principal_id": "authenticated-owner", "tenant_id": "tenant:home"}))
             self.assertEqual(authority.allowed_actions, ("create", "tags", "public_block", "policy"))
+            with sqlite3.connect(ledger) as db:
+                db.execute("INSERT INTO canaries VALUES (?,?,?,?,?,?)",
+                    ("preserved-sentinel", "{}", "existing-principal", "existing-binding", None, None))
+            from awsops.runtime.prepare_native_canary import _provision_ledgers
+            from awsops.execution.s3_canary import CanaryBinding
+            _provision_ledgers(native_ledger, ledger, CanaryBinding(account, bucket),
+                source_revision="a" * 40, source_version="v1.0.0-mock", clock=lambda: fake_s3.clock[0])
+            with sqlite3.connect(ledger) as db:
+                self.assertEqual(db.execute("SELECT payload FROM canaries WHERE batch_id=?",
+                    ("preserved-sentinel",)).fetchone(), ("{}",))
+            self.assertEqual(fake_s3.writes, [])
             expiring_ledger = root / "expiring.sqlite"
             fake_s3.clock[0] = now
             def expiring_provider(session, binding, path):
@@ -183,6 +201,19 @@ class NativeCanaryApprovalTests(unittest.TestCase):
             with sqlite3.connect(expiring_ledger) as db:
                 self.assertEqual(db.execute("SELECT COUNT(*) FROM canaries").fetchone()[0], 0)
                 self.assertEqual(db.execute("SELECT COUNT(*) FROM application_authority").fetchone()[0], 0)
+            missing_binding = root / "missing-binding.private.json"
+            missing_application_ledger = root / "missing-canary.sqlite"
+            missing_native_ledger = root / "missing-native.sqlite"
+            with self.assertRaisesRegex(ValueError, "PRIVATE_RUNTIME_FILE_REQUIRED"):
+                prepare_native_canary(message, database=missing_application_ledger,
+                    native_database=missing_native_ledger, binding_file=missing_binding,
+                    read_config=read_config, source_revision="a" * 40,
+                    source_version="v1.0.0-mock", source_revision_file=source_file,
+                    session_factory=session_factory,
+                    provider_factory=lambda *_args: self.fail("provider before binding readiness"),
+                    clock=lambda: fake_s3.clock[0])
+            self.assertFalse(missing_application_ledger.exists())
+            self.assertFalse(missing_native_ledger.exists())
             source_file.write_text("b" * 40 + "\n")
             with self.assertRaisesRegex(ValueError, "SOURCE_REVISION_DRIFT"):
                 prepare_native_canary(message, database=ledger, binding_file=binding_file,

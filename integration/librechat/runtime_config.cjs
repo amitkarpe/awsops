@@ -12,6 +12,13 @@ const FIXTURE_URL = 'http://127.0.0.1:4312/v1';
 const BACKUP = '.awsops-issue90-runtime-config.original';
 const NATIVE_SOURCE_BACKUP = '.awsops-issue90-native-source-revision.original';
 const LEGACY_SOURCE_REVISION = 'd9545f7cd3aca485a137c5b8e8b8d55f02a004c8';
+const LEGACY_NATIVE_GATE_COMMIT = '1ee21e15017a066413bf705c96749ab7bf9cffd2';
+const LEGACY_NATIVE_KEYS = ['version','enabled','agent_id','python','source_root','database'];
+const CURRENT_NATIVE_KEYS = ['agent_id','application_binding','application_database','database','enabled',
+  'python','source_revision','source_root','source_version','version'];
+const LAB_ALIASES = ['lab-dev','lab-poc','lab-qa','lab-sec'];
+const CANARY_SOURCE_VERSION = 'v1.0.0-mock';
+const REGION = 'ap-southeast-1';
 function fail(code) { throw Error(code); }
 function privatePath(file) {
   if (!path.isAbsolute(file) || fs.realpathSync(file) !== file) fail('CONFIG_PATH_UNSAFE');
@@ -34,10 +41,8 @@ function readPrivateBackup(file, uid, gid) {
   } finally { fs.closeSync(fd); }
 }
 function validateNativeConfig(value, root) {
-  const expectedKeys = ['agent_id','application_binding','application_database','database','enabled',
-    'python','source_revision','source_root','source_version','version'];
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
-      Object.keys(value).sort().join(',') !== expectedKeys.sort().join(',') ||
+      Object.keys(value).sort().join(',') !== [...CURRENT_NATIVE_KEYS].sort().join(',') ||
       value.version !== 1 || value.enabled !== true || typeof value.agent_id !== 'string' ||
       !/^[A-Za-z0-9_.:-]{1,128}$/.test(value.agent_id) || value.python !== '/usr/bin/python3' ||
       value.source_root !== path.join(root,'awsops') ||
@@ -49,6 +54,77 @@ function validateNativeConfig(value, root) {
       typeof value.source_version !== 'string' || !/^v[0-9]+\.[0-9]+\.[0-9]+-mock$/.test(value.source_version))
     fail('NATIVE_CONFIG_SCHEMA_DRIFT');
   return value;
+}
+function readPrivateJson(file, code, maxBytes=8192) {
+  let st;
+  try { st=privatePath(file); } catch { fail(code); }
+  if (st.uid !== process.getuid() || (st.mode & 0o777) !== 0o600 || st.size > maxBytes)
+    fail(code);
+  const fd = fs.openSync(file,fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
+  try {
+    const opened = fs.fstatSync(fd);
+    if (!opened.isFile() || opened.dev !== st.dev || opened.ino !== st.ino ||
+        opened.uid !== st.uid || (opened.mode & 0o777) !== 0o600) fail(code);
+    return JSON.parse(fs.readFileSync(fd,'utf8'));
+  } finally { fs.closeSync(fd); }
+}
+function validateLegacyNativeConfig(value, root) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) ||
+      Object.keys(value).sort().join(',') !== [...LEGACY_NATIVE_KEYS].sort().join(',') ||
+      value.version !== 1 || value.enabled !== true || typeof value.agent_id !== 'string' ||
+      !/^[A-Za-z0-9_.:-]{1,128}$/.test(value.agent_id) || value.python !== '/usr/bin/python3' ||
+      value.source_root !== path.join(root,'awsops') ||
+      value.database !== path.join(root,'state/native.sqlite')) fail('NATIVE_LEGACY_SCHEMA_UNSUPPORTED');
+  return value;
+}
+function validateReadConfig(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) ||
+      Object.keys(value).sort().join(',') !== 'accounts,profile,region,source_account_id' ||
+      value.profile !== 'amit' || value.region !== REGION ||
+      typeof value.source_account_id !== 'string' || !/^[0-9]{12}$/.test(value.source_account_id) ||
+      !Array.isArray(value.accounts) || value.accounts.length !== LAB_ALIASES.length) fail('NATIVE_READ_CONFIG_UNSUPPORTED');
+  const aliases=[]; const ids=[];
+  for (const row of value.accounts) {
+    if (!row || typeof row !== 'object' || Array.isArray(row) ||
+        Object.keys(row).sort().join(',') !== 'account_id,alias' ||
+        typeof row.alias !== 'string' || !LAB_ALIASES.includes(row.alias) ||
+        typeof row.account_id !== 'string' || !/^[0-9]{12}$/.test(row.account_id))
+      fail('NATIVE_READ_CONFIG_UNSUPPORTED');
+    aliases.push(row.alias); ids.push(row.account_id);
+  }
+  if (aliases.sort().join(',') !== [...LAB_ALIASES].sort().join(',') || new Set(ids).size !== ids.length)
+    fail('NATIVE_READ_CONFIG_UNSUPPORTED');
+  return value;
+}
+function expandedLegacyNativeConfig(value, root, revision) {
+  const legacy=validateLegacyNativeConfig(value,root);
+  return {...legacy,source_revision:revision,
+    application_database:path.join(root,'state/canary.sqlite'),
+    application_binding:path.join(root,'state/binding.private.json'),
+    source_version:CANARY_SOURCE_VERSION};
+}
+function normalizeNativeConfig(value, root, revision) {
+  const keysValue = value && typeof value === 'object' && !Array.isArray(value) ? Object.keys(value) : [];
+  if (keysValue.sort().join(',') === [...LEGACY_NATIVE_KEYS].sort().join(',')) {
+    const upgraded=expandedLegacyNativeConfig(value,root,revision);
+    const state=path.join(root,'state');
+    const read=validateReadConfig(readPrivateJson(path.join(state,'read.json'),'NATIVE_READ_CONFIG_UNAVAILABLE'));
+    const bindingPath=path.join(state,'binding.private.json');
+    const binding=readPrivateJson(bindingPath,'NATIVE_TARGET_BINDING_UNAVAILABLE',4096);
+    if (!binding || typeof binding !== 'object' || Array.isArray(binding) ||
+        Object.keys(binding).sort().join(',') !== 'account_id,bucket' ||
+        binding.account_id !== read.source_account_id ||
+        typeof binding.bucket !== 'string' ||
+        !/^awsops-dev-issue90-s3-canary-[a-z0-9]{12}$/.test(binding.bucket))
+      fail('NATIVE_TARGET_BINDING_MISMATCH');
+    return upgraded;
+  }
+  if (keysValue.sort().join(',') !== [...CURRENT_NATIVE_KEYS].sort().join(','))
+    fail('NATIVE_CONFIG_SCHEMA_UNSUPPORTED');
+  const current=validateNativeConfig(value,root);
+  if (current.source_revision === revision) return current;
+  if (current.source_revision !== LEGACY_SOURCE_REVISION) fail('NATIVE_SOURCE_REVISION_UNEXPECTED');
+  return {...current,source_revision:revision};
 }
 function nativeTarget(root) {
   const file = path.join(root,'state/native.json');
@@ -78,30 +154,30 @@ function migrateNativeSourceRevision(root) {
   const {file,st} = nativeTarget(root);
   const backup = path.join(root,'state',NATIVE_SOURCE_BACKUP);
   const original = readNativeBytes(file);
-  const current = validateNativeConfig(JSON.parse(original.toString('utf8')),root);
-  if (current.source_revision === revision) {
-    let backupStat;
-    try { backupStat = fs.lstatSync(backup); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-    if (!backupStat) return {state:'ALREADY_CURRENT'};
-  } else if (current.source_revision !== LEGACY_SOURCE_REVISION) {
-    fail('NATIVE_SOURCE_REVISION_UNEXPECTED');
-  }
-  const transformed = {...current,source_revision:revision};
-  const updated = Buffer.from(JSON.stringify(transformed,null,2) + '\n');
+  const parsed=JSON.parse(original.toString('utf8'));
+  const updated = Buffer.from(JSON.stringify(normalizeNativeConfig(parsed,root,revision),null,2) + '\n');
   let backupStat;
   try { backupStat = fs.lstatSync(backup); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  if (!backupStat && Object.keys(parsed).sort().join(',') === [...CURRENT_NATIVE_KEYS].sort().join(',') &&
+      parsed.source_revision === revision) return {state:'ALREADY_CURRENT'};
   if (backupStat) {
     const {data:saved} = readPrivateBackup(backup,st.uid,st.gid);
-    const prior = validateNativeConfig(JSON.parse(saved.toString('utf8')),root);
-    if (prior.source_revision !== LEGACY_SOURCE_REVISION) fail('NATIVE_CONFIG_BACKUP_DRIFT');
-    const expected = Buffer.from(JSON.stringify({...prior,source_revision:revision},null,2) + '\n');
+    let expected;
+    try {
+      const prior=JSON.parse(saved.toString('utf8'));
+      const priorKeys=prior && typeof prior==='object' && !Array.isArray(prior) ? Object.keys(prior).sort().join(',') : '';
+      const normalized=priorKeys === [...LEGACY_NATIVE_KEYS].sort().join(',')
+        ? expandedLegacyNativeConfig(prior,root,revision)
+        : normalizeNativeConfig(prior,root,revision);
+      expected=Buffer.from(JSON.stringify(normalized,null,2)+'\n');
+    }
+    catch { fail('NATIVE_CONFIG_BACKUP_DRIFT'); }
     if (!saved.equals(original) && !expected.equals(original)) fail('NATIVE_CONFIG_BACKUP_DRIFT');
     if (!expected.equals(original)) {
       if (!nativeSnapshotMatches(file,st,original)) fail('NATIVE_CONFIG_READBACK_DRIFT');
       atomic(file,expected,st,'.awsops-source-staged');
     }
   } else {
-    if (current.source_revision !== LEGACY_SOURCE_REVISION) fail('NATIVE_CONFIG_BACKUP_REQUIRED');
     const fd = fs.openSync(backup,'wx',0o600);
     try {
       fs.fchownSync(fd,st.uid,st.gid); fs.fchmodSync(fd,0o600);
@@ -128,11 +204,18 @@ function rollbackNativeSourceRevision(root) {
   let backupStat;
   try { backupStat = fs.lstatSync(backup); } catch (error) { if (error.code === 'ENOENT') return {state:'NO_CHANGE'}; throw error; }
   const {data:saved} = readPrivateBackup(backup,st.uid,st.gid);
-  const prior = validateNativeConfig(JSON.parse(saved.toString('utf8')),root);
-  if (prior.source_revision !== LEGACY_SOURCE_REVISION) fail('NATIVE_CONFIG_BACKUP_DRIFT');
   const marker = path.join(root,'awsops/SOURCE_REVISION');
   const revision = fs.readFileSync(marker,'ascii').trim();
-  const expected = Buffer.from(JSON.stringify({...prior,source_revision:revision},null,2) + '\n');
+  let expected;
+  try {
+    const prior=JSON.parse(saved.toString('utf8'));
+    const priorKeys=prior && typeof prior==='object' && !Array.isArray(prior) ? Object.keys(prior).sort().join(',') : '';
+    const normalized=priorKeys === [...LEGACY_NATIVE_KEYS].sort().join(',')
+      ? expandedLegacyNativeConfig(prior,root,revision)
+      : normalizeNativeConfig(prior,root,revision);
+    expected=Buffer.from(JSON.stringify(normalized,null,2)+'\n');
+  }
+  catch { fail('NATIVE_CONFIG_BACKUP_DRIFT'); }
   if (!readNativeBytes(file).equals(expected)) fail('NATIVE_CONFIG_ROLLBACK_DRIFT');
   atomic(file,saved,st,'.awsops-source-rollback');
   if (!readNativeBytes(file).equals(saved)) fail('NATIVE_CONFIG_ROLLBACK_DRIFT');
@@ -284,4 +367,5 @@ if (require.main === module) {
   }
 }
 module.exports={configure,rollback,transform,desiredMcp,atomic,readPrivateBackup,migrateNativeSourceRevision,
-  rollbackNativeSourceRevision,validateNativeConfig,TOOL,FIXTURE_ENDPOINT,FIXTURE_MODEL,FIXTURE_URL,BACKUP,NATIVE_SOURCE_BACKUP};
+  rollbackNativeSourceRevision,validateNativeConfig,validateLegacyNativeConfig,validateReadConfig,
+  LEGACY_NATIVE_GATE_COMMIT,TOOL,FIXTURE_ENDPOINT,FIXTURE_MODEL,FIXTURE_URL,BACKUP,NATIVE_SOURCE_BACKUP};

@@ -67,13 +67,33 @@ Do not erase it, replay it or silently rebind it. Reconcile and prepare anew.
 `source_revision`, `application_database`, `application_binding`, and
 `source_version`. `database` remains the native decision store;
 `application_database` is the existing canary application ledger. Both are
-separately provisioned private files. The binding path is a separate owner-only
-JSON file containing only `account_id` and `bucket`; the canary child checks
-its ownership, permissions and canonical path before loading it. These values
-stay out of receipts and logs.
+private files. A narrowly guarded migration accepts only the exact six-field
+native-gate v1 config from source commit
+`1ee21e15017a066413bf705c96749ab7bf9cffd2`; it preserves `agent_id`, Python,
+source-root and native-database paths, then adds the current source pin and
+fixed canary paths. It requires the existing private M2 `read.json` contract
+(`amit`, `ap-southeast-1`, registered LAB aliases) and the owner-private target
+binding to match that source account and the fixed disposable-bucket pattern.
+Unknown schemas, aliases, or bindings fail before the config backup or write.
+The original bytes are backed up and read back before atomic replacement;
+rollback restores those exact bytes. The target account and bucket are resource
+scope only, never a substitute for the authenticated `req.user` identity.
+
+On an authenticated pause-preparation request, the existing native
+`DecisionStore`, `CanaryAdapter`, and `CanaryApprovalApplication` constructors
+may initialize missing private ledger schemas after binding/read-config checks
+and before provider construction. Existing recognized records are preserved;
+unknown schemas or unsafe ownership/modes refuse readiness. A missing target
+binding prevents card preparation. These steps do not create owner identity,
+human consent, Approve authority or provider writes.
+
+The binding path is a separate owner-only JSON file containing only
+`account_id` and `bucket`; the canary child checks its ownership, permissions
+and canonical path before loading it. These values stay out of receipts and
+logs.
 Absent/disabled/invalid configuration denies the reserved tool. Database and
-its parent must be private and already provisioned; requests never replace a
-missing ledger. Paths/interpreter are trusted operator input, never tool args.
+its parent must be private. Paths/interpreter are trusted operator input, never
+tool args.
 
 `AWSOPS_READ_CONFIG` points to a separate private operator-owned read config
 using the existing M2 profile/account bindings. The provider process retains

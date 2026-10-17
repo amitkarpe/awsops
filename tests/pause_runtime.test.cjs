@@ -255,6 +255,56 @@ test('native source pin migration is old-revision guarded, private, read-back ve
   assert.equal(fs.existsSync(path.join(state,runtimeConfig.NATIVE_SOURCE_BACKUP)),false);
 });
 
+test('known historical native-gate v1 config upgrades without changing owner or paths and rolls back exactly',t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'awsops-native-legacy-'));
+  t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const state=path.join(root,'state'),awsops=path.join(root,'awsops');
+  fs.mkdirSync(state,{mode:0o700});fs.mkdirSync(awsops,{mode:0o700});
+  const revision='c'.repeat(40);
+  fs.writeFileSync(path.join(awsops,'SOURCE_REVISION'),revision+'\n',{mode:0o644});
+  const legacy={version:1,enabled:true,agent_id:'preserved-agent',python:'/usr/bin/python3',
+    source_root:awsops,database:path.join(state,'native.sqlite')};
+  const native=path.join(state,'native.json'),original=Buffer.from(JSON.stringify(legacy,null,2)+'\n');
+  fs.writeFileSync(native,original,{mode:0o600});
+  const account='000000000001';
+  fs.writeFileSync(path.join(state,'read.json'),JSON.stringify({region:'ap-southeast-1',
+    source_account_id:account,profile:'amit',accounts:[
+      {alias:'lab-dev',account_id:account},{alias:'lab-poc',account_id:'000000000002'},
+      {alias:'lab-qa',account_id:'000000000003'},{alias:'lab-sec',account_id:'000000000004'}]}),{mode:0o600});
+  fs.writeFileSync(path.join(state,'binding.private.json'),JSON.stringify({account_id:account,
+    bucket:'awsops-dev-issue90-s3-canary-0123456789ab'}),{mode:0o600});
+  assert.deepEqual(runtimeConfig.migrateNativeSourceRevision(root),{state:'UPDATED'});
+  const migrated=JSON.parse(fs.readFileSync(native,'utf8'));
+  assert.equal(migrated.agent_id,legacy.agent_id);
+  assert.equal(migrated.source_root,legacy.source_root);
+  assert.equal(migrated.database,legacy.database);
+  assert.equal(migrated.source_revision,revision);
+  assert.equal(migrated.application_database,path.join(state,'canary.sqlite'));
+  assert.equal(migrated.application_binding,path.join(state,'binding.private.json'));
+  assert.equal(migrated.source_version,'v1.0.0-mock');
+  assert.deepEqual(fs.readFileSync(path.join(state,runtimeConfig.NATIVE_SOURCE_BACKUP)),original);
+  assert.deepEqual(runtimeConfig.rollbackNativeSourceRevision(root),{state:'ROLLED_BACK'});
+  assert.deepEqual(fs.readFileSync(native),original);
+  assert.equal(fs.existsSync(path.join(state,runtimeConfig.NATIVE_SOURCE_BACKUP)),false);
+
+  const unknown={...legacy,unexpected:true};fs.writeFileSync(native,JSON.stringify(unknown)+'\n',{mode:0o600});
+  const refused=fs.readFileSync(native);
+  assert.throws(()=>runtimeConfig.migrateNativeSourceRevision(root),/NATIVE_CONFIG_SCHEMA_UNSUPPORTED/);
+  assert.deepEqual(fs.readFileSync(native),refused);
+  assert.equal(fs.existsSync(path.join(state,runtimeConfig.NATIVE_SOURCE_BACKUP)),false);
+  fs.writeFileSync(native,original,{mode:0o600});
+  const readPath=path.join(state,'read.json'),read=JSON.parse(fs.readFileSync(readPath,'utf8'));
+  read.accounts[0].alias='company';fs.writeFileSync(readPath,JSON.stringify(read),{mode:0o600});
+  assert.throws(()=>runtimeConfig.migrateNativeSourceRevision(root),/NATIVE_READ_CONFIG_UNSUPPORTED/);
+  assert.deepEqual(fs.readFileSync(native),original);
+  assert.equal(fs.existsSync(path.join(state,runtimeConfig.NATIVE_SOURCE_BACKUP)),false);
+  read.accounts[0].alias='lab-dev';fs.writeFileSync(readPath,JSON.stringify(read),{mode:0o600});
+  fs.unlinkSync(path.join(state,'binding.private.json'));
+  assert.throws(()=>runtimeConfig.migrateNativeSourceRevision(root),/NATIVE_TARGET_BINDING_UNAVAILABLE/);
+  assert.deepEqual(fs.readFileSync(native),original);
+  assert.equal(fs.existsSync(path.join(state,runtimeConfig.NATIVE_SOURCE_BACKUP)),false);
+});
+
 test('provider pipe excludes browser and ambient AWS credentials from child environment',async t=>{
   const f=setup(t),configPath=path.join(f.dir,'read.json'),fake=path.join(f.dir,'env-python');
   fs.writeFileSync(configPath,'{}',{mode:0o600});
