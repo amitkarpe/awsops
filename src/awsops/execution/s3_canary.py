@@ -143,8 +143,10 @@ class CanaryAdapter:
             "Resource": [bucket, bucket + "/*"],
             "Condition": {"Bool": {"aws:SecureTransport": "false"}}}]}
 
-    def prepare(self, principal: str) -> dict:
+    def prepare(self, principal: str, *, ttl_seconds: int = MAX_PREPARE_TTL) -> dict:
         require_text(principal, r"[a-f0-9]{64}", "trusted principal binding")
+        if type(ttl_seconds) is not int or not 1 <= ttl_seconds <= MAX_PREPARE_TTL:
+            raise ValueError("INVALID_CANARY_PREPARATION_TTL")
         o = self._read(allow_absent=self.mode in ("MOCK", "APPROVED_LAB_WRITE"))
         if self.mode == "APPROVED_LAB_WRITE":
             # This milestone creates its own canary. Existing buckets are never targets.
@@ -159,7 +161,7 @@ class CanaryAdapter:
         now = int(self.clock())
         batch = {"batchId": "batch-canary-" + uuid.uuid4().hex,
                  "datasetId": "dataset-canary", "registryVersion": 1, "mode": self.mode,
-                 "frozenAt": stamp(now), "expiresAt": stamp(now + MAX_PREPARE_TTL),
+                 "frozenAt": stamp(now), "expiresAt": stamp(now + ttl_seconds),
                  "targets": [{"findingId": "finding-canary", "resource": {
                      # Public MOCK identity is synthetic; private binding stays amit.
                      "accountAlias": "mock-a" if self.mode == "MOCK" else "amit", "resourceAlias": RESOURCE,

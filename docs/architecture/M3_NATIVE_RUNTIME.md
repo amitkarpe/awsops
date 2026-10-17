@@ -29,8 +29,15 @@ Logical tool: `decide_s3_ssl_reject_only`.
 Native wire name: `decide_s3_ssl_reject_only_mcp_awsops`.
 The candidate tool schema must permit exactly `control`, `account_alias`,
 `resource_ref`, `expected_evidence_digest`. A model may nominate only these.
-The real application tool registration and browser wiring remain canary work;
-a Python test fixture or a copied pending action must not stand in for them.
+The canary tool is registered under MCP server `awsops` as
+`approve_s3_canary_once_mcp_awsops`. Its input contains only
+`control=s3_canary`; its stdio handler returns a closed response and has no
+provider, identity, packet or resource authority. The native pause producer
+obtains `req.user` and the winning job generation from the authenticated host,
+then privately performs fresh profile/account/Region-checked reads against the
+fixed owner binding. It persists the application authority before replacing
+the tool arguments with the committed batch, scope and authority digests. A
+Python test fixture or copied pending action does not stand in for that flow.
 
 The supported pre-tool hook factory `pause_gate.cjs.approvalHook` offers only
 Reject. Register it only for the exact canary tool/agent through native policy;
@@ -118,11 +125,16 @@ child and SQLite ledger is the trust boundary; the record digest is an
 integrity/reference value, not authentication. No browser/model supplied
 identity, callback proof, digest or CAS boolean alone establishes authority.
 
-The offline production-dispatch regression exercises the real Python dispatch,
+Fresh packet preparation is distinct from the test-only authority fixtures:
+the production pause child constructs only the existing fixed S3 canary reader
+and application adapter, and its `prepare` call cannot mutate AWS. The tool's
+direct MCP call cannot authorize or dispatch anything. The offline
+production-dispatch regression exercises the real Python dispatch,
 server-record verifier and application ledger with synthetic identities and a
 fake SDK fixture. It does not prove a live authenticated UI click or runtime
-installation. This source change does not install or activate LibreChat; live
-Approve, provider construction and execution remain unavailable.
+installation. The production preparation path constructs the fixed provider
+only to perform fresh reads; this source work did not invoke it. Live Approve,
+AWS mutation and installation remain outside this source milestone.
 
 The stable producer command exercises the actual native gate, host claim
 handoff, Python adapter and application path with a test-only simulated
@@ -152,6 +164,23 @@ edit lock but separate backups; multi-file atomic installation is NOT claimed.
 Both components must verify before any future canary startup. A partial copy,
 missing helper, lock residue or drift is reconciliation-required, not permission
 for broad cleanup. Rollback does not delete the decision ledger.
+
+The PR13 isolated-root migration uses the versioned policy template
+`integration/librechat/migration_pr13_to_89_v1.json`. The private bundle builder
+materializes file hashes, rendered controller Git blobs, source revision and
+archive digest into a non-template manifest. `isolated_migration.py` accepts
+only the exact `/opt/awsops-native-canary` root, pinned cdfe rendered controller
+blobs, absent or explicitly allowlisted PR13 legacy files, and exact staged
+hashes. It backs up legacy files privately before atomic replacement and
+refuses drift. Run `runtime_config.cjs apply` only after the code migration; it
+adds the fixed MCP tool and Reject-only native hook while preserving unrelated
+YAML. Rollback runs config rollback first, then code migration rollback; each
+refuses if a current file no longer matches its staged state. Neither command
+starts, stops or restarts a service, and neither changes application state,
+credentials or retained service files. The source bundle must pass its archive
+digest check (`--archive` is required by both operations) before extraction.
+These source contracts do not prove current host compatibility or authorize
+installation.
 
 The resume failure path still uses generation-fenced terminalization, conditional
 checkpoint cleanup and independent slot release; timeout reports reconciliation.

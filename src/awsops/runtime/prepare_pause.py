@@ -127,6 +127,10 @@ def main(argv: list[str] | None = None) -> int:
         parser = argparse.ArgumentParser(add_help=False, exit_on_error=False)
         parser.add_argument("--database", type=Path, required=True)
         parser.add_argument("--read-config", type=Path, required=True)
+        parser.add_argument("--application-database", type=Path)
+        parser.add_argument("--application-binding", type=Path)
+        parser.add_argument("--source-revision")
+        parser.add_argument("--source-version")
         args = parser.parse_args(argv)
         raw = sys.stdin.buffer.read(MAX_INPUT + 1)
         if not raw or len(raw) > MAX_INPUT:
@@ -137,23 +141,37 @@ def main(argv: list[str] | None = None) -> int:
         operation = message.get("operation")
         if operation == "prepare_pause":
             _candidate(message, int(time.time()))
+        elif operation == "prepare_native_canary":
+            from awsops.runtime.prepare_native_canary import _message
+            _message(message, now=int(time.time()))
         elif operation == "readback":
             _readback_message(message)
         else:
             raise ValueError("UNSUPPORTED_OPERATION")
-        _private_database(args.database)
-        _private_config(args.read_config)
-        from awsops.runtime.read_probe import load_config
-        from awsops.aws.boto3_s3_ssl import assume_role_factory
-        from awsops.aws.s3_ssl import REGION, collect
-        import boto3
-        config, bindings = load_config(args.read_config)
-        source = boto3.Session(profile_name=config["profile"], region_name=REGION)
-        factory = assume_role_factory(source, expected_source_account=config["source_account_id"])
-        service = S3SslService(lambda: collect(bindings, factory))
-        store = DecisionStore(args.database)
-        handler = prepare_and_register if operation == "prepare_pause" else readback_after_reject
-        result = handler(service, store, message)
+        if operation == "prepare_native_canary":
+            if (args.application_database is None or args.application_binding is None
+                    or args.source_revision is None or args.source_version is None):
+                raise ValueError("CANARY_RUNTIME_CONFIG_REQUIRED")
+            _private_config(args.read_config)
+            from awsops.runtime.prepare_native_canary import prepare_native_canary
+            result = prepare_native_canary(
+                message, database=args.application_database, binding_file=args.application_binding,
+                read_config=args.read_config, source_revision=args.source_revision,
+                source_version=args.source_version)
+        else:
+            _private_database(args.database)
+            _private_config(args.read_config)
+            from awsops.runtime.read_probe import load_config
+            from awsops.aws.boto3_s3_ssl import assume_role_factory
+            from awsops.aws.s3_ssl import REGION, collect
+            import boto3
+            config, bindings = load_config(args.read_config)
+            source = boto3.Session(profile_name=config["profile"], region_name=REGION)
+            factory = assume_role_factory(source, expected_source_account=config["source_account_id"])
+            service = S3SslService(lambda: collect(bindings, factory))
+            store = DecisionStore(args.database)
+            handler = prepare_and_register if operation == "prepare_pause" else readback_after_reject
+            result = handler(service, store, message)
         output = json.dumps(result, sort_keys=True, separators=(",", ":"), allow_nan=False)
         if len(output.encode()) > MAX_INPUT:
             raise ValueError("OVERSIZED_RESPONSE")

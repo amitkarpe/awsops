@@ -1,0 +1,571 @@
+{
+  "build_template": true,
+  "files": [
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "629089d845d36cc1b7e2ab09ff33ea116c2117ae"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "app/api/server/controllers/agents/awsops-native-gate.cjs",
+      "target": "app/api/server/controllers/agents/awsops-native-gate.cjs"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blob_alternates": [
+        "853eeea8dc3e9c8ccc6dfc7c080ad868fbeadda8"
+      ],
+      "legacy_git_blobs": [
+        "811cf7fea7e75e778f4583b8ce84f093a6fa4dec"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "app/api/server/controllers/agents/awsops-pause-gate.cjs",
+      "target": "app/api/server/controllers/agents/awsops-pause-gate.cjs"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "cc450a409998594a8837b97594f900672db061a4"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "app/api/server/controllers/agents/client.js",
+      "target": "app/api/server/controllers/agents/client.js"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "ea2da611c0bfa1a22cedd9b160cf5723bdb472a2"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "app/api/server/controllers/agents/resume.js",
+      "target": "app/api/server/controllers/agents/resume.js"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_absent": true,
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_only",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/SOURCE_REVISION",
+      "target": "awsops/SOURCE_REVISION"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_absent": true,
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_only",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/integration/canary/mcp_guard.cjs",
+      "target": "awsops/integration/canary/mcp_guard.cjs"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_absent": true,
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_only",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/integration/librechat/isolated_migration.py",
+      "target": "awsops/integration/librechat/isolated_migration.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_absent": true,
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_only",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/integration/librechat/native_canary_entry.py",
+      "target": "awsops/integration/librechat/native_canary_entry.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_absent": true,
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_only",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/integration/librechat/prepare_canary_entry.py",
+      "target": "awsops/integration/librechat/prepare_canary_entry.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_absent": true,
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_only",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/integration/librechat/runtime_config.cjs",
+      "target": "awsops/integration/librechat/runtime_config.cjs"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "f7a544508fddc9596e8580b4a55c7590b94e6c6b"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/__init__.py",
+      "target": "awsops/src/awsops/__init__.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_absent": true,
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_only",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/application/__init__.py",
+      "target": "awsops/src/awsops/application/__init__.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_absent": true,
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_only",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/application/s3_canary_approval.py",
+      "target": "awsops/src/awsops/application/s3_canary_approval.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "f8f9b981faa6d6d7270d0abdec2e95cf612b111c"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/approval/__init__.py",
+      "target": "awsops/src/awsops/approval/__init__.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "3e2703c6fe6b8f9736c0ca78eba39eab9a64817d"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/approval/decisions.py",
+      "target": "awsops/src/awsops/approval/decisions.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "7b9c92230e610d9b4898b9291f3ff1119e3cba83"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/aws/__init__.py",
+      "target": "awsops/src/awsops/aws/__init__.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_absent": true,
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_only",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/aws/boto3_s3_canary.py",
+      "target": "awsops/src/awsops/aws/boto3_s3_canary.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "b7e1d13f868de91a5dbf0252b166ab3d918ca420"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/aws/boto3_s3_ssl.py",
+      "target": "awsops/src/awsops/aws/boto3_s3_ssl.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "6e14e675edf477778bb2c369f64d787d7a35956d"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/aws/s3_ssl.py",
+      "target": "awsops/src/awsops/aws/s3_ssl.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "f527a326903db09667eda947afdd130e871109ac"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/controls/__init__.py",
+      "target": "awsops/src/awsops/controls/__init__.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "fbf0edb76d030fd9ef298bdda92ce152fe701172"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/controls/registry.py",
+      "target": "awsops/src/awsops/controls/registry.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "6aa1295eca52083c24e9250146899a587eefc91d"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/controls/s3_ssl.py",
+      "target": "awsops/src/awsops/controls/s3_ssl.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "fe0bcad2b408f663bc5516b7e359f883a1e51f85"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/domain/__init__.py",
+      "target": "awsops/src/awsops/domain/__init__.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "b7c7cd864ffe469acff8c89b00ea741bbb8b9014"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/domain/freeze.py",
+      "target": "awsops/src/awsops/domain/freeze.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "9adf70022b5571dc9b026350f4c6a104feafeeaf"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/domain/models.py",
+      "target": "awsops/src/awsops/domain/models.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "7f70f3176bf6eb8aacc53b9ad9eaade55d679491"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/execution/__init__.py",
+      "target": "awsops/src/awsops/execution/__init__.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_absent": true,
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_only",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/execution/s3_canary.py",
+      "target": "awsops/src/awsops/execution/s3_canary.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "f86e4fc8e16f71dc9ff7bceb59b22874e828b076"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/resources/__init__.py",
+      "target": "awsops/src/awsops/resources/__init__.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "d93113c891ffffdbe32a2dce100533c0085c51a0"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/resources/ledger.py",
+      "target": "awsops/src/awsops/resources/ledger.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "ef451e2106f2323f0284f1c26ab7c8f13f99f6da"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/runtime/__init__.py",
+      "target": "awsops/src/awsops/runtime/__init__.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_absent": true,
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_only",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/runtime/native_canary_approval.py",
+      "target": "awsops/src/awsops/runtime/native_canary_approval.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "86d204ab9d5acef8bd2898d10702b306d7e0497c"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/runtime/native_decision.py",
+      "target": "awsops/src/awsops/runtime/native_decision.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "ab101746e449ed8599ad9ec952cc4c263fb075bb"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/runtime/prepare_pause.py",
+      "target": "awsops/src/awsops/runtime/prepare_pause.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "ca5a2d0b0260060dc2c2f45190c9585ec3f908e6"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/runtime/read_probe.py",
+      "target": "awsops/src/awsops/runtime/read_probe.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "fa4e45713ed4b6cfb19ed9dccdca3788075dc135"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/runtime/receipt_stdio.py",
+      "target": "awsops/src/awsops/runtime/receipt_stdio.py"
+    },
+    {
+      "group": "ssm-user",
+      "legacy_git_blobs": [
+        "ce08022e1fc1e0f19f601b022ca3d6c1c75220fb"
+      ],
+      "legacy_group": "ssm-user",
+      "legacy_mode": "0644",
+      "legacy_owner": "ssm-user",
+      "legacy_presence_policy": "absent_or_exact_known_legacy",
+      "mode": "0644",
+      "owner": "ssm-user",
+      "sha256": null,
+      "source": "awsops/src/awsops/runtime/s3_ssl_service.py",
+      "target": "awsops/src/awsops/runtime/s3_ssl_service.py"
+    }
+  ],
+  "isolated_root": "/opt/awsops-native-canary",
+  "legacy": {
+    "documented_compatibility_ssm": "b251da19-bf15-4330-a3aa-3b881cc3df28",
+    "full_application_revision_verified": false,
+    "legacy_manifest": {
+      "model": "DETERMINISTIC_FIXTURE",
+      "purpose": "awsops-issue11-isolated-auth-canary",
+      "tools": [
+        "decide_s3_ssl_reject_only_mcp_awsops"
+      ]
+    },
+    "producer_git_blob": "cc450a409998594a8837b97594f900672db061a4",
+    "rendered_upstream_commit": "eaef87fa2684025627e25d649a56f4f2a63417a7",
+    "repository_head": "e6486c016a3119c92995a97a932f24640765352d",
+    "resume_git_blob": "ea2da611c0bfa1a22cedd9b160cf5723bdb472a2",
+    "verified_rendered_components": {
+      "producer_controller_blob": "cc450a409998594a8837b97594f900672db061a4",
+      "resume_controller_blob": "ea2da611c0bfa1a22cedd9b160cf5723bdb472a2"
+    }
+  },
+  "migration_id": "pr13-legacy-to-issue90-reject-v1",
+  "preserved": [
+    "/opt/awsops-native-canary/manifest.json",
+    "/opt/awsops-native-canary/state",
+    "all environment/credential files",
+    "all systemd units and retained services"
+  ],
+  "runtime_config": {
+    "backup": ".awsops-issue90-runtime-config.original",
+    "path": "app/librechat.yaml",
+    "preserves_unrelated_yaml": true,
+    "procedure": "awsops/integration/librechat/runtime_config.cjs apply|rollback"
+  },
+  "target": {
+    "group": "ssm-user",
+    "loopback_ports": [
+      27111,
+      4311,
+      4312
+    ],
+    "mode": "0644",
+    "owner": "ssm-user",
+    "upstream_commit": "cdfe54c3498818b21b33fb609fee02f2742b37ea"
+  },
+  "version": 1
+}

@@ -5,6 +5,7 @@ const {execFileSync}=require('node:child_process');
 const gate=require('../integration/librechat/native_gate.cjs');
 const pause=require('../integration/librechat/pause_gate.cjs');
 const patch=require('../integration/librechat/rehearse_patch.cjs');
+const mcpGuard=require('../integration/canary/mcp_guard.cjs');
 const root=path.resolve(__dirname,'..');
 const python=process.env.AWSOPS_TEST_PYTHON || '/usr/bin/python3';
 const fixture=path.join(root,'artifacts/native-upstream/client.js');
@@ -38,6 +39,38 @@ test('fresh private preparation replaces only candidate input with committed sco
   const f=setup(t);await prepare(f);const args=f.pendingAction.payload.action_requests[0].arguments;
   assert.deepEqual(Object.keys(args),['control','batch_id','scope_hash']);assert.equal(f.reads,1);
   const audit=await inspect(f);assert.equal(audit.events.length,1);assert.equal(audit.events[0].kind,'PREPARE_FROZEN');
+});
+test('registered canary request gets fresh server-bound authority before a Reject-only card',async t=>{
+  const f=setup(t),action=f.pendingAction.payload.action_requests[0];
+  action.name=gate.CANARY_WIRE_TOOL;action.arguments={control:'s3_canary'};
+  f.pendingAction.payload.review_configs[0].allowed_decisions=['reject'];
+  const authority='c'.repeat(64),scope='d'.repeat(64),batch='batch-canary-'+'e'.repeat(32);
+  f.transport=async(_config,message)=>{
+    f.reads++;
+    assert.equal(message.operation,'prepare_native_canary');
+    assert.deepEqual(message.binding,{principal_id:f.user.id,tenant_id:'tenant:'+f.user.tenantId,
+      conversation_id:f.streamId,action_id:f.pendingAction.actionId,generation_id:String(f.job.createdAt),
+      tool_call_id:'call-1',tool:'approve_s3_canary_once'});
+    assert.deepEqual(Object.keys(message),['version','operation','binding','pause_expires_at']);
+    const bindingDigest=pause.bindingDigest(message.binding);
+    const binding=digest({authority_digest:authority,binding_digest:bindingDigest});
+    return {version:1,ok:true,operation:'prepare_native_canary',dispatch_allowed:false,control:'s3_canary',
+      batch_id:batch,scope_digest:scope,authority_digest:authority,source_revision:f.config.source_revision,
+      expires_at:message.pause_expires_at,binding_digest:binding};
+  };
+  function digest(value){return require('node:crypto').createHash('sha256').update(JSON.stringify(value)).digest('hex');}
+  await prepare(f);
+  assert.deepEqual(action.arguments,{control:'s3_canary',batch_id:batch,scope_digest:scope,authority_digest:authority});
+  assert.deepEqual((await pause.approvalHook()({userId:f.user.id})({toolInput:{control:'s3_canary'}})).allowedDecisions,['reject']);
+  assert.equal(f.reads,1);
+});
+test('awsops MCP registers the fixed canary tool and never dispatches its call',()=>{
+  const listed=mcpGuard.answer({method:'tools/list'}).tools;
+  const tool=listed.find(item=>item.name==='approve_s3_canary_once');
+  assert.ok(tool);assert.deepEqual(tool.inputSchema.required,['control']);
+  assert.deepEqual(Object.keys(tool.inputSchema.properties),['control']);
+  assert.deepEqual(mcpGuard.answer({method:'tools/call',params:{name:tool.name,arguments:{control:'s3_canary'}}}),
+    {isError:true,content:[{type:'text',text:'NATIVE_DECISION_REQUIRED'}]});
 });
 test('ownership, generation, tenant, agent, mixed actions and unsafe choice sets fail before provider reads',async t=>{
   const changes=[f=>f.job.metadata.userId='wrong',f=>f.job.metadata.tenantId='wrong',f=>f.client.jobCreatedAt++,
