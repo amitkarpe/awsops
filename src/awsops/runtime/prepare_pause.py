@@ -156,6 +156,7 @@ def main(argv: list[str] | None = None) -> int:
             from awsops.runtime.prepare_native_canary import prepare_native_canary
             result = prepare_native_canary(
                 message, database=args.application_database, binding_file=args.application_binding,
+                native_database=args.database,
                 read_config=args.read_config, source_revision=args.source_revision,
                 source_version=args.source_version)
         else:

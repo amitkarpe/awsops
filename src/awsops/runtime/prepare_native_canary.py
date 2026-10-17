@@ -12,9 +12,11 @@ import os
 from pathlib import Path
 import re
 import stat
+import sqlite3
 import time
 from typing import Callable
 
+from awsops.approval.decisions import DecisionStore
 from awsops.application.s3_canary_approval import CanaryApprovalApplication
 from awsops.domain.models import canonical_digest, require_text
 from awsops.execution.s3_canary import CanaryAdapter, CanaryBinding, REGION
@@ -30,7 +32,11 @@ BUCKET = re.compile(r"awsops-dev-issue90-s3-canary-[a-z0-9]{12}")
 
 
 def _private_regular(path: Path, *, max_bytes: int) -> None:
-    if not path.is_absolute() or path.resolve(strict=True) != path:
+    try:
+        resolved = path.resolve(strict=True)
+    except (OSError, RuntimeError):
+        raise ValueError("PRIVATE_RUNTIME_FILE_REQUIRED") from None
+    if not path.is_absolute() or resolved != path:
         raise ValueError("PRIVATE_RUNTIME_FILE_REQUIRED")
     info = path.lstat()
     if (not stat.S_ISREG(info.st_mode) or info.st_size > max_bytes
@@ -63,6 +69,72 @@ def _verify_source_revision(path: Path, expected: str) -> None:
         raise ValueError("SOURCE_REVISION_DRIFT")
 
 
+class _LedgerOnlyProvider:
+    """Inert MOCK dependency used only by existing constructors to create schemas."""
+    mode = "MOCK"
+
+    def __getattr__(self, _name):
+        raise ValueError("LEDGER_INITIALIZATION_ONLY")
+
+
+_APPLICATION_TABLES = {
+    "canaries": {"batch_id", "payload", "principal", "binding", "decision", "result"},
+    "operations": {"batch_id", "step", "state"},
+    "application_authority": {"batch_id", "authority_json", "authority_digest", "principal_digest",
+                              "packet_digest", "assurance", "verifier_id", "choice", "verified_at",
+                              "cleanup_status"},
+    "native_owner_decisions": {"batch_id", "record_json", "record_hash"},
+}
+
+
+def _existing_application_tables(path: Path) -> dict[str, tuple[str, ...]]:
+    if not path.exists():
+        return {}
+    _private_regular(path, max_bytes=16 * 1024 * 1024)
+    if path.stat().st_size == 0:
+        return {}
+    try:
+        with sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=2) as db:
+            names = [row[0] for row in db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")]
+            if any(name not in _APPLICATION_TABLES for name in names):
+                raise ValueError("APPLICATION_LEDGER_SCHEMA_UNSUPPORTED")
+            tables = {name: tuple(row[1] for row in db.execute(f'PRAGMA table_info("{name}")'))
+                      for name in names}
+    except sqlite3.Error:
+        raise ValueError("APPLICATION_LEDGER_SCHEMA_UNSUPPORTED") from None
+    for name, columns in tables.items():
+        if set(columns) != _APPLICATION_TABLES[name]:
+            raise ValueError("APPLICATION_LEDGER_SCHEMA_UNSUPPORTED")
+    return tables
+
+
+def _provision_ledgers(native_database: Path | None, application_database: Path,
+                       binding: CanaryBinding, *, source_revision: str,
+                       source_version: str, clock: Callable[[], float]) -> None:
+    """Use the existing stores/adapters to initialize only absent private schema."""
+    _private_ledger_parent(application_database)
+    before = _existing_application_tables(application_database)
+    if native_database is not None:
+        if native_database.resolve() == application_database.resolve():
+            raise ValueError("LEDGER_PATH_COLLISION")
+        _private_ledger_parent(native_database)
+        DecisionStore(native_database, clock=clock)
+    inert = _LedgerOnlyProvider()
+    seed_adapter = CanaryAdapter(application_database, binding, inert,
+                                 source_revision=source_revision,
+                                 source_version=source_version, clock=clock)
+    CanaryApprovalApplication(application_database, binding,
+        source_revision=source_revision, source_version=source_version,
+        adapter_factory=lambda: seed_adapter, mode="MOCK", verifier=None, clock=clock)
+    after = _existing_application_tables(application_database)
+    if not {"canaries", "operations", "application_authority"}.issubset(after):
+        raise ValueError("APPLICATION_LEDGER_NOT_READY")
+    if any(before.get(name) != after.get(name) for name in before):
+        raise ValueError("APPLICATION_LEDGER_EXISTING_STATE_CHANGED")
+    _private_regular(application_database, max_bytes=16 * 1024 * 1024)
+
+
 def _message(value: dict, *, now: int) -> tuple[dict, int]:
     fields = {"version", "operation", "binding", "pause_expires_at"}
     if type(value) is not dict or set(value) != fields or type(value["version"]) is not int or value["version"] != 1 or value["operation"] != "prepare_native_canary":
@@ -81,6 +153,7 @@ def _message(value: dict, *, now: int) -> tuple[dict, int]:
 
 def prepare_native_canary(message: dict, *, database: Path, binding_file: Path,
                           read_config: Path, source_revision: str, source_version: str,
+                          native_database: Path | None = None,
                           source_revision_file: Path | None = None,
                           session_factory: Callable | None = None,
                           provider_factory: Callable | None = None,
@@ -106,6 +179,9 @@ def prepare_native_canary(message: dict, *, database: Path, binding_file: Path,
     if (settings["profile"] != "amit" or settings["region"] != REGION
             or settings["source_account_id"] != binding.account_id):
         raise ValueError("UNAPPROVED_LAB_BINDING")
+    _provision_ledgers(native_database, database, binding,
+                       source_revision=source_revision, source_version=source_version,
+                       clock=clock)
     ttl = min(PREPARATION_TTL_SECONDS, pause_expiry - now)
     principal = canonical_digest({"principal_id": native["principal_id"],
                                   "tenant_id": native["tenant_id"]})
