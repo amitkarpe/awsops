@@ -20,6 +20,8 @@ const CURRENT_NATIVE_KEYS = ['agent_id','application_binding','application_datab
 const LAB_ALIASES = ['lab-dev','lab-poc','lab-qa','lab-sec'];
 const CANARY_SOURCE_VERSION = 'v1.0.0-mock';
 const REGION = 'ap-southeast-1';
+const FIXTURE_KEYS = ['apiKey','baseURL','models','name','titleConvo'];
+const FIXTURE_MODEL_KEYS = ['default','fetch'];
 function fail(code) { throw Error(code); }
 function privatePath(file) {
   if (!path.isAbsolute(file) || fs.realpathSync(file) !== file) fail('CONFIG_PATH_UNSAFE');
@@ -40,6 +42,64 @@ function readPrivateBackup(file, uid, gid) {
     const data = fs.readFileSync(fd);
     return {data, sha256:crypto.createHash('sha256').update(data).digest('hex')};
   } finally { fs.closeSync(fd); }
+}
+function record(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
+function keysetCode(value, expected) {
+  if (!record(value)) return 'NOT_OBJECT';
+  const keys=Object.keys(value).sort(), wanted=[...expected].sort();
+  if (isDeepStrictEqual(keys,wanted)) return 'EXACT';
+  if (keys.every(key=>wanted.includes(key))) return 'MISSING_FIELDS';
+  if (wanted.every(key=>keys.includes(key))) return 'EXTRA_FIELDS';
+  return 'OTHER_FIELDS';
+}
+function projectFixtureShape(raw, yaml) {
+  const result=(config,endpoints,custom,address)=>({v:1,complete:true,config,endpoints,custom,allowed_addresses:address});
+  const unknownAddress={state:'UNKNOWN',container_type:'UNKNOWN',count:null};
+  let config;
+  try { config=yaml.load(raw.toString('utf8')) ?? {}; }
+  catch { return result('PARSE_REFUSED','UNKNOWN',{state:'UNKNOWN',container_type:'UNKNOWN',count:null},unknownAddress); }
+  if (!record(config)) return result('ROOT_NOT_OBJECT','UNKNOWN',{state:'UNKNOWN',container_type:'UNKNOWN',count:null},unknownAddress);
+  const endpoints=config.endpoints;
+  if (endpoints == null) return result('OBJECT','ABSENT',
+    {state:'EMPTY_UNCONFIGURED',container_type:endpoints===null?'NULL':'ABSENT',count:0},
+    {state:'ABSENT',container_type:'ABSENT',count:0});
+  if (!record(endpoints)) return result('OBJECT','NOT_OBJECT',
+    {state:'UNKNOWN',container_type:'UNKNOWN',count:null},unknownAddress);
+  const value=endpoints.custom;
+  const customType=value === undefined ? 'ABSENT' : value === null ? 'NULL' : Array.isArray(value) ? 'ARRAY' : 'OTHER';
+  const count=Array.isArray(value) ? value.length : customType === 'ABSENT' || customType === 'NULL' ? 0 : null;
+  const fixture={name:FIXTURE_ENDPOINT,apiKey:'fixture-only',baseURL:FIXTURE_URL,
+    models:{default:[FIXTURE_MODEL],fetch:false},titleConvo:false};
+  const previousFixture={...fixture,baseURL:'http://localhost:4312/v1'};
+  let state='UNKNOWN_NONEMPTY',entryType='NONE',entryKeyset='NOT_APPLICABLE',modelsKeyset='NOT_APPLICABLE';
+  if (customType === 'ABSENT' || customType === 'NULL' || (customType === 'ARRAY' && count === 0)) {
+    state='EMPTY_UNCONFIGURED';
+  } else if (customType !== 'ARRAY') {
+    state='CUSTOM_NOT_ARRAY';
+  } else if (count !== 1) {
+    state='UNKNOWN_NONEMPTY';
+  } else {
+    const entry=value[0]; entryType=Array.isArray(entry) ? 'ARRAY' : entry === null ? 'NULL' : typeof entry;
+    entryKeyset=keysetCode(entry,FIXTURE_KEYS);
+    modelsKeyset=record(entry) ? keysetCode(entry.models,FIXTURE_MODEL_KEYS) : 'NOT_APPLICABLE';
+    if (isDeepStrictEqual(entry,previousFixture)) state='KNOWN_LEGACY_FIXTURE';
+    else if (isDeepStrictEqual(entry,fixture)) state='KNOWN_CURRENT_FIXTURE';
+    else state='UNKNOWN_NONEMPTY';
+  }
+  const addresses=endpoints.allowedAddresses;
+  let addressState='ABSENT';
+  if (addresses !== undefined && addresses !== null) {
+    if (!Array.isArray(addresses)) addressState='NOT_ARRAY';
+    else if (isDeepStrictEqual(addresses,[])) addressState='EMPTY';
+    else if (isDeepStrictEqual(addresses,['localhost:4312'])) addressState='KNOWN_LEGACY';
+    else if (isDeepStrictEqual(addresses,['127.0.0.1:4312'])) addressState='KNOWN_CURRENT';
+    else addressState='UNKNOWN';
+  }
+  return result('OBJECT','OBJECT',
+    {state,container_type:customType,count,entry_type:entryType,entry_keyset:entryKeyset,
+      models_keyset:modelsKeyset},{state:addressState,
+      container_type:addresses === undefined ? 'ABSENT' : addresses === null ? 'NULL' : Array.isArray(addresses) ? 'ARRAY' : 'OTHER',
+      count:Array.isArray(addresses) ? addresses.length : null});
 }
 function validateNativeConfig(value, root, ownerStat) {
   const owner = ownerStat || fs.lstatSync(path.join(root,'state/native.json'));
@@ -346,7 +406,8 @@ function transform(raw, yaml, appRoot, sourceRoot) {
     models:{default:[FIXTURE_MODEL],fetch:false},titleConvo:false};
   const previousFixture = {...fixture,baseURL:'http://localhost:4312/v1'};
   const custom = config.endpoints.custom ?? [];
-  if (!isDeepStrictEqual(custom,[fixture]) && !isDeepStrictEqual(custom,[previousFixture]))
+  if (!Array.isArray(custom) || (custom.length !== 0 &&
+      !isDeepStrictEqual(custom,[fixture]) && !isDeepStrictEqual(custom,[previousFixture])))
     fail('FIXTURE_ENDPOINT_DRIFT');
   config.endpoints.custom = [fixture];
   const addresses = config.endpoints.allowedAddresses ?? [];
@@ -440,16 +501,23 @@ function rollback(appRoot) {
   fs.unlinkSync(backup);
   return {state:'ROLLED_BACK'};
 }
+function projectConfigShape(appRoot) {
+  if (!path.isAbsolute(appRoot) || fs.realpathSync(appRoot) !== appRoot) fail('ISOLATED_ROOT_REQUIRED');
+  const file=path.join(appRoot,'app/librechat.yaml');
+  privatePath(file);
+  const yaml=require(path.join(appRoot,'app/node_modules/js-yaml'));
+  return projectFixtureShape(fs.readFileSync(file),yaml);
+}
 if (require.main === module) {
   try {
     const [action,root,...extra] = process.argv.slice(2);
-    if (!['apply','rollback','inspect-native-config','migrate-source-revision','rollback-source-revision','prepare-native-binding'].includes(action) || !root ||
+    if (!['apply','rollback','inspect-native-config','migrate-source-revision','rollback-source-revision','prepare-native-binding','project-config-shape'].includes(action) || !root ||
         (action === 'prepare-native-binding' ? extra.length !== 1 : extra.length !== 0)) fail('INVALID_ARGS');
     const result = action === 'apply' ? configure(root,root) : action === 'rollback' ? rollback(root) :
       action === 'inspect-native-config' ? inspectNativeConfig(root) :
       action === 'migrate-source-revision' ? migrateNativeSourceRevision(root) :
       action === 'rollback-source-revision' ? rollbackNativeSourceRevision(root) :
-      prepareNativeCanaryBinding(root,extra[0]);
+      action === 'project-config-shape' ? projectConfigShape(root) : prepareNativeCanaryBinding(root,extra[0]);
     process.stdout.write(JSON.stringify(result) + '\n');
   } catch {
     process.stderr.write('ISOLATED_RUNTIME_CONFIG_REFUSED\n');
@@ -458,4 +526,4 @@ if (require.main === module) {
 }
 module.exports={configure,rollback,transform,desiredMcp,atomic,readPrivateBackup,migrateNativeSourceRevision,
   inspectNativeConfig,rollbackNativeSourceRevision,validateNativeConfig,validateLegacyNativeConfig,validateReadConfig,
-  prepareNativeCanaryBinding,LEGACY_NATIVE_GATE_COMMIT,TOOL,FIXTURE_ENDPOINT,FIXTURE_MODEL,FIXTURE_URL,BACKUP,NATIVE_SOURCE_BACKUP};
+  prepareNativeCanaryBinding,projectFixtureShape,projectConfigShape,LEGACY_NATIVE_GATE_COMMIT,TOOL,FIXTURE_ENDPOINT,FIXTURE_MODEL,FIXTURE_URL,BACKUP,NATIVE_SOURCE_BACKUP};
