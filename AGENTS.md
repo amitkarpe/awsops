@@ -26,13 +26,15 @@ not an enterprise production platform. **BUILD → DEMONSTRATE → IMPROVE.**
 - Human **Approve Once** for each fixed real-remediation batch.
 - Preserve protected awsops Issue #89 fixtures.
 - No root credentials, secret exposure or accidental destructive actions.
-- Live IAM installation and remediation require exact, separate owner authorization.
+- Bounded personal-LAB setup/deployment under Issue #90's standing authority needs no repeated GO;
+  broad IAM/trust expansion is outside that scope. A real remediation batch needs
+  its genuine authenticated product Approve Once before provider writes.
 - Keep MOCK and REAL evidence distinct. Private bindings stay out of public GitHub.
 
 These are real boundaries, not a reason to invent additional approval ceremonies.
 This policy supersedes conflicting older workflow preferences, not these boundaries.
-Repository-only work and safe source merges need no repeated GO; source acceptance
-never authorizes AWS installation, remediation or publication to a new audience.
+Repository work and approved bounded personal-LAB operations need no repeated GO.
+Source acceptance alone is not runtime verification or authorization for a new audience.
 
 
 Repository: `amitkarpe/awsops`
@@ -63,7 +65,7 @@ Relevant canonical guidance:
 Working default:
 - For Defence Factory, Manager owns technical delivery and coordinates the existing repository writers; G reviews independently and may merge eligible PRs. See the [canonical policy](https://github.com/amitkarpe/manager/blob/main/projects/defence-factory/POLICY.md).
 - The existing repository X owns live environment facts, implementation, low-level CLI/SSM/AWS execution and validation, and must challenge stale/infeasible plans.
-- “80/20” is a heuristic, not a fixed ratio. Simple work may be mostly X; unfamiliar/high-risk/stateful work should be G-researched before mutation.
+- Manager owns technical research, repository discovery, design and resolution of routine blockers for Defence Factory; G reviews independently.
 - Local `SPEC.md` plus the owning Issue/user instruction define actual AWS authority. Agent OS guidance never widens permission.
 
 ## Migration rule
