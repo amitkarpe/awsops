@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import pwd
 import grp
+import shutil
 import sys
 import tempfile
 import unittest
@@ -274,6 +275,11 @@ class IsolatedMigrationTests(unittest.TestCase):
             source = bundle / target
             source.parent.mkdir(parents=True)
             source.write_bytes(replacement)
+            absent_target = "new/nested/canary/new_guard.cjs"
+            absent_replacement = b"new reviewed guard\n"
+            absent_source = bundle / absent_target
+            absent_source.parent.mkdir(parents=True)
+            absent_source.write_bytes(absent_replacement)
             controllers = bundle / "app/api/server/controllers/agents"
             controllers.mkdir(parents=True)
             resume, producer = b"pinned resume\n", b"pinned producer\n"
@@ -302,25 +308,70 @@ class IsolatedMigrationTests(unittest.TestCase):
                 "files": [{"target": target, "sha256": hashlib.sha256(replacement).hexdigest(),
                     "mode": "0644", "owner": "ssm-user", "group": "ssm-user",
                     "legacy_presence_policy": "absent_only",
-                    "recovery_preconditions": [prior_tuple]}]}
+                    "recovery_preconditions": [prior_tuple]},
+                    {"target": absent_target,
+                     "sha256": hashlib.sha256(absent_replacement).hexdigest(),
+                     "mode": "0644", "owner": "ssm-user", "group": "ssm-user",
+                     "legacy_presence_policy": "absent_only",
+                     "recovery_preconditions": [{"state": "ABSENT"}]}]}
             manifest_path = base / "manifest.json"
             manifest_path.write_text(json.dumps(manifest))
             prior_root, prior_identity = migration.EXPECTED_ROOT, migration._identity
             migration.EXPECTED_ROOT = str(root)
             migration._identity = lambda: (os.getuid(), os.getgid())
             try:
+                write_exclusive = migration._write_exclusive
+                def corrupt_backup_after_journal(path, data, mode, uid, gid):
+                    write_exclusive(path, data, mode, uid, gid)
+                    if path.name == "journal.json":
+                        backup_file = path.parent / hashlib.sha256(target.encode()).hexdigest()
+                        with backup_file.open("r+b") as stream:
+                            stream.write(b"late corruption")
+                            stream.flush()
+                            os.fsync(stream.fileno())
+                with patch.object(migration, "_write_exclusive",
+                                  side_effect=corrupt_backup_after_journal):
+                    with self.assertRaisesRegex(ValueError, "MIGRATION_BACKUP_VERIFY_FAILED"):
+                        migration.apply(bundle, manifest_path, archive, root)
+                self.assertEqual((live.read_bytes(), live.stat().st_uid, live.stat().st_gid,
+                                  format(live.stat().st_mode & 0o777, "04o")),
+                                 (legacy, prior_tuple["uid"], prior_tuple["gid"], "0600"))
+                self.assertFalse((root / absent_target).exists())
+                self.assertFalse((root / "new").exists())
+                shutil.rmtree(root / migration.BACKUP)
+
+                def change_target_after_journal(path, data, mode, uid, gid):
+                    write_exclusive(path, data, mode, uid, gid)
+                    if path.name == "journal.json":
+                        live.write_bytes(b"changed during backup")
+                        live.chmod(0o600)
+                with patch.object(migration, "_write_exclusive",
+                                  side_effect=change_target_after_journal):
+                    with self.assertRaisesRegex(ValueError,
+                                                "MIGRATION_TARGET_CHANGED_DURING_BACKUP"):
+                        migration.apply(bundle, manifest_path, archive, root)
+                self.assertEqual(live.read_bytes(), b"changed during backup")
+                self.assertFalse((root / absent_target).exists())
+                self.assertFalse((root / "new").exists())
+                shutil.rmtree(root / migration.BACKUP)
+                live.write_bytes(legacy)
+                live.chmod(0o600)
+
                 result = migration.apply(bundle, manifest_path, archive, root)
                 self.assertEqual(result["state"], "INSTALLED")
                 self.assertEqual((live.read_bytes(), live.stat().st_uid, live.stat().st_gid,
                                   format(live.stat().st_mode & 0o777, "04o")),
                                  (replacement, os.getuid(), os.getgid(), "0644"))
+                installed_new = root / absent_target
+                self.assertEqual(installed_new.read_bytes(), absent_replacement)
                 backup_dir = root / migration.BACKUP
-                root_owned_inodes = {backup_dir.stat().st_ino, live.stat().st_ino,
+                root_owned_inodes = {backup_dir.stat().st_ino,
                     (backup_dir / "journal.json").stat().st_ino,
                     (backup_dir / hashlib.sha256(target.encode()).hexdigest()).stat().st_ino}
                 target_inode = live.stat().st_ino
+                installed_new_inode = installed_new.stat().st_ino
                 def fixture_owner(info):
-                    if info.st_ino == target_inode:
+                    if info.st_ino in (target_inode, installed_new_inode):
                         return "ssm-user", "ssm-user"
                     if info.st_ino in root_owned_inodes:
                         return "root", "root"
@@ -339,6 +390,7 @@ class IsolatedMigrationTests(unittest.TestCase):
                 self.assertEqual((live.read_bytes(), live.stat().st_uid, live.stat().st_gid,
                                   format(live.stat().st_mode & 0o777, "04o")),
                                  (legacy, os.getuid(), os.getgid(), "0600"))
+                self.assertFalse(installed_new.exists())
                 live.chmod(0o640)
                 with self.assertRaisesRegex(ValueError, "LEGACY_TARGET_DRIFT"):
                     migration.apply(bundle, manifest_path, archive, root)

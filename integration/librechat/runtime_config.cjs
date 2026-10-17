@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const {isDeepStrictEqual} = require('node:util');
+const crypto = require('node:crypto');
 
 const TOOL = 'approve_s3_canary_once_mcp_awsops';
 const FIXTURE_ENDPOINT = 'awsops_canary_fixture';
@@ -15,6 +16,20 @@ function privatePath(file) {
   const st = fs.lstatSync(file);
   if (!st.isFile() || (st.mode & 0o077) !== 0) fail('CONFIG_FILE_UNSAFE');
   return st;
+}
+function readPrivateBackup(file, uid, gid) {
+  const pathStat = fs.lstatSync(file);
+  if (!pathStat.isFile() || pathStat.isSymbolicLink() || pathStat.uid !== uid ||
+      pathStat.gid !== gid || (pathStat.mode & 0o777) !== 0o600) fail('CONFIG_BACKUP_DRIFT');
+  const fd = fs.openSync(file, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
+  try {
+    const opened = fs.fstatSync(fd);
+    if (!opened.isFile() || opened.dev !== pathStat.dev || opened.ino !== pathStat.ino ||
+        opened.uid !== uid || opened.gid !== gid || (opened.mode & 0o777) !== 0o600)
+      fail('CONFIG_BACKUP_DRIFT');
+    const data = fs.readFileSync(fd);
+    return {data, sha256:crypto.createHash('sha256').update(data).digest('hex')};
+  } finally { fs.closeSync(fd); }
 }
 function ownObject(value, name) {
   if (value == null) return {};
@@ -107,8 +122,7 @@ function configure(appRoot, sourceRoot=path.resolve(__dirname,'../..')) {
   try { backupStat = fs.lstatSync(backup); }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
   if (backupStat) {
-    if (backupStat.isSymbolicLink() || !backupStat.isFile()) fail('CONFIG_BACKUP_DRIFT');
-    const original = fs.readFileSync(backup);
+    const {data:original} = readPrivateBackup(backup,st.uid,st.gid);
     const expected = transform(original,yaml,appRoot,sourceRoot);
     if (!fs.readFileSync(file).equals(expected)) fail('CONFIG_BACKUP_DRIFT');
     atomic(file,expected,st,'.awsops-staged');
@@ -117,7 +131,18 @@ function configure(appRoot, sourceRoot=path.resolve(__dirname,'../..')) {
     const original = fs.readFileSync(file);
     const updated = transform(original,yaml,appRoot,sourceRoot);
     const fd = fs.openSync(backup,'wx',0o600);
-    try { fs.writeFileSync(fd,original); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+    try {
+      fs.fchownSync(fd,st.uid,st.gid);
+      fs.fchmodSync(fd,0o600);
+      fs.writeFileSync(fd,original);
+      fs.fsyncSync(fd);
+    } finally { fs.closeSync(fd); }
+    const backupDirectory = fs.openSync(path.dirname(backup),fs.constants.O_RDONLY);
+    try { fs.fsyncSync(backupDirectory); } finally { fs.closeSync(backupDirectory); }
+    const {data:verified,sha256} = readPrivateBackup(backup,st.uid,st.gid);
+    const expectedHash = crypto.createHash('sha256').update(original).digest('hex');
+    if (sha256 !== expectedHash || !verified.equals(original) ||
+        !fs.readFileSync(file).equals(original)) fail('CONFIG_BACKUP_DRIFT');
     atomic(file,updated,st,'.awsops-staged');
     return {state:'CONFIGURED', tool:TOOL, backup:BACKUP};
   }
@@ -146,4 +171,4 @@ if (require.main === module) {
     process.exitCode = 2;
   }
 }
-module.exports={configure,rollback,transform,desiredMcp,atomic,TOOL,FIXTURE_ENDPOINT,FIXTURE_MODEL,FIXTURE_URL,BACKUP};
+module.exports={configure,rollback,transform,desiredMcp,atomic,readPrivateBackup,TOOL,FIXTURE_ENDPOINT,FIXTURE_MODEL,FIXTURE_URL,BACKUP};

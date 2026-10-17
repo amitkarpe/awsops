@@ -206,7 +206,20 @@ test('runtime config reapply is bound to immutable backup and rejects backup sym
   assert.deepEqual(rendered.endpoints.allowedAddresses,['127.0.0.1:4312']);
   const drifted=structuredClone(original);drifted.endpoints.custom[0].baseURL='https://unexpected.example';
   assert.throws(()=>runtimeConfig.transform(Buffer.from(JSON.stringify(drifted)),yaml,app,root),/FIXTURE_ENDPOINT_DRIFT/);
+  const untouched=fs.readFileSync(config),realFsync=fs.fsyncSync;let corrupted=false;
+  fs.fsyncSync=function(fd){
+    realFsync(fd);
+    if(!corrupted){fs.writeSync(fd,Buffer.from('x'),0,1,0);realFsync(fd);corrupted=true;}
+  };
+  try{assert.throws(()=>runtimeConfig.configure(app,root),/CONFIG_BACKUP_DRIFT/);}
+  finally{fs.fsyncSync=realFsync;}
+  assert.equal(corrupted,true);assert.deepEqual(fs.readFileSync(config),untouched);
+  fs.unlinkSync(path.join(app,runtimeConfig.BACKUP));
+  const originalStat=fs.statSync(config);
   runtimeConfig.configure(app,root);
+  const configuredStat=fs.statSync(config);
+  assert.equal(configuredStat.uid,originalStat.uid);assert.equal(configuredStat.gid,originalStat.gid);
+  assert.equal(configuredStat.mode&0o777,originalStat.mode&0o777);
   runtimeConfig.configure(app,root);
   const staged=JSON.parse(fs.readFileSync(config,'utf8'));
   staged.unrelated={changed:true};fs.writeFileSync(config,JSON.stringify(staged),{mode:0o600});
