@@ -3,6 +3,7 @@ from dataclasses import replace
 import json
 from pathlib import Path
 import subprocess
+import sqlite3
 import sys
 import tempfile
 import time
@@ -21,6 +22,7 @@ from awsops.runtime.native_canary_approval import (
     NativeCanaryBinding,
 )
 from awsops.runtime.receipt_stdio import dispatch as receipt_dispatch
+from awsops.approval.decisions import DecisionStore
 from test_issue90_approval_e2e import assert_four_envelope_contract, make_case
 
 
@@ -99,6 +101,63 @@ def native_context(authority, *, now=1800000000, decision="approve", claimed=Tru
 
 
 class NativeCanaryApprovalTests(unittest.TestCase):
+    def test_default_node_dispatch_runs_private_child_and_reopens_synthetic_reject_receipt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            now = int(time.time())
+            # Synthetic identity + inert fake SDK; APPROVED_LAB_WRITE only lets
+            # the existing application path accept the deliberately synthetic reject fixture.
+            principal = canonical_digest({"principal_id": "test-owner", "tenant_id": "tenant:test-tenant"})
+            app, fake_s3, _clock, _factory_calls, _batch, authority, _packet, _ = make_case(
+                directory, mode="APPROVED_LAB_WRITE", principal_digest=principal, clock=[now])
+            native_db = Path(directory) / "native.sqlite"
+            DecisionStore(native_db)
+            binding_file = Path(directory) / "private-binding.json"
+            binding_file.write_text(json.dumps({"account_id": app.binding.account_id, "bucket": app.binding.bucket}))
+            binding_file.chmod(0o600)
+            record = {"version": 1, "operation": "native_canary_reject",
+                "batch_id": authority.batch_id, "authority_digest": authority.digest,
+                "scope_digest": authority.scope_digest, "source_revision": authority.source_revision,
+                "decision": "reject", "decided_at": now,
+                "expires_at": authority.decision_expires_at,
+                "binding": {"principal_id": "test-owner", "tenant_id": "tenant:test-tenant",
+                    "conversation_id": "conversation-test", "action_id": "action-test",
+                    "generation_id": str(now), "tool_call_id": "call-test",
+                    "tool": "approve_s3_canary_once"}}
+            source = r"""
+const gate = require(process.argv[1]);
+const config = {version:1, enabled:true, agent_id:'test-agent', python:process.argv[2],
+  source_root:process.argv[3], database:process.argv[4], source_revision:process.argv[7],
+  application_database:process.argv[5], application_binding:process.argv[6], source_version:'v1.0.0-mock'};
+const record = JSON.parse(process.argv[8]);
+(async () => {
+  const first = await gate.dispatchNativeCanaryReject(config, record);
+  const reopened = await gate.dispatchNativeCanaryReject(config, record);
+  process.stdout.write(JSON.stringify({first, reopened, bytes:Buffer.byteLength(JSON.stringify({first,reopened}))}));
+})().catch(() => { process.exitCode = 2; });
+"""
+            output = subprocess.run([
+                "node", "-e", source, str(ROOT / "integration/librechat/native_gate.cjs"),
+                sys.executable, str(ROOT), str(native_db), str(app.path), str(binding_file),
+                authority.source_revision, json.dumps(record, separators=(",", ":")),
+            ], check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout
+            result = json.loads(output)
+            for attempt in (result["first"], result["reopened"]):
+                receipts = attempt["receipts"]
+                self.assertEqual([item["kind"] for item in receipts], ["Batch", "Decision", "Run", "Evidence"])
+                self.assertEqual(receipts[1]["record"]["choice"], "REJECT")
+                self.assertEqual(receipts[2]["record"]["status"], "REJECTED")
+                self.assertEqual(receipts[2]["record"]["realWrites"], 0)
+                self.assertEqual(receipts[2]["record"]["simulatedWrites"], 0)
+                self.assertEqual(attempt["resumeValue"]["call-test"], {"type": "reject", "reason": "REJECTED"})
+            self.assertEqual(result["first"]["receipts"], result["reopened"]["receipts"])
+            self.assertLess(result["bytes"], 16_384)
+            with sqlite3.connect(app.path) as db:
+                saved = db.execute("SELECT packet_digest,choice FROM application_authority WHERE batch_id=?",
+                                   (authority.batch_id,)).fetchone()
+            self.assertIsNotNone(saved[0])
+            self.assertEqual(saved[1], "REJECT")
+            self.assertEqual(fake_s3.writes, [])
+
     def test_production_reject_recorder_uses_application_packet_claim_and_canonical_receipt(self):
         with tempfile.TemporaryDirectory() as directory:
             now = int(time.time())
