@@ -67,8 +67,8 @@ def native_callback(authority, *, now=1800000000, decision="approve", claimed=Tr
         raise ValueError("NATIVE_PAUSE_CLAIM_REQUIRED")
     source = r'''
 const gate = require(process.argv[1]);
-const config = {version:1, enabled:true, agent_id:'test-agent', python:process.argv[8],
-  source_root:process.argv[9], database:process.argv[9]+'/unused-native.sqlite', source_revision:process.argv[10],
+const config = {version:1, enabled:true, agent_id:'test-agent', python:'/usr/bin/python3',
+  source_root:process.argv[9], database:process.argv[11], source_revision:process.argv[10],
   application_database:process.argv[9]+'/unused-application.sqlite',
   application_binding:process.argv[9]+'/unused-binding.json', source_version:'v1.0.0-mock'};
 const pending = {actionId:'test-action', expiresAt:Number(process.argv[7])*1000,
@@ -89,11 +89,16 @@ gate.afterNativeCanaryClaim({req,job,pendingAction:pending,streamId:'test-conver
   claimResult:claimed,manager:{getJob:async()=>liveJob}},config, callback=>callback)
   .then(value=>process.stdout.write(JSON.stringify(value)));
 '''
-    return json.loads(subprocess.run(
-        ["node", "-e", source, str(ROOT / "integration/librechat/native_gate.cjs"),
-         authority.batch_id, authority.scope_digest, authority.digest, decision, str(now),
-         str(authority.decision_expires_at), sys.executable, str(ROOT), authority.source_revision], check=True, text=True,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout)
+    with tempfile.TemporaryDirectory(prefix="native-callback-db-") as directory:
+        state = Path(directory) / "state"
+        state.mkdir(mode=0o700)
+        database = state / "native.sqlite"
+        DecisionStore(database)
+        return json.loads(subprocess.run(
+            ["node", "-e", source, str(ROOT / "integration/librechat/native_gate.cjs"),
+             authority.batch_id, authority.scope_digest, authority.digest, decision, str(now),
+             str(authority.decision_expires_at), sys.executable, str(ROOT), authority.source_revision,
+             str(database)], check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout)
 
 
 def native_context(authority, *, now=1800000000, decision="approve", claimed=True):

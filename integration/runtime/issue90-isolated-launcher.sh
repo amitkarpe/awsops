@@ -44,8 +44,10 @@ try {
   const mongo = new URL(env.MONGO_URI);
   const binding = native.application_binding;
   const bindingStat = fs.lstatSync(binding);
-  const nativeStat = fs.statSync(path.join(root,'state/native.json'));
+  const nativeStat = fs.lstatSync(path.join(root,'state/native.json'));
   const bindingValue = JSON.parse(fs.readFileSync(binding));
+  const runtimeConfig = require(path.join(root,'awsops/integration/librechat/runtime_config.cjs'));
+  runtimeConfig.validateNativeConfig(native,root,nativeStat);
   if (Object.keys(native).sort().join(',') !== 'agent_id,application_binding,application_database,database,enabled,python,source_revision,source_root,source_version,version' ||
       manifest.purpose !== 'awsops-issue11-isolated-auth-canary' ||
       manifest.model !== 'DETERMINISTIC_FIXTURE' ||
@@ -53,10 +55,9 @@ try {
       typeof login.password !== 'string' || !login.password ||
       native.version !== 1 || !native.enabled || typeof native.agent_id !== 'string' || !native.agent_id ||
       native.source_root !== path.join(root,'awsops') ||
-      native.database !== path.join(root,'state/native.sqlite') ||
       native.application_database !== path.join(root,'state/canary.sqlite') ||
       native.source_revision !== fs.readFileSync(path.join(root,'awsops/SOURCE_REVISION'),'utf8').trim() ||
-      native.python !== '/usr/bin/python3' || !read ||
+      !read ||
       !path.isAbsolute(binding) || !binding.startsWith(path.join(root,'state') + path.sep) ||
       fs.realpathSync(binding) !== binding || !bindingStat.isFile() ||
       bindingStat.uid !== nativeStat.uid || (bindingStat.mode & 0o077) !== 0 ||
@@ -97,7 +98,7 @@ if settings['profile'] != 'amit' or settings['region'] != REGION or settings['so
     raise SystemExit(2)
 PY
   then refuse; fi
-  for db in "$STATE/native.sqlite" "$STATE/canary.sqlite"; do
+  for db in "$STATE/canary.sqlite"; do
     if [[ -e $db || -L $db ]]; then
       [[ -f $db && ! -L $db && $(stat -c '%U:%a' "$db") == 'ssm-user:600' ]] || refuse
     fi
@@ -278,8 +279,13 @@ start_runtime() {
       [[ -d $directory && ! -L $directory && $(stat -c '%U:%G:%a' "$directory") == 'ssm-user:ssm-user:700' ]] || refuse
     else install -d -o ssm-user -g ssm-user -m 0700 "$directory"; fi
   done
-  runuser -u ssm-user -- /usr/bin/python3 -B -c \
-    "import sys;sys.path.insert(0,'$AWSOPS/src');from pathlib import Path;from awsops.approval.decisions import DecisionStore;DecisionStore(Path('$STATE/native.sqlite'))"
+  runuser -u ssm-user -- env PYTHONPATH="$AWSOPS/src" /usr/bin/python3 -B - "$STATE/native.json" <<'PY'
+import json,sys
+from pathlib import Path
+from awsops.approval.decisions import DecisionStore
+native=json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))
+DecisionStore.validate_existing(Path(native['database']))
+PY
   umask 077
   : >"$PID_FILE"
   chown root:root "$PID_FILE"; chmod 0600 "$PID_FILE"

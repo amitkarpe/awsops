@@ -99,12 +99,14 @@ class DecisionStore:
         self.clock = clock
         if not self.path.parent.is_dir():
             raise DecisionError("PRIVATE_PARENT_DIRECTORY_REQUIRED")
-        if self.path.is_symlink():
-            raise DecisionError("UNSAFE_DATABASE_PATH")
+        if self.path.exists() or self.path.is_symlink():
+            self.validate_existing(self.path)
+            return
         try:
             fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
         except FileExistsError:
-            pass
+            self.validate_existing(self.path)
+            return
         else:
             os.close(fd)
         self._check_file()
@@ -117,6 +119,28 @@ class DecisionStore:
                     db.execute(ddl)
                 db.execute("PRAGMA user_version=1")
             self._verify(db)
+
+    @classmethod
+    def validate_existing(cls, path: Path) -> None:
+        """Validate an existing ledger without opening it for writes."""
+        target = Path(path).absolute()
+        if target.is_symlink() or not target.exists() or not target.parent.is_dir():
+            raise DecisionError("UNSAFE_DATABASE_PATH")
+        mode = target.lstat().st_mode
+        if not stat.S_ISREG(mode) or (os.name == "posix" and stat.S_IMODE(mode) & 0o077):
+            raise DecisionError("UNSAFE_DATABASE_FILE")
+        for suffix in ("-journal", "-wal", "-shm"):
+            sidecar = Path(str(target) + suffix)
+            if sidecar.exists() or sidecar.is_symlink():
+                raise DecisionError("UNSAFE_DATABASE_SIDECAR")
+        uri = target.as_uri() + "?mode=ro&immutable=1"
+        try:
+            with closing(sqlite3.connect(uri, uri=True, timeout=2)) as db:
+                if db.execute("PRAGMA journal_mode").fetchone()[0] != "delete":
+                    raise DecisionError("UNSUPPORTED_JOURNAL_MODE")
+                cls._verify(db)
+        except sqlite3.Error as exc:
+            raise DecisionError("LEDGER_SCHEMA_DRIFT") from exc
 
     def _check_file(self) -> None:
         mode = self.path.lstat().st_mode
