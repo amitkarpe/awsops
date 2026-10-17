@@ -5,6 +5,9 @@ const path = require('node:path');
 const {isDeepStrictEqual} = require('node:util');
 
 const TOOL = 'approve_s3_canary_once_mcp_awsops';
+const FIXTURE_ENDPOINT = 'awsops_canary_fixture';
+const FIXTURE_MODEL = 'awsops-canary-fixed';
+const FIXTURE_URL = 'http://127.0.0.1:4312/v1';
 const BACKUP = '.awsops-issue90-runtime-config.original';
 function fail(code) { throw Error(code); }
 function privatePath(file) {
@@ -45,6 +48,17 @@ function transform(raw, yaml, appRoot, sourceRoot) {
   const config = yaml.load(raw.toString('utf8')) || {};
   ownObject(config.endpoints, 'ENDPOINTS'); ownObject(config.mcpServers, 'MCP');
   config.endpoints ??= {}; config.mcpServers ??= {};
+  const fixture = {name:FIXTURE_ENDPOINT,apiKey:'fixture-only',baseURL:FIXTURE_URL,
+    models:{default:[FIXTURE_MODEL],fetch:false},titleConvo:false};
+  const previousFixture = {...fixture,baseURL:'http://localhost:4312/v1'};
+  const custom = config.endpoints.custom ?? [];
+  if (!isDeepStrictEqual(custom,[fixture]) && !isDeepStrictEqual(custom,[previousFixture]))
+    fail('FIXTURE_ENDPOINT_DRIFT');
+  config.endpoints.custom = [fixture];
+  const addresses = config.endpoints.allowedAddresses ?? [];
+  if (!isDeepStrictEqual(addresses,[]) && !isDeepStrictEqual(addresses,['localhost:4312']) &&
+      !isDeepStrictEqual(addresses,['127.0.0.1:4312'])) fail('FIXTURE_ADDRESS_DRIFT');
+  config.endpoints.allowedAddresses = ['127.0.0.1:4312'];
   const mcp = desiredMcp(appRoot);
   const existing = config.mcpServers.awsops;
   const legacyMcp = {...mcp, args:[mcp.args[0],appRoot]};
@@ -132,4 +146,4 @@ if (require.main === module) {
     process.exitCode = 2;
   }
 }
-module.exports={configure,rollback,transform,desiredMcp,atomic,TOOL,BACKUP};
+module.exports={configure,rollback,transform,desiredMcp,atomic,TOOL,FIXTURE_ENDPOINT,FIXTURE_MODEL,FIXTURE_URL,BACKUP};
