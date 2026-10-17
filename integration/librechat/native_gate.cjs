@@ -38,6 +38,7 @@ function validateConfig(config) {
   if (config.python !== nativeStore.SYSTEM_PYTHON) fail();
   try {
     nativeStore.assertSystemPython();
+    nativeStore.validateSourceRoot(config.source_root);
     nativeStore.validateDatabaseMetadata(config.database,{uid:process.getuid?.(),gid:process.getgid?.()});
   } catch { fail(); }
   text(config.source_version, /^v[0-9]+\.[0-9]+\.[0-9]+-mock$/);

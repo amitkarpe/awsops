@@ -98,11 +98,24 @@ function sameFileSnapshot(before, after) {
     before.uid === after.uid && before.gid === after.gid && before.mode === after.mode &&
     before.mtimeMs === after.mtimeMs;
 }
-function validateDecisionDatabase(database, {root, uid, gid} = {}) {
+function validateSourceRoot(sourceRoot) {
+  if (typeof sourceRoot !== 'string' || !path.isAbsolute(sourceRoot)) fail('NATIVE_SOURCE_ROOT_UNSUPPORTED');
+  let rootStat, modulePath, moduleStat;
+  try {
+    rootStat = fs.lstatSync(sourceRoot);
+    modulePath = path.join(sourceRoot, 'src/awsops/approval/decisions.py');
+    moduleStat = fs.lstatSync(modulePath);
+  } catch { fail('NATIVE_SOURCE_ROOT_UNAVAILABLE'); }
+  if (!rootStat.isDirectory() || rootStat.isSymbolicLink() || fs.realpathSync(sourceRoot) !== sourceRoot ||
+      !moduleStat.isFile() || moduleStat.isSymbolicLink() || fs.realpathSync(modulePath) !== modulePath ||
+      !modulePath.startsWith(sourceRoot + path.sep)) fail('NATIVE_SOURCE_ROOT_UNSUPPORTED');
+  return sourceRoot;
+}
+function validateDecisionDatabase(database, {root, uid, gid, sourceRoot} = {}) {
   const before = validateDatabaseMetadata(database, {root, uid, gid});
   const digest = hashFile(database,before.databaseStat);
   const python = assertSystemPython();
-  const sourceRoot = path.resolve(__dirname, '../..');
+  sourceRoot = validateSourceRoot(sourceRoot);
   try {
     const result = execFileSync(python, ['-I', '-B', '-c', VERIFY_SOURCE, database, sourceRoot], {
       cwd: sourceRoot, env: {LANG:'C.UTF-8', PATH:'/usr/bin:/bin', PYTHONNOUSERSITE:'1'},
@@ -117,4 +130,4 @@ function validateDecisionDatabase(database, {root, uid, gid} = {}) {
 }
 
 module.exports = {SYSTEM_PYTHON, DATABASE_NAMES, canonicalSystemPython, validateLegacyPython,
-  assertSystemPython, validateDatabaseMetadata, validateDecisionDatabase};
+  assertSystemPython, validateSourceRoot, validateDatabaseMetadata, validateDecisionDatabase};

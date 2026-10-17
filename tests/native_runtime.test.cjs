@@ -54,6 +54,72 @@ test('real private process commits authenticated reject before returning only re
   assert.equal(audit.resume_value, undefined);
   await assert.rejects(record(f));
 });
+
+test('deployed app and awsops helper copies validate against the configured awsops source root', t => {
+  const f = setup(t);
+  const deployment = path.join(f.dir, 'deployment');
+  const agents = path.join(deployment, 'app/api/server/controllers/agents');
+  const awsops = path.join(deployment, 'awsops');
+  const awsLib = path.join(awsops, 'integration/librechat');
+  const state = path.join(deployment, 'state');
+  fs.mkdirSync(agents, {recursive:true}); fs.mkdirSync(awsLib, {recursive:true}); fs.mkdirSync(state,{mode:0o700});
+  fs.cpSync(path.join(root, 'src/awsops'), path.join(awsops, 'src/awsops'), {recursive:true});
+  fs.copyFileSync(path.join(root, 'integration/librechat/native_store.cjs'), path.join(agents, 'native_store.cjs'));
+  fs.copyFileSync(path.join(root, 'integration/librechat/native_gate.cjs'), path.join(agents, 'awsops-native-gate.cjs'));
+  fs.copyFileSync(path.join(root, 'integration/librechat/native_store.cjs'), path.join(awsLib, 'native_store.cjs'));
+  fs.copyFileSync(path.join(root, 'integration/librechat/runtime_config.cjs'), path.join(awsLib, 'runtime_config.cjs'));
+  fs.writeFileSync(path.join(deployment,'app/package.json'),JSON.stringify({name:'LibreChat',version:'v0.8.8-rc1'})+'\n',{mode:0o644});
+
+  const deployedDatabase = path.join(state, 'receipt.sqlite3');
+  execFileSync(python, ['-I','-B',path.join(__dirname,'native_seed.py'),deployedDatabase]);
+  const revision = 'b'.repeat(40);
+  const legacy = {version:1,enabled:true,agent_id:'fixture-agent',python:'/usr/bin/python3',
+    source_root:awsops,database:deployedDatabase};
+  fs.writeFileSync(path.join(state,'native.json'),JSON.stringify(legacy)+'\n',{mode:0o600});
+  const account='000000000001';
+  fs.writeFileSync(path.join(state,'read.json'),JSON.stringify({region:'ap-southeast-1',profile:'amit',
+    source_account_id:account,accounts:[{alias:'lab-dev',account_id:account},{alias:'lab-poc',account_id:'000000000002'},
+      {alias:'lab-qa',account_id:'000000000003'},{alias:'lab-sec',account_id:'000000000004'}]}),{mode:0o600});
+  const originalDatabase = fs.readFileSync(deployedDatabase);
+  const deployedRuntime = require(path.join(awsLib,'runtime_config.cjs'));
+  assert.deepEqual(deployedRuntime.inspectNativeConfig(deployment),{
+    state:'PREWRITE_COMPATIBLE',ledger:'READONLY_VALIDATED',application:'PINNED_PACKAGE_VERSION'});
+  assert.deepEqual(fs.readFileSync(deployedDatabase),originalDatabase);
+  const originalNativeConfig=fs.readFileSync(path.join(state,'native.json'));
+  fs.writeFileSync(path.join(state,'native.json'),JSON.stringify({...legacy,unexpected:'reject'})+'\n',{mode:0o600});
+  assert.throws(()=>deployedRuntime.inspectNativeConfig(deployment),/NATIVE_CONFIG_SCHEMA_UNSUPPORTED/);
+  fs.writeFileSync(path.join(state,'native.json'),originalNativeConfig,{mode:0o600});
+  assert.deepEqual(fs.readFileSync(deployedDatabase),originalDatabase);
+  assert.equal(fs.existsSync(path.join(state,'native.sqlite')),false);
+  fs.writeFileSync(path.join(awsops,'SOURCE_REVISION'),revision+'\n',{mode:0o644});
+  assert.deepEqual(deployedRuntime.prepareNativeCanaryBinding(deployment,
+    'awsops-dev-issue90-s3-canary-0123456789ab'),{state:'BOUND'});
+  assert.deepEqual(deployedRuntime.migrateNativeSourceRevision(deployment),{state:'UPDATED'});
+  const migrated = JSON.parse(fs.readFileSync(path.join(state,'native.json'),'utf8'));
+  assert.equal(migrated.database,deployedDatabase);
+  assert.equal(migrated.source_root,awsops);
+  assert.equal(fs.existsSync(path.join(state,'native.sqlite')),false);
+  assert.deepEqual(fs.readFileSync(deployedDatabase),originalDatabase);
+
+  const appGate = require(path.join(agents, 'awsops-native-gate.cjs'));
+  const deployedConfig = {...migrated, application_database:path.join(state,'canary.sqlite'),
+    application_binding:path.join(state,'binding.private.json'),source_version:'v1.0.0-mock'};
+  const before = fs.readFileSync(deployedDatabase);
+  assert.deepEqual(appGate.validateConfig(deployedConfig), deployedConfig);
+  for(const target of [path.join(agents,'native_store.cjs'),path.join(awsLib,'native_store.cjs')]){
+    const store = require(target);
+    assert.deepEqual(store.validateDecisionDatabase(deployedDatabase, {
+      root:deployment,uid:process.getuid(),gid:process.getgid(),sourceRoot:awsops,
+    }).database,deployedDatabase);
+  }
+  assert.throws(()=>require(path.join(agents,'native_store.cjs')).validateDecisionDatabase(deployedDatabase,{
+    root:deployment,uid:process.getuid(),gid:process.getgid(),sourceRoot:agents,
+  }),/NATIVE_SOURCE_ROOT_(UNAVAILABLE|UNSUPPORTED)/);
+  assert.deepEqual(fs.readFileSync(deployedDatabase), before);
+  assert.throws(() => appGate.validateConfig({...deployedConfig, source_root:agents}),
+    /AWSOPS_NATIVE_CONTRACT_REJECTED/);
+});
+
 test('registration requires exact server-owned scope and cannot silently rebind', async t => {
   const f = setup(t);
   await assert.rejects(gate.registerPrepared({...f, frozen: {...f.frozen, scope_hash: 'd'.repeat(64)}}, f.config));
