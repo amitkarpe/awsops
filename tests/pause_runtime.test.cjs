@@ -5,6 +5,7 @@ const {execFileSync}=require('node:child_process');
 const gate=require('../integration/librechat/native_gate.cjs');
 const pause=require('../integration/librechat/pause_gate.cjs');
 const patch=require('../integration/librechat/rehearse_patch.cjs');
+const runtimeConfig=require('../integration/librechat/runtime_config.cjs');
 const mcpGuard=require('../integration/canary/mcp_guard.cjs');
 const root=path.resolve(__dirname,'..');
 const python=process.env.AWSOPS_TEST_PYTHON || '/usr/bin/python3';
@@ -175,6 +176,25 @@ test('producer apply/reapply/rollback preserves exact original and refuses drift
   const originalPatched=fs.readFileSync(target);fs.appendFileSync(target,'\n// drift');
   assert.throws(()=>patch.change(candidate,'rollback','pause'));fs.writeFileSync(target,originalPatched);
   assert.equal(patch.change(candidate,'rollback','pause').state,'ORIGINAL');assert.deepEqual(fs.readFileSync(target),raw);
+});
+
+test('runtime config reapply is bound to immutable backup and rejects backup symlinks',t=>{
+  const temp=fs.mkdtempSync(path.join(os.tmpdir(),'awsops-config-'));
+  const app=path.join(temp,'app');
+  t.after(()=>fs.rmSync(temp,{recursive:true,force:true}));
+  fs.mkdirSync(path.join(app,'app/node_modules/js-yaml'),{recursive:true});
+  fs.writeFileSync(path.join(app,'app/node_modules/js-yaml/index.js'),
+    'exports.load=value=>JSON.parse(value);exports.dump=value=>JSON.stringify(value,null,2);\n');
+  const config=path.join(app,'app/librechat.yaml');
+  fs.writeFileSync(config,JSON.stringify({endpoints:{agents:{toolApproval:{allow:[],ask:[],deny:[],hooks:[]}}},mcpServers:{}}),{mode:0o600});
+  runtimeConfig.configure(app,root);
+  runtimeConfig.configure(app,root);
+  const staged=JSON.parse(fs.readFileSync(config,'utf8'));
+  staged.unrelated={changed:true};fs.writeFileSync(config,JSON.stringify(staged),{mode:0o600});
+  assert.throws(()=>runtimeConfig.configure(app,root),/CONFIG_BACKUP_DRIFT/);
+  const backup=path.join(app,runtimeConfig.BACKUP),saved=path.join(app,'saved-original');
+  fs.renameSync(backup,saved);fs.symlinkSync(saved,backup);
+  assert.throws(()=>runtimeConfig.configure(app,root),/CONFIG_BACKUP_DRIFT/);
 });
 
 test('provider pipe excludes browser and ambient AWS credentials from child environment',async t=>{

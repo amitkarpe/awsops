@@ -168,7 +168,8 @@ def apply(bundle: Path, manifest_path: Path, archive: Path, root: Path) -> dict:
                 while parent != root and not parent.exists():
                     missing.append(parent)
                     parent = parent.parent
-                if parent != root or parent.is_symlink():
+                if (parent.is_symlink() or not parent.is_dir()
+                        or not parent.resolve(strict=True).is_relative_to(root)):
                     fail("MIGRATION_DIRECTORY_UNAVAILABLE")
                 for directory in reversed(missing):
                     directory.mkdir(mode=0o755)
@@ -207,6 +208,7 @@ def rollback(bundle: Path, manifest_path: Path, archive: Path, root: Path) -> di
         fail("MIGRATION_JOURNAL_MISMATCH")
     by_target = {item["target"]: item for item in journal["files"]}
     installed = set()
+    restore_data = {}
     for item in files:
         state = by_target.get(item["target"])
         target = checked_path(root, item["target"])
@@ -214,15 +216,19 @@ def rollback(bundle: Path, manifest_path: Path, archive: Path, root: Path) -> di
             fail("MIGRATION_INSTALLED_FILE_DRIFT")
         if target.is_file() and sha(target.read_bytes()) == item["sha256"]:
             installed.add(item["target"])
-            continue
-        if state["prior"] is None:
+        elif state["prior"] is None:
             if target.exists():
                 fail("MIGRATION_INSTALLED_FILE_DRIFT")
         else:
             prior = backup / state["prior"]
-            if (not target.is_file() or sha(target.read_bytes()) != state["prior_sha256"]
-                    or not prior.is_file() or sha(prior.read_bytes()) != state["prior_sha256"]):
+            if not target.is_file() or sha(target.read_bytes()) != state["prior_sha256"]:
                 fail("MIGRATION_INSTALLED_FILE_DRIFT")
+        if state["prior"] is not None:
+            prior = backup / state["prior"]
+            if (prior.is_symlink() or not prior.is_file()
+                    or sha(prior.read_bytes()) != state["prior_sha256"]):
+                fail("MIGRATION_INSTALLED_FILE_DRIFT")
+            restore_data[item["target"]] = prior.read_bytes()
     for item in reversed(files):
         state = by_target[item["target"]]
         target = checked_path(root, item["target"])
@@ -231,10 +237,7 @@ def rollback(bundle: Path, manifest_path: Path, archive: Path, root: Path) -> di
         if state["prior"] is None:
             target.unlink()
         else:
-            prior = backup / state["prior"]
-            data = prior.read_bytes()
-            if sha(data) != state["prior_sha256"]:
-                fail("MIGRATION_BACKUP_DRIFT")
+            data = restore_data[item["target"]]
             _atomic(target, data, int(item["legacy_mode"], 8), uid, gid)
     shutil.rmtree(backup)
     return {"state": "ROLLED_BACK", "migration_id": manifest["migration_id"], "files": len(files)}

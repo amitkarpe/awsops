@@ -128,7 +128,8 @@ def prepare_native_canary(message: dict, *, database: Path, binding_file: Path,
         estimated_incremental_cost_microusd=EXPECTED_REQUEST_COST_MICROUSD,
         cleanup_reserve_microusd=CLEANUP_RESERVE_MICROUSD,
         incremental_cost_limit_microusd=SPEND_LIMIT_MICROUSD,
-        cleanup_expires_at=now + LIFECYCLE_TTL_SECONDS)
+        cleanup_expires_at=now + LIFECYCLE_TTL_SECONDS,
+        decision_expires_at=pause_expiry)
     authority, _ = application._load_authority(batch["record"]["batchId"])
     if (authority.source_revision != source_revision
             or authority.principal_binding_digest != principal

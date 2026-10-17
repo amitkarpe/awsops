@@ -163,6 +163,26 @@ class NativeCanaryApprovalTests(unittest.TestCase):
             self.assertEqual(authority.principal_binding_digest,
                 canonical_digest({"principal_id": "authenticated-owner", "tenant_id": "tenant:home"}))
             self.assertEqual(authority.allowed_actions, ("create", "tags", "public_block", "policy"))
+            expiring_ledger = root / "expiring.sqlite"
+            fake_s3.clock[0] = now
+            def expiring_provider(session, binding, path):
+                provider = Boto3CanaryProvider(session, binding, path,
+                    clock=lambda: fake_s3.clock[0], retry_config=object())
+                inspect = provider.inspect
+                def delayed_inspect(*args, **kwargs):
+                    fake_s3.clock[0] += 5
+                    return inspect(*args, **kwargs)
+                provider.inspect = delayed_inspect
+                return provider
+            short_pause = {**message, "pause_expires_at": now + 5}
+            with self.assertRaisesRegex(ValueError, "CANARY_PREPARATION_EXPIRED"):
+                prepare_native_canary(short_pause, database=expiring_ledger, binding_file=binding_file,
+                    read_config=read_config, source_revision="a" * 40, source_version="v1.0.0-mock",
+                    source_revision_file=source_file, session_factory=session_factory,
+                    provider_factory=expiring_provider, clock=lambda: fake_s3.clock[0])
+            with sqlite3.connect(expiring_ledger) as db:
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM canaries").fetchone()[0], 0)
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM application_authority").fetchone()[0], 0)
             source_file.write_text("b" * 40 + "\n")
             with self.assertRaisesRegex(ValueError, "SOURCE_REVISION_DRIFT"):
                 prepare_native_canary(message, database=ledger, binding_file=binding_file,

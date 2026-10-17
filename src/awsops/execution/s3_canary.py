@@ -143,7 +143,8 @@ class CanaryAdapter:
             "Resource": [bucket, bucket + "/*"],
             "Condition": {"Bool": {"aws:SecureTransport": "false"}}}]}
 
-    def prepare(self, principal: str, *, ttl_seconds: int = MAX_PREPARE_TTL) -> dict:
+    def prepare(self, principal: str, *, ttl_seconds: int = MAX_PREPARE_TTL,
+                expires_at: int | None = None) -> dict:
         require_text(principal, r"[a-f0-9]{64}", "trusted principal binding")
         if type(ttl_seconds) is not int or not 1 <= ttl_seconds <= MAX_PREPARE_TTL:
             raise ValueError("INVALID_CANARY_PREPARATION_TTL")
@@ -159,6 +160,11 @@ class CanaryAdapter:
         if o.policy is not None:
             raise ValueError("CANARY_POLICY_ALREADY_PRESENT")
         now = int(self.clock())
+        if expires_at is not None:
+            remaining = expires_at - now
+            if remaining <= 0:
+                raise ValueError("CANARY_PREPARATION_EXPIRED")
+            ttl_seconds = min(ttl_seconds, remaining)
         batch = {"batchId": "batch-canary-" + uuid.uuid4().hex,
                  "datasetId": "dataset-canary", "registryVersion": 1, "mode": self.mode,
                  "frozenAt": stamp(now), "expiresAt": stamp(now + ttl_seconds),
@@ -170,6 +176,14 @@ class CanaryAdapter:
                      "evidenceDigest": self._evidence_digest(o),
                      "capabilityId": "s3-require-tls", "expectedChange": "DENY_INSECURE_TRANSPORT"}]}
         batch["scopeDigest"] = canonical_digest(batch)
+        if expires_at is not None:
+            persist_now = int(self.clock())
+            remaining = expires_at - persist_now
+            if remaining <= 0:
+                raise ValueError("CANARY_PREPARATION_EXPIRED")
+            batch["frozenAt"] = stamp(persist_now)
+            batch["expiresAt"] = stamp(persist_now + min(ttl_seconds, remaining))
+            batch["scopeDigest"] = canonical_digest(batch)
         with closing(self._db()) as db:
             db.execute("INSERT INTO canaries VALUES (?,?,?,?,NULL,NULL)",
                        (batch["batchId"], json.dumps(batch), principal, self._binding_digest()))

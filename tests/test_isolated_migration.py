@@ -28,6 +28,11 @@ class IsolatedMigrationTests(unittest.TestCase):
             legacy_source = bundle / legacy_target
             legacy_source.parent.mkdir(parents=True, exist_ok=True)
             legacy_source.write_bytes(b"replacement source\n")
+            nested_target = "awsops/integration/canary/example.cjs"
+            nested_data = b"nested fixed source\n"
+            nested_source = bundle / nested_target
+            nested_source.parent.mkdir(parents=True)
+            nested_source.write_bytes(nested_data)
             controllers = bundle / "app/api/server/controllers/agents"
             controllers.mkdir(parents=True)
             resume = b"pinned resume\n"
@@ -53,15 +58,18 @@ class IsolatedMigrationTests(unittest.TestCase):
                     "resume_git_blob":migration.git_blob(resume),
                     "producer_git_blob":migration.git_blob(producer)},
                 "files": [
-                    {"target": target, "sha256": hashlib.sha256(data).hexdigest(),
-                     "mode": "0644", "owner": "ssm-user", "group": "ssm-user",
-                     "legacy_presence_policy": "absent_only"},
                     {"target": legacy_target, "sha256": hashlib.sha256(b"replacement source\n").hexdigest(),
                      "mode": "0644", "owner": "ssm-user", "group": "ssm-user",
                      "legacy_presence_policy": "absent_or_exact_known_legacy",
                      "legacy_owner":pwd.getpwuid(os.getuid()).pw_name,
                      "legacy_group":grp.getgrgid(os.getgid()).gr_name,"legacy_mode":"0644",
                      "legacy_git_blobs":[migration.git_blob(legacy_data)]},
+                    {"target": target, "sha256": hashlib.sha256(data).hexdigest(),
+                     "mode": "0644", "owner": "ssm-user", "group": "ssm-user",
+                     "legacy_presence_policy": "absent_only"},
+                    {"target": nested_target, "sha256": hashlib.sha256(nested_data).hexdigest(),
+                     "mode": "0644", "owner": "ssm-user", "group": "ssm-user",
+                     "legacy_presence_policy": "absent_only"},
                 ],
             }
             manifest_path = base / "manifest.json"
@@ -73,6 +81,16 @@ class IsolatedMigrationTests(unittest.TestCase):
                 result = migration.apply(bundle, manifest_path, archive, root)
                 self.assertEqual(result["state"], "INSTALLED")
                 self.assertEqual((root / target).read_bytes(), data)
+                self.assertEqual((root / nested_target).read_bytes(), nested_data)
+                backup_name = hashlib.sha256(legacy_target.encode()).hexdigest()
+                backup_file = root / migration.BACKUP / backup_name
+                backup_file.write_bytes(b"corrupt backup")
+                with self.assertRaisesRegex(ValueError, "MIGRATION_INSTALLED_FILE_DRIFT"):
+                    migration.rollback(bundle, manifest_path, archive, root)
+                self.assertEqual((root / target).read_bytes(), data)
+                self.assertEqual((root / nested_target).read_bytes(), nested_data)
+                self.assertEqual(live_legacy.read_bytes(), b"replacement source\n")
+                backup_file.write_bytes(legacy_data)
                 (root / target).unlink()  # Simulate interruption before this new-only path was installed.
                 restored = migration.rollback(bundle, manifest_path, archive, root)
                 self.assertEqual(restored["state"], "ROLLED_BACK")

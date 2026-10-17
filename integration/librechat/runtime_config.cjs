@@ -2,7 +2,6 @@
 // Narrow YAML update for the already isolated LibreChat application.
 const fs = require('node:fs');
 const path = require('node:path');
-const crypto = require('node:crypto');
 const {isDeepStrictEqual} = require('node:util');
 
 const TOOL = 'approve_s3_canary_once_mcp_awsops';
@@ -90,17 +89,24 @@ function configure(appRoot, sourceRoot=path.resolve(__dirname,'../..')) {
   const st = privatePath(file);
   const backup = path.join(appRoot,BACKUP);
   const yaml = require(path.join(appRoot,'app/node_modules/js-yaml'));
-  const original = fs.readFileSync(file);
-  const updated = transform(original,yaml,appRoot,sourceRoot);
-  if (!fs.existsSync(backup)) {
+  let backupStat;
+  try { backupStat = fs.lstatSync(backup); }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
+  if (backupStat) {
+    if (backupStat.isSymbolicLink() || !backupStat.isFile()) fail('CONFIG_BACKUP_DRIFT');
+    const original = fs.readFileSync(backup);
+    const expected = transform(original,yaml,appRoot,sourceRoot);
+    if (!fs.readFileSync(file).equals(expected)) fail('CONFIG_BACKUP_DRIFT');
+    atomic(file,expected,st,'.awsops-staged');
+    return {state:'CONFIGURED', tool:TOOL, backup:BACKUP};
+  } else {
+    const original = fs.readFileSync(file);
+    const updated = transform(original,yaml,appRoot,sourceRoot);
     const fd = fs.openSync(backup,'wx',0o600);
     try { fs.writeFileSync(fd,original); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
-  } else if (!fs.lstatSync(backup).isFile() || !fs.readFileSync(backup).equals(original)) {
-    const stagedHash = crypto.createHash('sha256').update(updated).digest('hex');
-    if (crypto.createHash('sha256').update(original).digest('hex') !== stagedHash) fail('CONFIG_BACKUP_DRIFT');
+    atomic(file,updated,st,'.awsops-staged');
+    return {state:'CONFIGURED', tool:TOOL, backup:BACKUP};
   }
-  atomic(file,updated,st,'.awsops-staged');
-  return {state:'CONFIGURED', tool:TOOL, backup:BACKUP};
 }
 function rollback(appRoot) {
   if (!path.isAbsolute(appRoot) || fs.realpathSync(appRoot) !== appRoot) fail('ISOLATED_ROOT_REQUIRED');
