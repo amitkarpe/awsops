@@ -196,14 +196,27 @@ class IsolatedMigrationTests(unittest.TestCase):
                 backup_name = hashlib.sha256(legacy_target.encode()).hexdigest()
                 backup_file = root / migration.BACKUP / backup_name
                 backup_file.write_bytes(b"corrupt backup")
-                with self.assertRaisesRegex(ValueError, "MIGRATION_INSTALLED_FILE_DRIFT"):
-                    migration.rollback(bundle, manifest_path, archive, root)
+                with patch.object(migration, "_owner_group", return_value=("root", "root")):
+                    with self.assertRaisesRegex(ValueError, "MIGRATION_JOURNAL_MISMATCH"):
+                        migration.rollback(bundle, manifest_path, archive, root)
                 self.assertEqual((root / target).read_bytes(), data)
                 self.assertEqual((root / nested_target).read_bytes(), nested_data)
                 self.assertEqual(live_legacy.read_bytes(), b"replacement source\n")
                 backup_file.write_bytes(legacy_data)
                 (root / target).unlink()  # Simulate interruption before this new-only path was installed.
-                restored = migration.rollback(bundle, manifest_path, archive, root)
+                backup_dir = root / migration.BACKUP
+                root_owned_inodes = {backup_dir.stat().st_ino, backup_file.stat().st_ino,
+                    (backup_dir / "journal.json").stat().st_ino}
+                target_inodes = {live_legacy.stat().st_ino,
+                                 (root / nested_target).stat().st_ino}
+                def fixture_owner(info):
+                    if info.st_ino in target_inodes:
+                        return "ssm-user", "ssm-user"
+                    if info.st_ino in root_owned_inodes:
+                        return "root", "root"
+                    return pwd.getpwuid(info.st_uid).pw_name, grp.getgrgid(info.st_gid).gr_name
+                with patch.object(migration, "_owner_group", side_effect=fixture_owner):
+                    restored = migration.rollback(bundle, manifest_path, archive, root)
                 self.assertEqual(restored["state"], "ROLLED_BACK")
                 self.assertFalse((root / target).exists())
                 self.assertEqual(live_legacy.read_bytes(), legacy_data)
@@ -248,6 +261,88 @@ class IsolatedMigrationTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "LEGACY_TARGET_DRIFT"):
                     migration.apply(bundle, manifest_path, archive, root)
                 self.assertEqual(live.read_bytes(), b"foreign\n")
+            finally:
+                migration.EXPECTED_ROOT, migration._identity = prior_root, prior_identity
+
+    def test_versioned_recovery_restores_exact_legacy_metadata_and_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            bundle, root = base / "bundle", base / "isolated"
+            bundle.mkdir(); root.mkdir(mode=0o700)
+            target = "integration/canary/mcp_guard.cjs"
+            replacement, legacy = b"reviewed replacement\n", b"known non-executing legacy guard\n"
+            source = bundle / target
+            source.parent.mkdir(parents=True)
+            source.write_bytes(replacement)
+            controllers = bundle / "app/api/server/controllers/agents"
+            controllers.mkdir(parents=True)
+            resume, producer = b"pinned resume\n", b"pinned producer\n"
+            (controllers / "resume.js").write_bytes(resume)
+            (controllers / "client.js").write_bytes(producer)
+            (bundle / "awsops/SOURCE_REVISION").parent.mkdir(parents=True)
+            (bundle / "awsops/SOURCE_REVISION").write_text("a" * 40 + "\n")
+            live = root / target
+            live.parent.mkdir(parents=True)
+            live.write_bytes(legacy)
+            live.chmod(0o600)
+            prior_tuple = {"sha256": hashlib.sha256(legacy).hexdigest(),
+                           "git_blob": migration.git_blob(legacy), "uid": os.getuid(),
+                           "gid": os.getgid(), "mode": "0600"}
+            archive = base / "bundle.tar.gz"
+            archive.write_bytes(b"archive fixture")
+            manifest = {"version": 2, "recovery_policy": {"version": 1,
+                "kind": "exact-prestate-tuples"}, "build_template": False,
+                "isolated_root": str(root), "migration_id": "test-recovery-v1",
+                "target": {"owner": "ssm-user", "group": "ssm-user",
+                    "source_revision": "a" * 40,
+                    "upstream_commit": "cdfe54c3498818b21b33fb609fee02f2742b37ea",
+                    "bundle_sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
+                    "resume_git_blob": migration.git_blob(resume),
+                    "producer_git_blob": migration.git_blob(producer)},
+                "files": [{"target": target, "sha256": hashlib.sha256(replacement).hexdigest(),
+                    "mode": "0644", "owner": "ssm-user", "group": "ssm-user",
+                    "legacy_presence_policy": "absent_only",
+                    "recovery_preconditions": [prior_tuple]}]}
+            manifest_path = base / "manifest.json"
+            manifest_path.write_text(json.dumps(manifest))
+            prior_root, prior_identity = migration.EXPECTED_ROOT, migration._identity
+            migration.EXPECTED_ROOT = str(root)
+            migration._identity = lambda: (os.getuid(), os.getgid())
+            try:
+                result = migration.apply(bundle, manifest_path, archive, root)
+                self.assertEqual(result["state"], "INSTALLED")
+                self.assertEqual((live.read_bytes(), live.stat().st_uid, live.stat().st_gid,
+                                  format(live.stat().st_mode & 0o777, "04o")),
+                                 (replacement, os.getuid(), os.getgid(), "0644"))
+                backup_dir = root / migration.BACKUP
+                root_owned_inodes = {backup_dir.stat().st_ino, live.stat().st_ino,
+                    (backup_dir / "journal.json").stat().st_ino,
+                    (backup_dir / hashlib.sha256(target.encode()).hexdigest()).stat().st_ino}
+                target_inode = live.stat().st_ino
+                def fixture_owner(info):
+                    if info.st_ino == target_inode:
+                        return "ssm-user", "ssm-user"
+                    if info.st_ino in root_owned_inodes:
+                        return "root", "root"
+                    return pwd.getpwuid(info.st_uid).pw_name, grp.getgrgid(info.st_gid).gr_name
+                with patch.object(migration, "_owner_group", side_effect=fixture_owner):
+                    self.assertEqual(migration.apply(bundle, manifest_path, archive, root)["state"],
+                                     "ALREADY_INSTALLED")
+                journal = json.loads((root / migration.BACKUP / "journal.json").read_text())
+                row = journal["files"][0]
+                self.assertEqual((journal["version"], row["prior_git_blob"], row["prior_uid"],
+                                  row["prior_gid"], row["prior_mode"]),
+                                 (2, migration.git_blob(legacy), os.getuid(), os.getgid(), "0600"))
+                with patch.object(migration, "_owner_group", side_effect=fixture_owner):
+                    result = migration.rollback(bundle, manifest_path, archive, root)
+                self.assertEqual(result["state"], "ROLLED_BACK")
+                self.assertEqual((live.read_bytes(), live.stat().st_uid, live.stat().st_gid,
+                                  format(live.stat().st_mode & 0o777, "04o")),
+                                 (legacy, os.getuid(), os.getgid(), "0600"))
+                live.chmod(0o640)
+                with self.assertRaisesRegex(ValueError, "LEGACY_TARGET_DRIFT"):
+                    migration.apply(bundle, manifest_path, archive, root)
+                self.assertFalse((root / migration.BACKUP).exists())
             finally:
                 migration.EXPECTED_ROOT, migration._identity = prior_root, prior_identity
 
