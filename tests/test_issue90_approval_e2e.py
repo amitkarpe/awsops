@@ -78,7 +78,7 @@ class SimulatedOwnerVerifier:
 
 
 def make_case(directory, *, source_revision=SOURCE, mode="MOCK", verifier=True, cleanup=True,
-              cleanup_ttl=3600, clock=None, uncertain=None):
+              cleanup_ttl=3600, clock=None, uncertain=None, principal_digest=SYNTHETIC_PRINCIPAL):
     clock = clock if clock is not None else [1800000000]
     binding = CanaryBinding(SYNTHETIC_ACCOUNT, SYNTHETIC_BUCKET)
     s3 = FakeS3()
@@ -103,7 +103,7 @@ def make_case(directory, *, source_revision=SOURCE, mode="MOCK", verifier=True, 
         clock=lambda: clock[0])
     cleanup_expiry = clock[0] + cleanup_ttl if cleanup else None
     batch = flow.prepare(
-        prep, SYNTHETIC_PRINCIPAL, now=clock[0],
+        prep, principal_digest, now=clock[0],
         estimated_incremental_cost_microusd=7000,
         cleanup_reserve_microusd=1000 if cleanup else 0,
         incremental_cost_limit_microusd=9000,
@@ -112,7 +112,7 @@ def make_case(directory, *, source_revision=SOURCE, mode="MOCK", verifier=True, 
     packet = OwnerApprovalPacket(
         packet_id="TEST_PACKET_ISSUE90_SYNTHETIC",
         authority_digest=authority.digest,
-        principal_binding_digest=SYNTHETIC_PRINCIPAL,
+        principal_binding_digest=principal_digest,
         decision="APPROVE_ONCE",
         issued_at=clock[0],
         expires_at=authority.lifecycle_expires_at,

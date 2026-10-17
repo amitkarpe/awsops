@@ -19,7 +19,7 @@ function setup(t) {
   t.after(() => fs.rmSync(dir, {recursive: true, force: true}));
   const database = path.join(dir, 'receipt.sqlite3');
   const frozen = JSON.parse(execFileSync(python, ['-I', '-B', path.join(__dirname, 'native_seed.py'), database]));
-  const config = {version: 1, enabled: true, agent_id: 'awsops-canary', python: fs.realpathSync(python), source_root: root, database};
+  const config = {version: 1, enabled: true, agent_id: 'awsops-canary', python: fs.realpathSync(python), source_root: root, database, source_revision:'a'.repeat(40), application_database:database, application_binding:database, source_version:'v1.0.0-mock'};
   const user = {id: 'native-user', tenantId: 'tenant-1'};
   const streamId = 'conversation-1';
   const job = {
@@ -30,7 +30,7 @@ function setup(t) {
       pendingAction: {actionId: 'action-1', expiresAt: Date.now()+120000, payload: {type: 'tool_approval',
         action_requests: [{name: gate.WIRE_TOOL, tool_call_id: 'call-1', arguments: {
           control: 's3_ssl', batch_id: frozen.batch_id, scope_hash: frozen.scope_hash}}],
-        review_configs: [{tool_call_id: 'call-1', allowed_decisions: ['reject', 'approve']}],
+        review_configs: [{tool_call_id: 'call-1', allowed_decisions: ['reject']}],
       }},
     },
   };
@@ -42,11 +42,11 @@ function setup(t) {
 async function register(f) { return gate.registerPrepared(f, f.config); }
 async function record(f) { return gate.persistNativeDecision(gate.prepareNativeRequest(f.context(), f.config)); }
 
-for (const choice of ['reject', 'approve']) test('real private process commits ' + choice + ' before returning only reject', async t => {
-  const f = setup(t); await register(f); f.req.body.decisions[0].decision = choice;
+test('real private process commits authenticated reject before returning only reject', async t => {
+  const f = setup(t); await register(f);
   const result = await record(f);
   assert.equal(result.resumeValue['call-1'].type, 'reject');
-  assert.equal(result.receipt.outcome, choice === 'reject' ? 'REJECTED' : 'APPROVE_BLOCKED');
+  assert.equal(result.receipt.outcome, 'REJECTED');
   const envelope = gate.prepareNativeRequest(f.context(), f.config);
   const audit = await gate.pipe(f.config, {version: 1, operation: 'inspect', binding: envelope.message.binding, batch_id: f.frozen.batch_id});
   assert.equal(audit.events.length, 2); assert.equal(audit.events[1].event_hash, result.receipt.event_hash);
@@ -71,6 +71,7 @@ test('request snapshot rejects bad ownership, tenant, generation, scope and mixe
     f => {f.job.metadata.pendingAction.expiresAt = 1;},
     f => {f.req.body.decisions.push({...f.req.body.decisions[0]});},
     f => {f.req.body.decisions[0].decision = 'edit';},
+    f => {f.req.body.decisions[0].decision = 'approve';},
     f => {f.req.body.decisions[0].editedArguments = {};},
     f => {f.req.body.decisions[0].tool_call_id = '__proto__';},
     f => {f.job.metadata.pendingAction.payload.action_requests.push({name: 'legacy-execute'});},
@@ -164,8 +165,10 @@ function harness(f, options = {}) {
   const manager = {
     getJob: async () => current ? {...current, metadata: current.metadata} : null,
     getJobStore: () => ({getJob: async () => current}),
-    getResumeState: async () => ({aggregatedContent: [], runSteps: []}),
+    beginProviderExecution: async () => true,
+    markProviderExecutionDrained: async () => true,
     setContentParts: () => {}, rearmQueuedPreempts: async () => 0,
+    getResumeState: async () => ({aggregatedContent: [], runSteps: []}),
     approvals: {resolve: async (_id, _action, _metadata, createdAt) => {
       calls.claim++; if (options.claimFails) throw Error('store unavailable');
       if (options.loseClaim || current.status !== 'requires_action' || current.createdAt !== createdAt) return false;
@@ -199,6 +202,11 @@ function harness(f, options = {}) {
     deleteAgentCheckpoint: async (...args) => { calls.checkpoint++; calls.checkpointArgs = args; if (options.checkpointFails) throw Error('checkpoint'); },
     buildAbortedResponseMetadata: () => null, filterMalformedContentParts: value => value,
     sanitizeMessageForTransmit: value => value, toPendingSteer: value => value,
+    getSafeErrorMetadata: error => ({name:error?.name, message:error?.message}), isContentFilterError: () => false,
+    getUserFacingResumeError: () => 'RESUME_FAILED',
+    createMCPRuntimeRequestBody: () => ({}),
+    preflightResumeContent: async () => ({seedContent: [], storedMessages: [], userSubmittedPaths: [],
+      userSubmittedMessageFieldPaths: []}),
   };
   const native = {
     prepareNativeRequest: context => gate.prepareNativeRequest(context, f.config),
@@ -216,18 +224,36 @@ function harness(f, options = {}) {
     },
   };
   const modules = {
-    '@librechat/data-schemas': {logger: {warn: () => {}, debug: () => {}, error: message => calls.errors.push(message)}},
+    '@librechat/data-schemas': {logger: {warn: () => {}, debug: () => {}, error: (...args) => calls.errors.push(args)}},
     'librechat-data-provider': {Constants: {NO_PARENT: 'none'}, EModelEndpoint: {agents: 'agents'}},
     '@librechat/api': api,
     '~/server/cleanup': {disposeClient: () => {}},
+    '~/server/services/ActionService': {decryptMetadata: async () => ({})},
+    '~/server/services/PermissionService': {checkPermission: async () => true},
     '~/server/services/MCPRequestContext': {getMCPRequestContext: () => {}, cleanupMCPRequestContextForReq: async () => {}},
-    '~/models': {saveMessage: async (_context, value) => { saved = value; return value; }, getConvo: async () => null, getMessages: async () => []},
+    '~/models': {saveMessage: async (_context, value) => { saved = value; return value; }, getConvo: async () => null, getMessages: async () => [],
+      getFiles: async () => [], getAgent: async () => null, getActions: async () => [], getUserMemories: async () => [],
+      getRoleByName: async () => null, getAgentTriggerDelivery: async () => null, isSubagentOwnerAdmissible: async () => true,
+      getAgentEventActorSnapshot: async () => null, commitAgentEventActorState: async () => {},
+      storeAgentEventActorSuspension: async () => {}, claimAgentEventActorSuspension: async () => {},
+      settleAgentEventActorSuspension: async () => {}, recordAgentEventActorReconciliation: async () => {},
+      completeAgentEventActorLegacyTurn: async () => {}, reserveAgentEventActorDetachedAction: async () => {},
+      markAgentEventActorDetachedActionRunning: async () => {}, settleAgentEventActorDetachedAction: async () => {}},
+    '~/server/services/Endpoints/agents/eventChildLease': {acquireEventChildGenerationLease: async () => null},
+    '~/server/services/Schedules': {recordScheduleOutcome: async () => {}, claimScheduleResume: async () => null,
+      releaseScheduleResumeClaim: async () => {}, finalizeScheduleResumeClaim: async () => true,
+      releaseScheduleResumeFence: async () => {}, isScheduleLive: async () => true},
     './protocol': {GENERATION_PROTOCOL_HEADER: 'test-protocol', negotiateNewGenerationProtocol: () => 1, negotiateExistingGenerationProtocol: () => 1},
     './awsops-native-gate.cjs': native,
   };
   const module = {exports: {}};
   vm.runInNewContext(patch.render(fs.readFileSync(fixture)).toString('utf8'), {
-    module, require: name => { if (!(name in modules)) throw Error('Unexpected import '+name); return modules[name]; },
+    module, require: name => {
+      if (name === 'crypto') return require('node:crypto');
+      if (name === 'util') return require('node:util');
+      if (!(name in modules)) throw Error('Unexpected import '+name);
+      return modules[name];
+    },
     setTimeout, clearTimeout, console,
   }, {filename: 'pinned-resume.js'});
   const res = {set: () => {}, status: n => { res.code = n; return res; }, json: body => { res.body = body; return res; }};
@@ -240,13 +266,20 @@ function harness(f, options = {}) {
 }
 
 test('pinned upstream controller + real SQLite process bridge', {skip: !hasUpstream}, async t => {
-  for (const decision of ['reject', 'approve']) await t.test('successful '+decision, async t => {
-    const f = setup(t); await register(f); f.req.body.decisions[0].decision = decision;
+  await t.test('authenticated Reject commits once and resumes only reject', async t => {
+    const f = setup(t); await register(f);
     const h = harness(f); await h.run();
-    assert.equal(h.res.code, 200, JSON.stringify(h.calls)); assert.equal(h.calls.claim, 1); assert.equal(h.calls.receipt, 1);
+    assert.equal(h.res.code, 200); assert.equal(h.calls.claim, 1); assert.equal(h.calls.receipt, 1);
     assert.equal(h.calls.resume, 1); assert.equal(h.calls.resolution['call-1'].type, 'reject');
-    assert.equal(h.calls.finished, 1); assert.equal(h.calls.decrement, 1); assert.equal(h.calls.checkpoint, 1);
-    assert.equal(h.calls.terminal, 0); assert.ok(h.saved());
+    assert.equal(h.calls.decrement, 1);
+  });
+  await t.test('legacy Approve is durably blocked before any execution', async t => {
+    const f = setup(t); await register(f); f.job.metadata.pendingAction.payload.review_configs[0].allowed_decisions.push('approve');
+    f.req.body.decisions[0].decision = 'approve';
+    const h = harness(f); await h.run();
+    assert.equal(h.res.code, 200); assert.equal(h.calls.claim, 1); assert.equal(h.calls.receipt, 1);
+    assert.equal(h.calls.resume, 1); assert.deepEqual(h.calls.resolution['call-1'],
+      {type:'reject',reason:'LIVE_EXECUTION_NOT_AUTHORIZED'});
   });
   for (const fault of ['receiptFails', 'lostAck']) await t.test(fault+' terminalizes before continuation', async t => {
     const f = setup(t); await register(f); const h = harness(f, {[fault]: true}); await h.run();
@@ -270,7 +303,7 @@ test('pinned upstream controller + real SQLite process bridge', {skip: !hasUpstr
     const f = setup(t); await register(f); const h = harness(f);
     await Promise.all([h.run(), h.run()]);
     assert.equal(h.calls.claim, 2); assert.equal(h.calls.receipt, 1);
-    assert.equal(h.calls.resume, 1); assert.equal(h.calls.finished, 1);
+    assert.equal(h.calls.resume, 1);
     assert.equal(h.calls.decrement, 2);
     assert.equal(h.calls.resolution['call-1'].type, 'reject');
   });
@@ -295,7 +328,7 @@ test('pinned upstream controller + real SQLite process bridge', {skip: !hasUpstr
     const h = harness(f); await h.run(); assert.equal(h.res.code, 200); assert.equal(h.calls.receipt, 0);
     assert.equal(h.calls.resolution['call-1'].type, 'approve');
   });
-  await t.test('canary missing dispatcher terminalizes claimed generation and releases slot', async t => {
+  await t.test('unmounted canary approval is denied before the native claim', async t => {
     const f = setup(t);
     const pending = {actionId:'canary-action', expiresAt:Date.now()+120000, payload:{type:'tool_approval',
       action_requests:[{name:gate.CANARY_WIRE_TOOL,tool_call_id:'canary-call',arguments:{control:'s3_canary',
@@ -305,23 +338,9 @@ test('pinned upstream controller + real SQLite process bridge', {skip: !hasUpstr
     f.req.body = {conversationId:f.streamId,actionId:pending.actionId,generationCreatedAt:f.job.createdAt,
       agent_id:f.config.agent_id,endpoint:'agents',decisions:[{tool_call_id:'canary-call',decision:'approve'}]};
     const h = harness(f); await h.run();
-    assert.equal(h.res.code,503); assert.equal(h.res.body.code,'NATIVE_CANARY_ADAPTER_UNAVAILABLE');
-    assert.equal(h.res.body.terminalization,'FINALIZED'); assert.equal(h.calls.claim,1);
-    assert.equal(h.calls.canary,1); assert.equal(h.calls.resume,0); assert.equal(h.calls.decrement,1);
-    assert.equal(h.calls.terminalGeneration,f.job.createdAt); assert.equal(h.calls.checkpoint,1);
-  });
-  await t.test('uncertain canary terminalization reports reconciliation and releases slot', async t => {
-    const f = setup(t);
-    const pending = {actionId:'canary-action', expiresAt:Date.now()+120000, payload:{type:'tool_approval',
-      action_requests:[{name:gate.CANARY_WIRE_TOOL,tool_call_id:'canary-call',arguments:{control:'s3_canary',
-        batch_id:'batch-canary-'+'a'.repeat(32),scope_digest:'b'.repeat(64),authority_digest:'c'.repeat(64)}}],
-      review_configs:[{tool_call_id:'canary-call',allowed_decisions:['approve','reject']} ]}};
-    f.job.metadata.pendingAction = pending;
-    f.req.body = {conversationId:f.streamId,actionId:pending.actionId,generationCreatedAt:f.job.createdAt,
-      agent_id:f.config.agent_id,endpoint:'agents',decisions:[{tool_call_id:'canary-call',decision:'approve'}]};
-    const h = harness(f,{terminalFails:true}); await h.run();
-    assert.equal(h.res.body.terminalization,'RECONCILE_REQUIRED'); assert.equal(h.calls.checkpoint,0);
-    assert.equal(h.calls.decrement,1); assert.equal(h.calls.resume,0);
+    assert.equal(h.res.code,403); assert.equal(h.res.body.code,'LIVE_APPROVAL_NOT_AUTHORIZED');
+    assert.equal(h.calls.claim,0); assert.equal(h.calls.canary,0); assert.equal(h.calls.receipt,0);
+    assert.equal(h.calls.resume,0); assert.equal(h.calls.decrement,0);
   });
 });
 

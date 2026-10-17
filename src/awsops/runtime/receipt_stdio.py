@@ -12,12 +12,15 @@ import os
 from pathlib import Path
 import stat
 import sys
+import time
 from typing import Any
 
 from awsops.approval.decisions import DecisionStore, NativeBinding
 from awsops.domain.freeze import FrozenScope
 from awsops.domain.models import Finding
 from awsops.runtime.native_decision import NativeDecisionAdapter
+from awsops.runtime.native_canary_approval import apply_authenticated_native_reject
+from awsops.execution.s3_canary import CanaryBinding
 
 MAX_INPUT = 16384
 _BINDING_FIELDS = {"principal_id", "tenant_id", "conversation_id", "action_id",
@@ -60,11 +63,24 @@ def _private_database(path: Path) -> None:
         raise ValueError("LEDGER_NOT_PROVISIONED")
 
 
-def dispatch(store: DecisionStore, message: dict) -> dict:
+def dispatch(store: DecisionStore | None, message: dict, database: Path | None = None,
+             application_database: Path | None = None, application_binding: dict | None = None,
+             source_version: str | None = None) -> dict:
     """Internal protocol only. Caller must supply authoritative server context."""
     if type(message) is not dict or message.get("version") != 1 or type(message["version"]) is not int:
         raise ValueError("INVALID_PIPE_VERSION")
     operation = message.get("operation")
+    if operation == "native_canary_reject":
+        _keys(message, {"version", "operation", "batch_id", "authority_digest", "scope_digest",
+                         "source_revision", "decision", "decided_at", "expires_at", "binding"})
+        if application_database is None:
+            raise ValueError("PRIVATE_DATABASE_REQUIRED")
+        _keys(application_binding, {"account_id", "bucket"})
+        if not isinstance(source_version, str):
+            raise ValueError("INVALID_APPLICATION_BINDING")
+        binding = CanaryBinding(application_binding["account_id"], application_binding["bucket"])
+        return apply_authenticated_native_reject(application_database, message, binding,
+                                                 source_version=source_version, now=int(time.time()))
     common = {"version", "operation", "binding"}
     fields = {"register": common | {"frozen"},
               "record": common | {"batch_id", "scope_hash", "decision"},
@@ -101,13 +117,29 @@ def main(argv: list[str] | None = None) -> int:
     try:
         parser = argparse.ArgumentParser(add_help=False, exit_on_error=False)
         parser.add_argument("--database", type=Path, required=True)
+        parser.add_argument("--application-binding", type=Path)
+        parser.add_argument("--application-database", type=Path)
+        parser.add_argument("--source-version")
         args = parser.parse_args(argv)
         raw = sys.stdin.buffer.read(MAX_INPUT + 1)
         if not raw or len(raw) > MAX_INPUT:
             raise ValueError("INVALID_INPUT_SIZE")
         message = json.loads(raw, object_pairs_hook=_object, parse_constant=_bad_constant)
         _private_database(args.database)
-        result = dispatch(DecisionStore(args.database), message)
+        application_binding = None
+        if args.application_database is not None:
+            _private_database(args.application_database)
+        if args.application_binding is not None:
+            _private_database(args.application_binding)
+            if args.application_binding.stat().st_size > 4096:
+                raise ValueError("INVALID_APPLICATION_BINDING")
+            application_binding = json.loads(args.application_binding.read_text(encoding="utf-8"),
+                                             object_pairs_hook=_object, parse_constant=_bad_constant)
+        if type(message) is dict and message.get("operation") == "native_canary_reject":
+            result = dispatch(None, message, args.database, args.application_database,
+                              application_binding, args.source_version)
+        else:
+            result = dispatch(DecisionStore(args.database), message, args.database)
         output = json.dumps(result, separators=(",", ":"), allow_nan=False)
         if len(output.encode("utf-8")) > MAX_INPUT:
             raise ValueError("INVALID_OUTPUT_SIZE")
