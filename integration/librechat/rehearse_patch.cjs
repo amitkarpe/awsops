@@ -96,7 +96,8 @@ const PAUSE_MARKER = '      paused = await GenerationJobManager.approvals.pause(
 const PAUSE = `    // awsops: bind fresh provider evidence BEFORE publishing any native pause.
     if (Array.isArray(staged.pendingAction?.payload?.action_requests) &&
         staged.pendingAction.payload.action_requests.some(a =>
-      typeof a?.name === 'string' && a.name.startsWith('decide_s3_ssl_reject_only'))) {
+      typeof a?.name === 'string' && (a.name.startsWith('decide_s3_ssl_reject_only') ||
+        a.name.startsWith('approve_s3_canary_once')))) {
       await require('./awsops-pause-gate.cjs').beforePause({
         client: this, manager: GenerationJobManager,
         pendingAction: staged.pendingAction, streamId: staged.streamId,

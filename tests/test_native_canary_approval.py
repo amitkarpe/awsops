@@ -22,8 +22,10 @@ from awsops.runtime.native_canary_approval import (
     NativeCanaryBinding,
 )
 from awsops.runtime.receipt_stdio import dispatch as receipt_dispatch
+from awsops.runtime.prepare_native_canary import prepare_native_canary
 from awsops.approval.decisions import DecisionStore
 from test_issue90_approval_e2e import assert_four_envelope_contract, make_case
+from test_s3_canary_provider import FakeS3, FakeSession
 
 
 class SimulatedNativeVerifier:
@@ -101,6 +103,94 @@ def native_context(authority, *, now=1800000000, decision="approve", claimed=Tru
 
 
 class NativeCanaryApprovalTests(unittest.TestCase):
+    def test_authenticated_pause_producer_freshly_prepares_fixed_target_authority(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            root.chmod(0o700)
+            now = 1800000000
+            bucket = "awsops-dev-issue90-s3-canary-0123456789ab"
+            account = "000000000001"
+            binding_file = root / "binding.json"
+            binding_file.write_text(json.dumps({"account_id": account, "bucket": bucket}))
+            binding_file.chmod(0o600)
+            read_config = root / "read.json"
+            read_config.write_text(json.dumps({
+                "region": "ap-southeast-1", "source_account_id": account, "profile": "amit",
+                "accounts": [{"alias": alias, "account_id": str(i).zfill(12)}
+                             for i, alias in enumerate(("lab-dev", "lab-poc", "lab-qa", "lab-sec"), 1)]
+            }))
+            # load_config requires the exact registered LAB aliases; the fixed
+            # canary account must also be the selected source identity.
+            config_value = json.loads(read_config.read_text())
+            config_value["accounts"][0]["account_id"] = account
+            read_config.write_text(json.dumps(config_value))
+            read_config.chmod(0o600)
+            source_file = root / "SOURCE_REVISION"
+            source_file.write_text("a" * 40 + "\n")
+            source_file.chmod(0o644)
+            ledger = root / "canary.sqlite"
+            fake_s3 = FakeS3()
+            fake_s3.clock = [now]
+            def session_factory(*, profile_name, region_name):
+                self.assertEqual((profile_name, region_name), ("amit", "ap-southeast-1"))
+                return FakeSession(fake_s3, account=account)
+            from awsops.aws.boto3_s3_canary import Boto3CanaryProvider
+            def provider_factory(session, binding, path):
+                return Boto3CanaryProvider(session, binding, path, clock=lambda: fake_s3.clock[0],
+                                           retry_config=object())
+            message = {"version": 1, "operation": "prepare_native_canary",
+                "binding": {"principal_id": "authenticated-owner", "tenant_id": "tenant:home",
+                    "conversation_id": "conversation-1", "action_id": "action-1",
+                    "generation_id": str(now), "tool_call_id": "call-1",
+                    "tool": "approve_s3_canary_once"}, "pause_expires_at": now + 300}
+            result = prepare_native_canary(message, database=ledger, binding_file=binding_file,
+                read_config=read_config, source_revision="a" * 40, source_version="v1.0.0-mock",
+                source_revision_file=source_file,
+                session_factory=session_factory, provider_factory=provider_factory,
+                clock=lambda: fake_s3.clock[0])
+            self.assertTrue(result["ok"])
+            self.assertFalse(result["dispatch_allowed"])
+            self.assertEqual(result["control"], "s3_canary")
+            self.assertEqual(result["expires_at"], now + 300)
+            self.assertEqual(fake_s3.writes, [])
+            from awsops.application.s3_canary_approval import CanaryApprovalApplication
+            from awsops.execution.s3_canary import CanaryBinding
+            app = CanaryApprovalApplication(ledger, CanaryBinding(account, bucket),
+                source_revision="a" * 40, source_version="v1.0.0-mock",
+                adapter_factory=lambda: None, mode="APPROVED_LAB_WRITE", clock=lambda: fake_s3.clock[0])
+            authority, _ = app._load_authority(result["batch_id"])
+            self.assertEqual(authority.digest, result["authority_digest"])
+            self.assertEqual(authority.principal_binding_digest,
+                canonical_digest({"principal_id": "authenticated-owner", "tenant_id": "tenant:home"}))
+            self.assertEqual(authority.allowed_actions, ("create", "tags", "public_block", "policy"))
+            expiring_ledger = root / "expiring.sqlite"
+            fake_s3.clock[0] = now
+            def expiring_provider(session, binding, path):
+                provider = Boto3CanaryProvider(session, binding, path,
+                    clock=lambda: fake_s3.clock[0], retry_config=object())
+                inspect = provider.inspect
+                def delayed_inspect(*args, **kwargs):
+                    fake_s3.clock[0] += 5
+                    return inspect(*args, **kwargs)
+                provider.inspect = delayed_inspect
+                return provider
+            short_pause = {**message, "pause_expires_at": now + 5}
+            with self.assertRaisesRegex(ValueError, "CANARY_PREPARATION_EXPIRED"):
+                prepare_native_canary(short_pause, database=expiring_ledger, binding_file=binding_file,
+                    read_config=read_config, source_revision="a" * 40, source_version="v1.0.0-mock",
+                    source_revision_file=source_file, session_factory=session_factory,
+                    provider_factory=expiring_provider, clock=lambda: fake_s3.clock[0])
+            with sqlite3.connect(expiring_ledger) as db:
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM canaries").fetchone()[0], 0)
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM application_authority").fetchone()[0], 0)
+            source_file.write_text("b" * 40 + "\n")
+            with self.assertRaisesRegex(ValueError, "SOURCE_REVISION_DRIFT"):
+                prepare_native_canary(message, database=ledger, binding_file=binding_file,
+                    read_config=read_config, source_revision="a" * 40, source_version="v1.0.0-mock",
+                    source_revision_file=source_file, session_factory=session_factory,
+                    provider_factory=lambda *_args: self.fail("provider construction preceded source check"),
+                    clock=lambda: fake_s3.clock[0])
+
     def test_default_node_dispatch_runs_private_child_and_reopens_synthetic_reject_receipt(self):
         with tempfile.TemporaryDirectory() as directory:
             now = int(time.time())

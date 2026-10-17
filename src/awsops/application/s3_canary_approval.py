@@ -285,18 +285,21 @@ class CanaryApprovalApplication:
                 estimated_incremental_cost_microusd: int,
                 cleanup_reserve_microusd: int,
                 incremental_cost_limit_microusd: int,
-                cleanup_expires_at: int | None) -> dict:
+                cleanup_expires_at: int | None,
+                decision_expires_at: int | None = None) -> dict:
         if (adapter.path.resolve() != self.path.resolve() or adapter.binding != self.binding
                 or adapter.mode != self.mode or adapter.revision != self.revision):
             raise ValueError("CANARY_PREPARATION_BINDING_MISMATCH")
-        batch = adapter.prepare(principal_digest)
+        batch = (adapter.prepare(principal_digest, expires_at=decision_expires_at)
+                 if decision_expires_at is not None else adapter.prepare(principal_digest))
+        authority_now = int(self.clock()) if decision_expires_at is not None else now
         authority = FrozenCanaryAuthority.from_batch(
-            batch, self.binding, principal_digest, self.revision, now=now,
+            batch, self.binding, principal_digest, self.revision, now=authority_now,
             estimated_incremental_cost_microusd=estimated_incremental_cost_microusd,
             cleanup_reserve_microusd=cleanup_reserve_microusd,
             incremental_cost_limit_microusd=incremental_cost_limit_microusd,
             cleanup_expires_at=cleanup_expires_at)
-        if now >= authority.decision_expires_at:
+        if authority_now >= authority.decision_expires_at:
             raise ValueError("PREPARATION_EXPIRED_OR_FUTURE")
         with closing(self._db()) as db:
             db.execute("INSERT INTO application_authority VALUES (?,?,?,?,NULL,NULL,NULL,NULL,NULL,'NOT_REQUESTED')",

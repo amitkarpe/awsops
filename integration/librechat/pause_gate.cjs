@@ -8,6 +8,7 @@ const {createHash} = require('node:crypto');
 const gate = require('./native_gate.cjs');
 const ID = /^[A-Za-z0-9_.:-]{1,128}$/;
 const HEX64 = /^[a-f0-9]{64}$/;
+const CANARY_TOOL = gate.CANARY_WIRE_TOOL;
 const PREPARE_TIMEOUT_MS = 30000;
 function fail() { throw Error('AWSOPS_PAUSE_NOT_READY'); }
 function text(v, re=ID) { if (typeof v !== 'string' || !re.test(v)) fail(); return v; }
@@ -51,6 +52,33 @@ function bindingDigest(binding) {
   const ordered = Object.fromEntries(Object.keys(binding).sort().map(k => [k,binding[k]]));
   return createHash('sha256').update(JSON.stringify(ordered)).digest('hex');
 }
+function snapshotCanary({client, job, pendingAction, streamId}, config) {
+  config = gate.validateConfig(config);
+  const req = client?.options?.req;
+  if (streamId !== client?.conversationId || !req?.user || job?.status !== 'running' ||
+      job.createdAt !== client.jobCreatedAt || !Number.isSafeInteger(job.createdAt) || job.createdAt < 0 ||
+      job.metadata?.userId !== req.user.id ||
+      (job.metadata.tenantId ?? null) !== (req.user.tenantId ?? null) ||
+      job.metadata.agent_id !== config.agent_id || job.metadata.endpoint !== 'agents' ||
+      !Number.isSafeInteger(pendingAction?.expiresAt) || pendingAction.expiresAt <= Date.now() ||
+      pendingAction.payload?.type !== 'tool_approval') fail();
+  text(streamId); text(req.user.id); text(pendingAction.actionId);
+  const actions = pendingAction.payload.action_requests;
+  const reviews = pendingAction.payload.review_configs;
+  if (!Array.isArray(actions) || actions.length !== 1 || actions[0]?.name !== CANARY_TOOL ||
+      !Array.isArray(reviews) || reviews.length !== 1 || reviews[0]?.tool_call_id !== actions[0].tool_call_id ||
+      JSON.stringify(reviews[0].allowed_decisions) !== '["reject"]') fail();
+  const action = actions[0]; text(action.tool_call_id);
+  keys(action.arguments, ['control']);
+  if (action.arguments.control !== 's3_canary') fail();
+  const tenant = req.user.tenantId == null ? 'system:single-tenant' : 'tenant:' + text(req.user.tenantId);
+  text(tenant);
+  const binding = Object.freeze({principal_id:req.user.id, tenant_id:tenant, conversation_id:streamId,
+    action_id:pendingAction.actionId, generation_id:String(job.createdAt),
+    tool_call_id:action.tool_call_id, tool:gate.CANARY_LOGICAL_TOOL});
+  return Object.freeze({version:1, operation:'prepare_native_canary', binding,
+    pause_expires_at:Math.floor(pendingAction.expiresAt/1000)});
+}
 function providerPipe(config, message) {
   const readConfig = process.env.AWSOPS_READ_CONFIG;
   if (typeof readConfig !== 'string' || !path.isAbsolute(readConfig) || fs.realpathSync(readConfig) !== readConfig) fail();
@@ -67,8 +95,14 @@ function providerPipe(config, message) {
       reject(Error('AWSOPS_PAUSE_NOT_READY'));
     };
     try {
-      child=spawn(config.python,['-I','-B',path.join(config.source_root,'integration/librechat/prepare_entry.py'),
-        '--database',config.database,'--read-config',readConfig],{
+      const canary=message.operation==='prepare_native_canary';
+      const entry=canary?'prepare_canary_entry.py':'prepare_entry.py';
+      const args=['-I','-B',path.join(config.source_root,'integration/librechat',entry),
+        '--database',config.database,'--read-config',readConfig];
+      if(canary)args.push('--application-database',config.application_database,
+        '--application-binding',config.application_binding,'--source-revision',config.source_revision,
+        '--source-version',config.source_version);
+      child=spawn(config.python,args,{
         shell:false,cwd:config.source_root,stdio:['pipe','pipe','pipe'],
         // Only the existing SDK's named local profile is used. No native auth or
         // temporary credentials are copied from the parent environment.
@@ -94,24 +128,42 @@ async function beforePause({client,manager,pendingAction,streamId}, config=gate.
   // newer generation's pending action from an old provider response.
   const job=await manager.getJobStore().getJob(streamId);
   const context={client,job,pendingAction,streamId};
-  const message=snapshot(context,config);
+  const isCanary=pendingAction?.payload?.action_requests?.length===1 &&
+    pendingAction.payload.action_requests[0]?.name===CANARY_TOOL;
+  const message=isCanary?snapshotCanary(context,config):snapshot(context,config);
   const saved=JSON.stringify(message);
   const result=await transport(config,message);
-  keys(result,['version','ok','operation','dispatch_allowed','batch_id','scope_hash','expires_at','event_hash','candidate','binding_digest']);
-  if(result.version!==1 || result.ok!==true || result.operation!=='prepare_pause' || result.dispatch_allowed!==false ||
-      result.binding_digest!==bindingDigest(message.binding) ||
-      Object.keys(message.candidate).some(k=>result.candidate?.[k]!==message.candidate[k]) ||
-      !Number.isSafeInteger(result.expires_at) || result.expires_at<=Math.floor(Date.now()/1000) ||
-      result.expires_at>message.pause_expires_at) fail();
-  keys(result.candidate,Object.keys(message.candidate));
-  text(result.batch_id,/^[a-f0-9]{32}$/);text(result.scope_hash,HEX64);text(result.event_hash,HEX64);
+  if(isCanary){
+    keys(result,['version','ok','operation','dispatch_allowed','control','batch_id','scope_digest',
+      'authority_digest','source_revision','expires_at','binding_digest']);
+    const expectedBinding=createHash('sha256').update(JSON.stringify({
+      authority_digest:result.authority_digest,binding_digest:bindingDigest(message.binding)})).digest('hex');
+    if(result.version!==1 || result.ok!==true || result.operation!=='prepare_native_canary' ||
+        result.dispatch_allowed!==false || result.control!=='s3_canary' ||
+        result.source_revision!==config.source_revision || result.binding_digest!==expectedBinding ||
+        !Number.isSafeInteger(result.expires_at) || result.expires_at<=Math.floor(Date.now()/1000) ||
+        result.expires_at>message.pause_expires_at) fail();
+    text(result.batch_id,/^batch-canary-[a-f0-9]{32}$/);
+    text(result.scope_digest,HEX64);text(result.authority_digest,HEX64);
+  }else{
+    keys(result,['version','ok','operation','dispatch_allowed','batch_id','scope_hash','expires_at','event_hash','candidate','binding_digest']);
+    if(result.version!==1 || result.ok!==true || result.operation!=='prepare_pause' || result.dispatch_allowed!==false ||
+        result.binding_digest!==bindingDigest(message.binding) ||
+        Object.keys(message.candidate).some(k=>result.candidate?.[k]!==message.candidate[k]) ||
+        !Number.isSafeInteger(result.expires_at) || result.expires_at<=Math.floor(Date.now()/1000) ||
+        result.expires_at>message.pause_expires_at) fail();
+    keys(result.candidate,Object.keys(message.candidate));
+    text(result.batch_id,/^[a-f0-9]{32}$/);text(result.scope_hash,HEX64);text(result.event_hash,HEX64);
+  }
   const live=await manager.getJobStore().getJob(streamId);
-  if(JSON.stringify(snapshot({...context,job:live},config))!==saved)fail();
-  // The native card and the later resume both receive ONLY the committed scope.
-  pendingAction.payload.action_requests[0].arguments={control:'s3_ssl',batch_id:result.batch_id,scope_hash:result.scope_hash};
+  if(JSON.stringify((isCanary?snapshotCanary:snapshot)({...context,job:live},config))!==saved)fail();
+  // The card receives only the committed fresh authority and fixed scope.
+  pendingAction.payload.action_requests[0].arguments=isCanary ?
+    {control:'s3_canary',batch_id:result.batch_id,scope_digest:result.scope_digest,authority_digest:result.authority_digest} :
+    {control:'s3_ssl',batch_id:result.batch_id,scope_hash:result.scope_hash};
   pendingAction.expiresAt=Math.min(pendingAction.expiresAt,result.expires_at*1000);
 }
-module.exports={beforePause,snapshot,providerPipe,bindingDigest,PREPARE_TIMEOUT_MS};
+module.exports={beforePause,snapshot,snapshotCanary,providerPipe,bindingDigest,PREPARE_TIMEOUT_MS};
 
 // Compatible with the pinned native pre-tool hook factory. This requests review;
 // it does not register evidence, authenticate a user or authorize execution.
@@ -119,6 +171,10 @@ module.exports.approvalHook = () => context => async input => {
   try {
     text(context?.userId);
     const c=input?.toolInput;
+    if(c?.control==='s3_canary'){
+      keys(c,['control']);
+      return {decision:'ask',allowedDecisions:['reject'],reason:'Fresh fixed-target canary packet. Reject only; execution remains disabled.'};
+    }
     keys(c,['control','account_alias','resource_ref','expected_evidence_digest']);
     if(c.control!=='s3_ssl')fail();
     text(c.account_alias,/^lab-(dev|poc|qa|sec)$/);
