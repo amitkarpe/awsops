@@ -3,7 +3,8 @@
 M1 source contract accepted/merged. M2 bounded synthetic intake implemented;
 M3/M4 offline boundaries and exact proof/gates recorded in current progress docs.
 M5 acceptance separates source, hosted release, real viewer and live AWS evidence.
-Never substitute CI for an unperformed external proof. Dot implements natively.
+Never substitute CI for an unperformed external proof. Manager coordinates;
+the same existing repository X is sole writer under the current #90 owner override.
 Next: review the [isolated LAB role proposal](docs/proposals/defence-lab-execution/README.md).
 IAM installation and live execution remain held; core2 actual viewer acceptance is separate.
 
@@ -19,7 +20,7 @@ Owning roadmap: Issue #1. G owns implementation and verification.
 - Dependency follow-up (#75 / #76): inherited brace-expansion lockfile fixes merged.
 - M1 / Phase 2 CI parity: shared `cloud_verify.py --bootstrap` path for cloud and
   Actions, dashboard lint, explicit online audit gate and sanitized job summary.
-  Evidence: `docs/current/DOT_CLOUD_CI_PARITY.md`; merged in PR #78.
+  Historical evidence: [CI parity](docs/history/DOT_CLOUD_CI_PARITY.md); merged in PR #78.
 - M1 is merged in PR #78. M2 cloud browser parity adds the synthetic config2
   filter/detail/partial/unavailable journey using Playwright; evidence and limits
   are in `docs/current/CLOUD_BROWSER_PARITY.md`. M2 is merged in PR #79; GitHub-hosted synthetic proof is accepted.

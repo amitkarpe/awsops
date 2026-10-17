@@ -4,11 +4,13 @@ Clean, selectively migrated AWS security-operations contracts.
 
 ## Current acceptance
 
-Roadmap #77 M1–M4 source preparation is merged in PRs #78–#81. Normal
-repository engineering uses the saved cloud environment and GitHub CI. M3/M4
+Current #90 routing is **Manager -> the same existing repository X**; see
+[current context](CONTEXT.md) and the active Issue for execution authority.
+Roadmap #77 M1–M4 source preparation is merged in PRs #78–#81. Its cloud
+engineering model uses the saved cloud environment and GitHub CI. M3/M4
 synthetic success is not live AWS approval; identity/acquisition and Config Pack
-writes remain gated. Start with the canonical
-[operating and recovery runbook](docs/architecture/DEV_COMPUTE_MODEL.md).
+writes remain gated. Its accepted technical procedures remain in the
+[#77 operating and recovery runbook](docs/architecture/DEV_COMPUTE_MODEL.md).
 
 The earlier product/native roadmap remains separate:
 
@@ -75,6 +77,7 @@ For the Compliance Agent browser path, see `docs/architecture/PLAYWRIGHT_E2E.md`
 
 ## Development compute
 
-Use the [canonical compute/runbook](docs/architecture/DEV_COMPUTE_MODEL.md).
+Use the [#77 technical compute/runbook](docs/architecture/DEV_COMPUTE_MODEL.md)
+for those checks; current worker routing remains Manager -> existing X.
 Home remains the NEW demo/private-browser runtime, not a cloud-engineering
 fallback. Retained hosts stay under their separate owner boundaries.

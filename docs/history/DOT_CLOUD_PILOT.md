@@ -1,3 +1,9 @@
+> **HISTORICAL EVIDENCE — archived 17 October 2026:** completed #73 / PR #74 cloud pilot.
+> Original text and proof IDs below are retained as recorded then, not current
+> worker-routing or execution authority. Current #90 routing is Manager -> the
+> same repository X; see [current context](../../CONTEXT.md) and the
+> [owner override](https://github.com/amitkarpe/awsops/issues/90#issuecomment-6207039365).
+
 # DOT cloud pilot — Phase 1
 
 Owning issue: [#73](https://github.com/amitkarpe/awsops/issues/73), including

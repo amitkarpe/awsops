@@ -1,3 +1,9 @@
+> **HISTORICAL EVIDENCE — archived 17 October 2026:** completed #90 M1 source acceptance.
+> Original text and proof IDs below are retained as recorded then, not current
+> worker-routing or execution authority. Current #90 routing is Manager -> the
+> same repository X; see [current context](../../CONTEXT.md) and the
+> [owner override](https://github.com/amitkarpe/awsops/issues/90#issuecomment-6207039365).
+
 # Issue90 M1 — current state and shared vertical contract
 
 Updated 2026-10-15. Implementer: dot, native tools. The owner's updated #90

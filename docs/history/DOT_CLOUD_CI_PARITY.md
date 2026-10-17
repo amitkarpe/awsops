@@ -1,3 +1,9 @@
+> **HISTORICAL EVIDENCE — archived 17 October 2026:** completed #77 M1 / PR #78 CI parity.
+> Original text and proof IDs below are retained as recorded then, not current
+> worker-routing or execution authority. Current #90 routing is Manager -> the
+> same repository X; see [current context](../../CONTEXT.md) and the
+> [owner override](https://github.com/amitkarpe/awsops/issues/90#issuecomment-6207039365).
+
 # Cloud CI parity — Roadmap v3 M1
 
 Owner: [#77/M1](https://github.com/amitkarpe/awsops/issues/77), implementing the
