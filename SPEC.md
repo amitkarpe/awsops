@@ -12,9 +12,10 @@ not an enterprise production platform. **BUILD → DEMONSTRATE → IMPROVE.**
 5. No unnecessary frameworks, layers or infrastructure.
 6. Minimal meaningful tests and evidence only; reuse completed proof.
 7. Do not repeatedly request GO for routine development.
-8. Under the current #90 owner override, Manager coordinates and the existing
-   repository Codex X is the sole implementation writer; DOT is no longer writer.
-   Active task scope controls execution; this source milestone goes to M for review.
+8. Manager owns Defence Factory technical decisions and acceptance under Manager
+   Issue #13; existing AWSOPS X remains the sole implementation writer. DOT is
+   not a writer. G independently reviews and may merge eligible PRs; approved
+   scope continues without another GO.
 9. Optional hardening must NOT block MVP milestones.
 10. Enterprise security, scalability, multi-tenant complexity and comprehensive
     edge-case coverage are future phases.
@@ -25,8 +26,9 @@ not an enterprise production platform. **BUILD → DEMONSTRATE → IMPROVE.**
 - Human **Approve Once** for each fixed real-remediation batch.
 - Preserve protected awsops Issue #89 fixtures.
 - No root credentials, secret exposure or accidental destructive actions.
-- Live IAM installation/remediation follow the current #90 owner override and exact
-  active task scope. This delegated source milestone authorizes no AWS operation.
+- The exact Issue #90 standing personal-LAB grant governs bounded installation
+  and operations. Broad IAM/trust expansion or unrelated AWS changes are outside
+  that scope; source-only PRs do not themselves prove a live operation.
 - Keep MOCK and REAL evidence distinct. Private bindings stay out of public GitHub.
 
 These are real boundaries, not a reason to invent additional approval ceremonies.
@@ -51,12 +53,15 @@ and exported evidence. Reuse delivered M1–M4 source; do not rebuild it.
 - Fixed reviewed operations only; no arbitrary model-supplied AWS command. Verify
   identity/target, record the approved batch and outcome, read back provider state.
   Unknown write outcome is reconciled before any retry. Never count MOCK as REAL.
-- Cost ceiling: follow the existing approved total-account monthly ceiling and
-  reserve rules; the USD10 figure here is a stale historical target, not the active
-  ceiling. Budgets is not a hard cap. No new infrastructure or paid service is
-  authorized by this source work.
-- Current source mode has no live apply authority. IAM installation and live
-  remediation remain held until their exact separate owner decisions.
+- Cost boundary: Issue #90 grants USD100 TOTAL incremental experiment spend,
+  with applicable reserves. The historic USD10 target is superseded; monthly
+  Budgets alerts are neither hard caps nor fresh spending grants. Source-only
+  work grants no additional infrastructure or paid services.
+- Manager may autonomously execute already-approved Issue #90 personal-LAB
+  integration, installation and bounded operations without repeated approval
+  interviews. Genuine authenticated human Approve Once is still required for
+  each fresh frozen exact remediation batch before a real provider write.
+  Out-of-scope IAM, public exposure, other accounts and PROD remain excluded.
 
 ## Preserved completed/deferred work
 
