@@ -105,10 +105,10 @@ PY
   done
 }
 ports_closed() {
-  local port listeners=()
+  local port listeners
   for port in "$@"; do
-    mapfile -t listeners < <(ss -Hln "sport = :$port")
-    [[ ${#listeners[@]} -eq 0 ]] || return 1
+    listeners=$(ss -H -l -t -n "sport = :$port") || return 2
+    [[ -z $listeners ]] || return 1
   done
 }
 
@@ -127,8 +127,10 @@ finally:
 PY
 }
 loopback_listener() {
-  local port=$1 listeners=()
-  mapfile -t listeners < <(ss -Hln "sport = :$port")
+  local port=$1 output listeners=()
+  output=$(ss -H -l -t -n "sport = :$port") || return 2
+  [[ -n $output ]] || return 1
+  mapfile -t listeners <<<"$output"
   [[ ${#listeners[@]} -eq 1 ]] || return 1
   # ss local-address is column four. Reject wildcard, IPv6 and extra binds.
   awk -v expected="127.0.0.1:$port" 'NF < 4 || $4 != expected { exit 1 }' <<<"${listeners[0]}"
