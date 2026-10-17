@@ -68,11 +68,11 @@ test('deployed app and awsops helper copies validate against the configured awso
   fs.copyFileSync(path.join(root, 'integration/librechat/native_gate.cjs'), path.join(agents, 'awsops-native-gate.cjs'));
   fs.copyFileSync(path.join(root, 'integration/librechat/native_store.cjs'), path.join(awsLib, 'native_store.cjs'));
   fs.copyFileSync(path.join(root, 'integration/librechat/runtime_config.cjs'), path.join(awsLib, 'runtime_config.cjs'));
+  fs.writeFileSync(path.join(deployment,'app/package.json'),JSON.stringify({name:'LibreChat',version:'v0.8.8-rc1'})+'\n',{mode:0o644});
 
   const deployedDatabase = path.join(state, 'receipt.sqlite3');
   execFileSync(python, ['-I','-B',path.join(__dirname,'native_seed.py'),deployedDatabase]);
   const revision = 'b'.repeat(40);
-  fs.writeFileSync(path.join(awsops,'SOURCE_REVISION'),revision+'\n',{mode:0o644});
   const legacy = {version:1,enabled:true,agent_id:'fixture-agent',python:'/usr/bin/python3',
     source_root:awsops,database:deployedDatabase};
   fs.writeFileSync(path.join(state,'native.json'),JSON.stringify(legacy)+'\n',{mode:0o600});
@@ -82,6 +82,16 @@ test('deployed app and awsops helper copies validate against the configured awso
       {alias:'lab-qa',account_id:'000000000003'},{alias:'lab-sec',account_id:'000000000004'}]}),{mode:0o600});
   const originalDatabase = fs.readFileSync(deployedDatabase);
   const deployedRuntime = require(path.join(awsLib,'runtime_config.cjs'));
+  assert.deepEqual(deployedRuntime.inspectNativeConfig(deployment),{
+    state:'PREWRITE_COMPATIBLE',ledger:'READONLY_VALIDATED',application:'PINNED_PACKAGE_VERSION'});
+  assert.deepEqual(fs.readFileSync(deployedDatabase),originalDatabase);
+  const originalNativeConfig=fs.readFileSync(path.join(state,'native.json'));
+  fs.writeFileSync(path.join(state,'native.json'),JSON.stringify({...legacy,unexpected:'reject'})+'\n',{mode:0o600});
+  assert.throws(()=>deployedRuntime.inspectNativeConfig(deployment),/NATIVE_CONFIG_SCHEMA_UNSUPPORTED/);
+  fs.writeFileSync(path.join(state,'native.json'),originalNativeConfig,{mode:0o600});
+  assert.deepEqual(fs.readFileSync(deployedDatabase),originalDatabase);
+  assert.equal(fs.existsSync(path.join(state,'native.sqlite')),false);
+  fs.writeFileSync(path.join(awsops,'SOURCE_REVISION'),revision+'\n',{mode:0o644});
   assert.deepEqual(deployedRuntime.prepareNativeCanaryBinding(deployment,
     'awsops-dev-issue90-s3-canary-0123456789ab'),{state:'BOUND'});
   assert.deepEqual(deployedRuntime.migrateNativeSourceRevision(deployment),{state:'UPDATED'});

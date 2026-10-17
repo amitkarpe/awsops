@@ -60,10 +60,10 @@ function validateNativeConfig(value, root, ownerStat) {
   catch { fail('NATIVE_CONFIG_DATABASE_UNSAFE'); }
   return value;
 }
-function readPrivateJson(file, code, maxBytes=8192) {
+function readPrivateJson(file, code, maxBytes=8192, expectedUid=process.getuid()) {
   let st;
   try { st=privatePath(file); } catch { fail(code); }
-  if (st.uid !== process.getuid() || (st.mode & 0o777) !== 0o600 || st.size > maxBytes)
+  if (st.uid !== expectedUid || (st.mode & 0o777) !== 0o600 || st.size > maxBytes)
     fail(code);
   const fd = fs.openSync(file,fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
   try {
@@ -181,10 +181,41 @@ function normalizeNativeConfig(value, root, revision, ownerStat) {
   if (current.source_revision !== LEGACY_SOURCE_REVISION) fail('NATIVE_SOURCE_REVISION_UNEXPECTED');
   return {...current,source_revision:revision};
 }
-function nativeTarget(root) {
+function inspectNativeConfig(root) {
+  if (!path.isAbsolute(root) || fs.realpathSync(root) !== root) fail('ISOLATED_ROOT_REQUIRED');
+  const {file,st}=nativeTarget(root,{rootReadOnly:true});
+  const value=JSON.parse(readNativeBytes(file).toString('utf8'));
+  const valueKeys=value && typeof value==='object' && !Array.isArray(value) ? Object.keys(value).sort().join(',') : '';
+  if (valueKeys === [...LEGACY_NATIVE_KEYS].sort().join(',')) validateLegacyNativeConfig(value,root,st);
+  else if (valueKeys === [...CURRENT_NATIVE_KEYS].sort().join(',')) {
+    validateNativeConfig(value,root,st);
+    if (value.source_revision !== LEGACY_SOURCE_REVISION) fail('NATIVE_SOURCE_REVISION_UNSUPPORTED');
+  } else fail('NATIVE_CONFIG_SCHEMA_UNSUPPORTED');
+  validateReadConfig(readPrivateJson(path.join(root,'state/read.json'),'NATIVE_READ_CONFIG_UNAVAILABLE',8192,st.uid));
+  const marker=path.join(root,'awsops/SOURCE_REVISION');
+  try { fs.lstatSync(marker); fail('SOURCE_REVISION_ALREADY_PRESENT'); }
+  catch (error) { if (error?.message?.startsWith('SOURCE_REVISION_')) throw error; if (error.code !== 'ENOENT') throw error; }
+  const packageFile=path.join(root,'app/package.json');
+  const packageStat=fs.lstatSync(packageFile);
+  if (!packageStat.isFile() || packageStat.isSymbolicLink() || fs.realpathSync(packageFile) !== packageFile)
+    fail('APP_PACKAGE_UNSAFE');
+  const app=JSON.parse(fs.readFileSync(packageFile,'utf8'));
+  if (app.name !== 'LibreChat' || app.version !== 'v0.8.8-rc1') fail('APP_PACKAGE_UNSUPPORTED');
+  return {state:'PREWRITE_COMPATIBLE',ledger:'READONLY_VALIDATED',application:'PINNED_PACKAGE_VERSION'};
+}
+function nativeTarget(root, {rootReadOnly=false}={}) {
   const file = path.join(root,'state/native.json');
   const st = privatePath(file);
-  if (st.uid !== process.getuid() || (st.mode & 0o777) !== 0o600) fail('NATIVE_CONFIG_METADATA_DRIFT');
+  if ((st.mode & 0o777) !== 0o600) fail('NATIVE_CONFIG_METADATA_DRIFT');
+  if (process.getuid() === 0) {
+    if (!rootReadOnly || root !== '/opt/awsops-native-canary' || st.uid === 0)
+      fail('NATIVE_CONFIG_METADATA_DRIFT');
+    const rootStat=fs.lstatSync(root),stateStat=fs.lstatSync(path.join(root,'state'));
+    if (!rootStat.isDirectory() || rootStat.isSymbolicLink() || !stateStat.isDirectory() || stateStat.isSymbolicLink() ||
+        rootStat.uid !== st.uid || rootStat.gid !== st.gid || stateStat.uid !== st.uid || stateStat.gid !== st.gid ||
+        (rootStat.mode & 0o777) !== 0o700 || (stateStat.mode & 0o777) !== 0o700)
+      fail('NATIVE_CONFIG_METADATA_DRIFT');
+  } else if (st.uid !== process.getuid()) fail('NATIVE_CONFIG_METADATA_DRIFT');
   return {file, st};
 }
 function readNativeBytes(file) {
@@ -412,9 +443,10 @@ function rollback(appRoot) {
 if (require.main === module) {
   try {
     const [action,root,...extra] = process.argv.slice(2);
-    if (!['apply','rollback','migrate-source-revision','rollback-source-revision','prepare-native-binding'].includes(action) || !root ||
+    if (!['apply','rollback','inspect-native-config','migrate-source-revision','rollback-source-revision','prepare-native-binding'].includes(action) || !root ||
         (action === 'prepare-native-binding' ? extra.length !== 1 : extra.length !== 0)) fail('INVALID_ARGS');
     const result = action === 'apply' ? configure(root,root) : action === 'rollback' ? rollback(root) :
+      action === 'inspect-native-config' ? inspectNativeConfig(root) :
       action === 'migrate-source-revision' ? migrateNativeSourceRevision(root) :
       action === 'rollback-source-revision' ? rollbackNativeSourceRevision(root) :
       prepareNativeCanaryBinding(root,extra[0]);
@@ -425,5 +457,5 @@ if (require.main === module) {
   }
 }
 module.exports={configure,rollback,transform,desiredMcp,atomic,readPrivateBackup,migrateNativeSourceRevision,
-  rollbackNativeSourceRevision,validateNativeConfig,validateLegacyNativeConfig,validateReadConfig,
+  inspectNativeConfig,rollbackNativeSourceRevision,validateNativeConfig,validateLegacyNativeConfig,validateReadConfig,
   prepareNativeCanaryBinding,LEGACY_NATIVE_GATE_COMMIT,TOOL,FIXTURE_ENDPOINT,FIXTURE_MODEL,FIXTURE_URL,BACKUP,NATIVE_SOURCE_BACKUP};
