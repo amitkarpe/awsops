@@ -63,13 +63,17 @@ the exact `/opt/awsops-native-canary` root. After the reviewed bundle and
 runtime config are installed, the fixed commands are:
 
 ```sh
-sudo /opt/awsops-native-canary/awsops/integration/runtime/issue90-isolated-launcher.sh start
-sudo /opt/awsops-native-canary/awsops/integration/runtime/issue90-isolated-launcher.sh stop
+sudo /bin/bash /opt/awsops-native-canary/awsops/integration/runtime/issue90-isolated-launcher.sh start
+sudo /bin/bash /opt/awsops-native-canary/awsops/integration/runtime/issue90-isolated-launcher.sh stop
 ```
 
 It starts only three uniquely named transient units for MongoDB, the
-deterministic local model stimulus, and LibreChat. Each has a 30-minute hard
-runtime and is stopped with exact PID, process start-time, and cgroup checks.
+deterministic local model stimulus, and LibreChat. The migration installs this
+script as mode `0644`, so invoke it through `/bin/bash` as shown. Each unit has
+a 30-minute `RuntimeMaxSec` process limit and is stopped with exact PID,
+process start-time, and cgroup checks. That limit does not stop the EC2 host or
+bound instance billing: the outer authorized host window must enforce its
+separate 30-minute deadline, invoke `stop`, and verify the instance is stopped.
 The app receives the existing `AWSOPS_NATIVE_CONFIG` and `AWSOPS_READ_CONFIG`
 paths and must listen only on `127.0.0.1:4311`; the fixture and database must
 listen only on `127.0.0.1:4312` and `127.0.0.1:27111`. Wildcard and extra
