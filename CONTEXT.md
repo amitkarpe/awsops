@@ -2,8 +2,12 @@
 
 Repository: `amitkarpe/awsops`; `aws-secops` remains reference/archive only.
 
-Updated 16 October 2026. Manager coordinates; existing repository X is sole writer
-under the current #90 owner override. This task is repository-only, for M review.
+Updated 17 October 2026. Manager coordinates; the same existing repository X is
+sole writer under the current #90 owner override. Routine FAST communication uses
+the existing conversation/queue; admission is not execution. Active task scope
+controls work. The #77 [technical runbook](docs/architecture/DEV_COMPUTE_MODEL.md)
+does not replace this routing. Completed M1 and DOT/cloud evidence is archived in
+`docs/history/`; its original instructions are historical, not current authority.
 AGENTS.md and SPEC.md contain the owner MVP-FIRST DEVELOPMENT POLICY.
 
 M1/M2 source merged PR91/92; existing M4 offline approval/evidence seam and companion

@@ -1,11 +1,21 @@
-# Development compute and operating runbook
+# Roadmap #77 — development compute and operating runbook
 
 Owner: [roadmap #77, M5](https://github.com/amitkarpe/awsops/issues/77).
 Updated: 2026-10-06. M1–M5 source/runbook work is merged. #83 OIDC identity
-is PROVEN at run 37450622218; [#86's latest receipt](https://github.com/amitkarpe/awsops/issues/86) owns live Config acquisition status. This is the canonical engineering/resume runbook.
+is PROVEN at run 37450622218; [#86's latest receipt](https://github.com/amitkarpe/awsops/issues/86) owns live Config acquisition status. This is the canonical #77 technical engineering/resume runbook.
 Resource decisions remain owned by #14 and live mutation gates by #62/#70.
 
-## Implemented path and gated design
+## Scope: #77 technical runbook, not current #90 worker routing
+
+The cloud workflow and recovery procedures below retain #77's accepted technical
+contract. They do not select the implementer for later work. Current #90 routing
+is **Manager -> the same existing repository Codex X**, under the
+[owner override](https://github.com/amitkarpe/awsops/issues/90#issuecomment-6207039365)
+and [current context](../../CONTEXT.md). Preserve that worker and its worktrees;
+routine FAST conversation/queue delivery is not a Direct mission or proof of
+execution. Active Issue/task scope controls operations, not this historical diagram.
+
+## #77 implemented path and gated design
 
 ```text
 Amit / ChatGPT / Dot -> saved Codex Cloud environment -> GitHub branch / PR
@@ -16,10 +26,11 @@ reviewed GitHub request -> verified OIDC -> narrow AWS role
                         -> bounded AWS execution -> independent provider readback
 ```
 
-Normal repository engineering is cloud-first and laptop-optional. Home remains
+#77 repository engineering is cloud-first and laptop-optional. Home remains
 the supported NEW demo/private-browser runtime; it is not a fallback for blocked
-cloud work. Do not use office/Direct local execution or retained AWS hosts to
-make a cloud check pass. No generic AWS tool or deploy command is provided here.
+cloud work. For #77 cloud acceptance, do not use office/Direct local execution or
+retained AWS hosts to make a cloud check pass. This is not a ban on #90's approved
+Manager -> existing X source work. No generic AWS tool or deploy command is provided here.
 
 | Path | Execution class | Source of truth and acceptance boundary |
 | --- | --- | --- |
@@ -165,7 +176,8 @@ The retained `amit` host stays recovery-only; `vagent`/Lightsail remain separate
 governed. Historical inventory/cost evidence belongs in the
 [resource ledger](../current/AWS_RESOURCES.md), not a claim of fresh readback here.
 
-Remaining meaningful work is #86 gate resolution and
-separately scoped trusted acquisition/execution with provider evidence. Do not
+At this #77 checkpoint, remaining work was #86 gate resolution and
+separately scoped trusted acquisition/execution with provider evidence. Current
+#90 next work/routing comes from its owner decisions and Manager, not this list. Do not
 invent another synthetic milestone, runtime migration or cleanup to claim the
 live roadmap complete.
