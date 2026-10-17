@@ -16,7 +16,7 @@ function setup(t){
   const database=path.join(dir,'ledger.sqlite3');
   const seed=path.join(root,'tests/pause_seed.py');
   const candidate=JSON.parse(execFileSync(python,['-I','-B',seed,database,'candidate']));
-  const config={version:1,enabled:true,agent_id:'canary',python,source_root:root,database};
+  const config={version:1,enabled:true,agent_id:'canary',python,source_root:root,database,source_revision:'a'.repeat(40),application_database:database,application_binding:database,source_version:'v1.0.0-mock'};
   const user={id:'native-user',tenantId:'tenant-1'};
   const job={status:'running',createdAt:Date.now(),metadata:{userId:user.id,tenantId:user.tenantId,agent_id:'canary',endpoint:'agents'}};
   const pendingAction={actionId:'action-1',expiresAt:Date.now()+120000,payload:{type:'tool_approval',
@@ -24,7 +24,7 @@ function setup(t){
     review_configs:[{tool_call_id:'call-1',allowed_decisions:['reject']}],}};
   const client={conversationId:'conversation-1',jobCreatedAt:job.createdAt,options:{req:{user,body:{},config:{}}}};
   const f={dir,database,config,user,job,pendingAction,client,streamId:client.conversationId,reads:0};
-  f.manager={getJobStore:()=>({getJob:async()=>f.job})};
+  f.manager={getJob:async()=>f.job,getJobStore:()=>({getJob:async()=>f.job})};
   f.transport=async(_config,message)=>{f.reads++;return JSON.parse(execFileSync(python,['-I','-B',seed,database],{input:JSON.stringify(message)}));};
   return f;
 }
@@ -88,15 +88,24 @@ function actualMethod(f,options={}){
   const context={GenerationJobManager:f.manager,EModelEndpoint:{agents:'agents'},
     pickResumeContext:()=>({}),captureResumeModelParameters:()=>null,getApprovalTtlMs:()=>120000,
     computeAgentRequestFingerprint:()=> 'fixture',getRunDiscoveredTools:()=>[],
+    createCompactionSemanticIndexProjection:()=>null,
     buildPendingAction:()=>f.pendingAction,logger:{debug(){},warn(){},error(){}},
     decrementPendingRequest:async()=>{calls.released++;},ApprovalEvents:{ON_PENDING_ACTION:'pending'},toClientPendingAction:p=>p,
     require:name=>{assert.equal(name,'./awsops-pause-gate.cjs');return {beforePause:args=>pause.beforePause(args,f.config,f.transport)};},
   };
   const method=vm.runInNewContext('(class {\n'+source.slice(start,end)+'\n}).prototype.handleRunInterrupt',context);
+  const publishStart=source.indexOf('  async publishStagedApproval(eventActorSuspension) {');
+  const publishEnd=source.indexOf('\n  /** Exposes a durable pause',publishStart);
+  assert.ok(publishStart>0 && publishEnd>publishStart);
+  f.client.publishStagedApproval=vm.runInNewContext('(class {\n'+source.slice(publishStart,publishEnd)+'\n}).prototype.publishStagedApproval',context);
+  const exposeStart=source.indexOf('  async exposePendingApproval() {');
+  const exposeEnd=source.indexOf('\n  /**\n   * Surface any human-in-the-loop interrupt',exposeStart);
+  assert.ok(exposeStart>0 && exposeEnd>exposeStart);
+  f.client.exposePendingApproval=vm.runInNewContext('(class {\n'+source.slice(exposeStart,exposeEnd)+'\n}).prototype.exposePendingApproval',context);
   return {calls,run:()=>method.call(f.client,{getInterrupt:()=>({payload:f.pendingAction.payload})},f.streamId)};
 }
 test('actual pinned producer commits before pause/card; native receipt then rejects', {skip:!hasFixture},async t=>{
-  const f=setup(t),m=actualMethod(f);await m.run();assert.equal(m.calls.paused,1);assert.equal(m.calls.emitted,1);
+  const f=setup(t),m=actualMethod(f);await m.run();assert.equal(m.calls.paused,1,JSON.stringify(m.calls));assert.equal(m.calls.emitted,1);
   const req={user:f.user,body:{conversationId:f.streamId,actionId:'action-1',generationCreatedAt:f.job.createdAt,
     agent_id:'canary',endpoint:'agents',decisions:[{tool_call_id:'call-1',decision:'reject'}]}};
   const env=gate.prepareNativeRequest({req,job:f.job,pendingAction:f.pendingAction,streamId:f.streamId},f.config);

@@ -27,12 +27,14 @@ function privateFile(file) {
       (process.getuid && st.uid !== process.getuid())) fail();
 }
 function validateConfig(config) {
-  keys(config, ['version', 'enabled', 'agent_id', 'python', 'source_root', 'database']);
+  keys(config, ['version', 'enabled', 'agent_id', 'python', 'source_root', 'database', 'source_revision', 'application_database', 'application_binding', 'source_version']);
   if (config.version !== 1 || config.enabled !== true) fail();
   text(config.agent_id);
-  for (const value of [config.python, config.source_root, config.database]) {
+  text(config.source_revision, /^[a-f0-9]{40}$/);
+  for (const value of [config.python, config.source_root, config.database, config.application_database, config.application_binding]) {
     if (typeof value !== 'string' || !path.isAbsolute(value)) fail();
   }
+  text(config.source_version, /^v[0-9]+\.[0-9]+\.[0-9]+-mock$/);
   return Object.freeze({...config});
 }
 function configFromEnvironment() {
@@ -134,7 +136,8 @@ function canaryEnvelope({user, job, streamId}, config, expectedStatus = 'require
   text(args.batch_id, /^batch-canary-[a-f0-9]{32}$/);
   text(args.scope_digest, HEX64); text(args.authority_digest, HEX64);
   return {batch_id: args.batch_id, scope_digest: args.scope_digest,
-    authority_digest: args.authority_digest, expires_at: Math.floor(pending.expiresAt / 1000),
+    authority_digest: args.authority_digest, source_revision: config.source_revision,
+    expires_at: Math.floor(pending.expiresAt / 1000),
     binding: {principal_id: user.id, tenant_id: tenant, conversation_id: streamId,
       action_id: pending.actionId, generation_id: String(job.createdAt),
       tool_call_id: action.tool_call_id, tool: CANARY_LOGICAL_TOOL}};
@@ -156,12 +159,38 @@ function prepareNativeCanaryRequest({req, job, pendingAction, streamId}, config 
   return Object.freeze({config, message: Object.freeze({...base, decision: choice.decision,
     binding: Object.freeze({...base.binding})})});
 }
+function prepareNativeCanaryRejectRequest(context, config = configFromEnvironment()) {
+  const prepared = prepareNativeCanaryRequest(context, config);
+  if (prepared.message.decision !== 'reject') fail();
+  return prepared;
+}
+async function dispatchNativeCanaryReject(config, record) {
+  const result = await pipe(config, record);
+  const application = result?.application_result;
+  const envelopes = ['batch', 'decision', 'run', 'evidence'].map(key => application?.[key]);
+  const [batch, decision, run, evidence] = envelopes;
+  if (result?.version !== 1 || result.ok !== true || result.operation !== 'native_canary_reject' ||
+      result.dispatch_allowed !== false || envelopes.some((item, i) => item?.kind !== ['Batch','Decision','Run','Evidence'][i] ||
+        item.schemaVersion !== 'defence-factory/1' || !item.record) ||
+      batch.record.batchId !== record.batch_id || batch.record.scopeDigest !== record.scope_digest ||
+      decision.record.choice !== 'REJECT' || run.record.status !== 'REJECTED' ||
+      run.record.realWrites !== 0 || run.record.simulatedWrites !== 0 ||
+      evidence.record.provenance === 'SYNTHETIC' ||
+      evidence.record.limitation === 'SYNTHETIC_ONLY') fail();
+  const receipts = result.application_receipts;
+  if (!Array.isArray(receipts) || receipts.length !== 4 || receipts.some((item, i) =>
+      item?.kind !== ['Batch','Decision','Run','Evidence'][i] || item.schemaVersion !== 'defence-factory/1')) fail();
+  const expected = {[record.binding.tool_call_id]: {type: 'reject', reason: 'REJECTED'}};
+  if (JSON.stringify(result.resume_value) !== JSON.stringify(expected)) fail();
+  return {receipts, resumeValue: expected};
+}
 async function afterNativeCanaryClaim({req, job, pendingAction, streamId, prepared, claimResult, manager},
                                       config = prepared?.config || configFromEnvironment(), dispatcher) {
   config = validateConfig(config);
   if (claimResult !== true || !manager || typeof manager.getJob !== 'function' ||
       pendingAction !== job?.metadata?.pendingAction) fail();
   const before = prepareNativeCanaryRequest({req, job, pendingAction, streamId}, config);
+  if (before.message.decision !== 'reject' && typeof dispatcher !== 'function') fail();
   if (JSON.stringify(before.message) !== JSON.stringify(prepared?.message) ||
       JSON.stringify(prepared?.config) !== JSON.stringify(config)) fail();
   const claimedJob = await manager.getJob(streamId);
@@ -172,13 +201,15 @@ async function afterNativeCanaryClaim({req, job, pendingAction, streamId, prepar
   // ApprovalLifecycle.resolve clears pendingAction and pendingActionId in its
   // requires_action -> running CAS. Preserve the immutable pre-CAS action only.
   if (claimedJob.metadata.pendingAction != null || claimedJob.metadata.pendingActionId != null) fail();
-  // There is deliberately no default dispatcher: a source candidate without a
-  // mounted application verifier must fail closed after the host CAS.
-  if (typeof dispatcher !== 'function') fail();
-  const callback = Object.freeze({version: 1, operation: 'native_canary_choice',
+  // The private dispatcher persists this route-owned winning decision, then
+  // independently verifies it against the frozen authority before receipt.
+  const callback = Object.freeze({version: 1,
+    operation: before.message.decision === 'reject' ? 'native_canary_reject' : 'native_canary_choice',
     batch_id: before.message.batch_id, scope_digest: before.message.scope_digest,
-    authority_digest: before.message.authority_digest, expires_at: before.message.expires_at,
-    binding: before.message.binding, decision: before.message.decision});
+    authority_digest: before.message.authority_digest, source_revision: before.message.source_revision,
+    decision: before.message.decision, decided_at: Math.floor(Date.now()/1000), expires_at: before.message.expires_at,
+    binding: before.message.binding});
+  if (callback.decision === 'reject') return (dispatcher || ((record) => dispatchNativeCanaryReject(config, record)))(callback);
   return dispatcher(callback);
 }
 
@@ -214,7 +245,14 @@ async function afterNativeClaim({req, job, pendingAction, streamId, prepared, cl
 function pipe(config, message) {
   const encoded = Buffer.from(JSON.stringify(message));
   if (encoded.length > MAX_BYTES) return Promise.reject(new Error('AWSOPS_PIPE_FAILED'));
-  const entry = path.join(config.source_root, 'integration/librechat/receipt_entry.py');
+  const canaryReject = message.operation === 'native_canary_reject';
+  if (canaryReject) privateFile(config.application_binding);
+  const entry = path.join(config.source_root, 'integration/librechat',
+    canaryReject ? 'native_canary_entry.py' : 'receipt_entry.py');
+  const args = ['-I', '-B', entry, '--database', config.database];
+  if (canaryReject) args.push('--application-database', config.application_database,
+    '--application-binding', config.application_binding,
+    '--source-version', config.source_version);
   return new Promise((resolve, reject) => {
     let child; let timer; let settled = false; let output = []; let bytes = 0;
     const stop = () => {
@@ -224,7 +262,7 @@ function pipe(config, message) {
       reject(new Error('AWSOPS_PIPE_FAILED'));
     };
     try {
-      child = spawn(config.python, ['-I', '-B', entry, '--database', config.database], {
+      child = spawn(config.python, args, {
         shell: false, stdio: ['pipe', 'pipe', 'pipe'], cwd: config.source_root,
         // Do not export platform auth or AWS credentials into the receipt process.
         env: {LANG: 'C.UTF-8'},
@@ -277,5 +315,6 @@ async function registerPrepared({user, job, streamId, frozen}, config, transport
 
 module.exports = {WIRE_TOOL, LOGICAL_TOOL, CANARY_WIRE_TOOL, CANARY_LOGICAL_TOOL, TIMEOUT_MS, MAX_BYTES, reserved,
   claimedOwner,
-  prepareNativeRequest, afterNativeClaim, prepareNativeCanaryRequest, afterNativeCanaryClaim,
+  prepareNativeRequest, afterNativeClaim, prepareNativeCanaryRequest, prepareNativeCanaryRejectRequest,
+  afterNativeCanaryClaim, dispatchNativeCanaryReject,
   persistNativeDecision, registerPrepared, pipe, validateConfig, configFromEnvironment};

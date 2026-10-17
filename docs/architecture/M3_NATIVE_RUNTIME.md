@@ -56,7 +56,14 @@ Do not erase it, replay it or silently rebind it. Reconcile and prepare anew.
 ## Private process configuration
 
 `AWSOPS_NATIVE_CONFIG` remains an owned private file with exact fields:
-`version`, `enabled`, `agent_id`, `python`, `source_root`, `database`.
+`version`, `enabled`, `agent_id`, `python`, `source_root`, `database`,
+`source_revision`, `application_database`, `application_binding`, and
+`source_version`. `database` remains the native decision store;
+`application_database` is the existing canary application ledger. Both are
+separately provisioned private files. The binding path is a separate owner-only
+JSON file containing only `account_id` and `bucket`; the canary child checks
+its ownership, permissions and canonical path before loading it. These values
+stay out of receipts and logs.
 Absent/disabled/invalid configuration denies the reserved tool. Database and
 its parent must be private and already provisioned; requests never replace a
 missing ledger. Paths/interpreter are trusted operator input, never tool args.
@@ -86,37 +93,36 @@ This operation does not append a decision, offer a continuation or mutate AWS.
 Its receipt-linked result must be included in the final durable evidence
 packet; a third ledger event or automatic native UI publication is not claimed.
 
-## Issue #11 owner-decision bridge source seam
+## Issue #11 native decision and Issue #90 canary Reject seams
 
-The legacy source trace is `pause_gate.cjs.snapshot` (`req.user`, tenant, running
-job, generation and exact action) -> `beforePause` fresh provider preparation
-and binding -> the platform's paused-job claim ->
-`native_gate.cjs.prepareNativeRequest` and `persistNativeDecision` ->
-`DecisionStore` / `NativeDecisionAdapter`. That path remains reject-only: an
-Approve request is durably `APPROVE_BLOCKED` with a reject resolution.
+At the authorized LibreChat pin `cdfe54c3498818b21b33fb609fee02f2742b37ea`,
+the legacy path captures the authenticated `req.user`, tenant, exact action and
+generation before the native claim, then rereads the running job after the
+single-winner CAS clears `pendingAction` and `pendingActionId`. The private
+`DecisionStore` / `NativeDecisionAdapter` records Reject as `REJECTED`; legacy
+Approve remains `APPROVE_BLOCKED` and resolves only to a blocked Reject response.
+The fixed private child has no provider or execution capability.
 
-The separate canary source seam uses `native_gate.cjs.prepareNativeCanaryRequest`
-and `afterNativeCanaryClaim`. It validates host `req.user`, tenant, exact action,
-job generation, frozen batch/scope/authority and expiry, then rereads the exact
-running job after the platform's paused-job compare-and-set. The pinned
-`ApprovalLifecycle.resolve` CAS clears `pendingAction` and `pendingActionId`, so
-the post-CAS check binds the saved pre-CAS action to the running row's owner,
-tenant and generation without expecting those cleared fields to remain. A
-caller boolean by itself cannot produce the handoff.
-`NativeCanaryDecision.from_host_callback`
-binds that handoff to the durable `FrozenCanaryAuthority`; the application
-ledger remains the one-use packet claim and audit. The legacy reject-only
-`DecisionStore` is not consumed or weakened.
+The separate `approve_s3_canary_once` Reject path uses the same authenticated
+host request and winning-CAS seam. It persists that server-owned decision in
+`native_owner_decisions`; `NativeServerOwnerVerifier` reads it back and binds
+the authenticated principal/tenant to the frozen authority, source revision,
+scope and expiry. The verifier then feeds `NativeCanaryApprovalAdapter` and the
+existing `CanaryApprovalApplication.decide()` path, whose atomic packet claim,
+`canaries` decision and canonical four-envelope receipt remain authoritative.
+The adapter factory for this path constructs only an inert Reject-only provider;
+Approve is denied before the claim, and neither rejection nor receipt invokes an
+AWS provider. The private child receives only the fixed message, source version
+and a permission-checked private binding file. OS ownership of the controller,
+child and SQLite ledger is the trust boundary; the record digest is an
+integrity/reference value, not authentication. No browser/model supplied
+identity, callback proof, digest or CAS boolean alone establishes authority.
 
-The offline harness crosses the actual JavaScript native gate and feeds its
-post-claim result to `NativeCanaryApprovalAdapter`. The harness uses a
-test-only verifier and MOCK provider. Production has no mounted dispatcher or
-independently trusted owner-to-packet verifier, so it remains fail-closed with
-`NATIVE_CANARY_ADAPTER_UNAVAILABLE` / `TRUSTED_HUMAN_APPROVAL_BINDING_REQUIRED`
-before any provider construction. The missing activation prerequisite is an
-existing host callback that supplies the authenticated owner mapping and
-independent packet verifier at this source seam. This source candidate does not
-install or activate that host integration.
+The offline production-dispatch regression exercises the real Python dispatch,
+server-record verifier and application ledger with synthetic identities and a
+fake SDK fixture. It does not prove a live authenticated UI click or runtime
+installation. This source change does not install or activate LibreChat; live
+Approve, provider construction and execution remain unavailable.
 
 The stable producer command exercises the actual native gate, host claim
 handoff, Python adapter and application path with a test-only simulated
@@ -135,7 +141,7 @@ prove authenticated native UI, a mounted callback, or live approval.
 ## Immutable source and offline rollback
 
 Upstream repository ID 600596928 now resolves to `LibreChat-AI/LibreChat`.
-The commit pin is unchanged: `eaef87fa2684025627e25d649a56f4f2a63417a7`.
+The authorized commit pin is `cdfe54c3498818b21b33fb609fee02f2742b37ea`.
 `upstream.json` pins full producer and resume Git blobs. CI explicitly fetches
 both and refuses drift; no full upstream checkout/history is committed here.
 

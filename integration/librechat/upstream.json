@@ -1,10 +1,10 @@
 {
   "repository": "LibreChat-AI/LibreChat",
   "version": "v0.8.8-rc1",
-  "commit": "eaef87fa2684025627e25d649a56f4f2a63417a7",
+  "commit": "cdfe54c3498818b21b33fb609fee02f2742b37ea",
   "controller": "api/server/controllers/agents/resume.js",
-  "controller_blob": "a5bae98f76d0dac120d72da9bcd5e1c81a144b8d",
+  "controller_blob": "cd19216c761d9184de66fa2a591074a5686250bc",
   "producer": "api/server/controllers/agents/client.js",
-  "producer_blob": "ec949241204f2865a7a3ce47fc5a70c86c14340e",
+  "producer_blob": "efcf38ed83f49d8ebd841fd0c49eb84bf4577460",
   "fixture_max_bytes": 1048576
 }

@@ -5,19 +5,21 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const pin = require('./upstream.json');
 const PRE_MARKER = '  let resolvedAskContentIndex;';
+const CLAIM_MARKER = "    // Linearize the consumed approval against the schedule's live config.";
 const POST_MARKER = '  /**\n   * An interrupt steer enqueued just before the pause survives durably with';
 const PRE = `  // awsops: capture only the native server-owned context before the CAS.
   let awsopsNativeEnvelope = null;
   let awsopsNativeCanary = false;
+  let awsopsNativeClaimed = false;
   if (Array.isArray(pendingAction?.payload?.action_requests) &&
       pendingAction.payload.action_requests.some(a =>
         typeof a?.name === 'string' && a.name.startsWith('approve_s3_canary_once'))) {
     try {
       awsopsNativeCanary = true;
       awsopsNativeEnvelope = require('./awsops-native-gate.cjs')
-        .prepareNativeCanaryRequest({ req, job, pendingAction, streamId });
+        .prepareNativeCanaryRejectRequest({ req, job, pendingAction, streamId });
     } catch {
-      return sendGenerationJson(res, 403, { code: 'AWSOPS_NATIVE_NOT_READY' }, generationProtocolVersion);
+      return sendGenerationJson(res, 403, { code: 'LIVE_APPROVAL_NOT_AUTHORIZED' }, generationProtocolVersion);
     }
   } else if (Array.isArray(pendingAction?.payload?.action_requests) &&
       pendingAction.payload.action_requests.some(a =>
@@ -68,22 +70,19 @@ const POST = `  // awsops: the native single-winner CAS has succeeded. Commit be
   };
   if (awsopsNativeEnvelope && awsopsNativeCanary) {
     try {
-      // No canary dispatcher is mounted by this offline candidate. A future
-      // reviewed host binding must inject the existing application adapter and
-      // its independent owner verifier at this exact post-CAS seam.
-      await require('./awsops-native-gate.cjs').afterNativeCanaryClaim({
+      const decision = await require('./awsops-native-gate.cjs').afterNativeCanaryClaim({
         req, job, pendingAction, streamId, prepared: awsopsNativeEnvelope,
-        claimResult: claimed, manager: GenerationJobManager,
+        claimResult: awsopsNativeClaimed, manager: GenerationJobManager,
       });
-      mapped.resumeValue = {[awsopsNativeEnvelope.message.binding.tool_call_id]: {type: 'reject', reason: 'LIVE_EXECUTION_NOT_AUTHORIZED'}};
+      mapped.resumeValue = decision.resumeValue;
     } catch {
-      return failNativeDecision('NATIVE_CANARY_ADAPTER_UNAVAILABLE');
+      return failNativeDecision('NATIVE_REJECT_RECEIPT_UNAVAILABLE');
     }
   } else if (awsopsNativeEnvelope) {
     try {
       const decision = await require('./awsops-native-gate.cjs').afterNativeClaim({
         req, job, pendingAction, streamId, prepared: awsopsNativeEnvelope,
-        claimResult: claimed, manager: GenerationJobManager,
+        claimResult: awsopsNativeClaimed, manager: GenerationJobManager,
       });
       mapped.resumeValue = decision.resumeValue;
     } catch {
@@ -93,15 +92,20 @@ const POST = `  // awsops: the native single-winner CAS has succeeded. Commit be
   }
 
 `;
-const PAUSE_MARKER = '    const paused = await GenerationJobManager.approvals.pause(streamId, pendingAction, {';
+const PAUSE_MARKER = '      paused = await GenerationJobManager.approvals.pause(';
 const PAUSE = `    // awsops: bind fresh provider evidence BEFORE publishing any native pause.
-    if (Array.isArray(pendingAction?.payload?.action_requests) &&
-        pendingAction.payload.action_requests.some(a =>
-          typeof a?.name === 'string' && a.name.startsWith('decide_s3_ssl_reject_only'))) {
+    if (Array.isArray(staged.pendingAction?.payload?.action_requests) &&
+        staged.pendingAction.payload.action_requests.some(a =>
+      typeof a?.name === 'string' && a.name.startsWith('decide_s3_ssl_reject_only'))) {
       await require('./awsops-pause-gate.cjs').beforePause({
-        client: this, manager: GenerationJobManager, pendingAction, streamId,
+        client: this, manager: GenerationJobManager,
+        pendingAction: staged.pendingAction, streamId: staged.streamId,
       });
     }
+
+`;
+const CLAIM = `    // awsops: retain the exact winning native approval CAS result.
+    awsopsNativeClaimed = claimed === true;
 
 `;
 function sha(raw) { return crypto.createHash('sha256').update(raw).digest('hex'); }
@@ -118,7 +122,7 @@ function render(raw, component='resume') {
   const spec=componentSpec(component);
   if (blob(raw) !== spec.blob) throw Error('UPSTREAM_SOURCE_DRIFT');
   let source = raw.toString('utf8');
-  const insertions=component === 'pause' ? [[PAUSE_MARKER,PAUSE]] : [[PRE_MARKER,PRE],[POST_MARKER,POST]];
+  const insertions=component === 'pause' ? [[PAUSE_MARKER,PAUSE]] : [[PRE_MARKER,PRE],[CLAIM_MARKER,CLAIM],[POST_MARKER,POST]];
   for (const [marker, insertion] of insertions) {
     if (source.split(marker).length !== 2) throw Error('UPSTREAM_SEAM_DRIFT');
     source = source.replace(marker, insertion + marker);
@@ -200,4 +204,4 @@ if (require.main === module) {
     console.log(JSON.stringify(action==='check' ? check(root,component) : change(root,action,component)));
   } catch {console.error('OFFLINE_NATIVE_REHEARSAL_REFUSED');process.exitCode=2;}
 }
-module.exports={pin,PRE,POST,PRE_MARKER,POST_MARKER,PAUSE,PAUSE_MARKER,render,blob,sha,check,change};
+module.exports={pin,PRE,CLAIM,POST,PRE_MARKER,CLAIM_MARKER,POST_MARKER,PAUSE,PAUSE_MARKER,render,blob,sha,check,change};
