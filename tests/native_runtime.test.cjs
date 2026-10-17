@@ -17,9 +17,10 @@ if (process.env.AWSOPS_REQUIRE_NATIVE_FIXTURE === '1' && !hasUpstream) throw Err
 function setup(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'awsops-native-'));
   t.after(() => fs.rmSync(dir, {recursive: true, force: true}));
-  const database = path.join(dir, 'receipt.sqlite3');
+  const state = path.join(dir, 'state'); fs.mkdirSync(state, {mode:0o700});
+  const database = path.join(state, 'receipt.sqlite3');
   const frozen = JSON.parse(execFileSync(python, ['-I', '-B', path.join(__dirname, 'native_seed.py'), database]));
-  const config = {version: 1, enabled: true, agent_id: 'awsops-canary', python: fs.realpathSync(python), source_root: root, database, source_revision:'a'.repeat(40), application_database:database, application_binding:database, source_version:'v1.0.0-mock'};
+  const config = {version: 1, enabled: true, agent_id: 'awsops-canary', python: '/usr/bin/python3', source_root: root, database, source_revision:'a'.repeat(40), application_database:database, application_binding:database, source_version:'v1.0.0-mock'};
   const user = {id: 'native-user', tenantId: 'tenant-1'};
   const streamId = 'conversation-1';
   const job = {

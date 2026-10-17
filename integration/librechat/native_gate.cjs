@@ -4,6 +4,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const {spawn} = require('node:child_process');
+const nativeStore = require('./native_store.cjs');
 
 const LOGICAL_TOOL = 'decide_s3_ssl_reject_only';
 const WIRE_TOOL = 'decide_s3_ssl_reject_only_mcp_awsops';
@@ -31,9 +32,14 @@ function validateConfig(config) {
   if (config.version !== 1 || config.enabled !== true) fail();
   text(config.agent_id);
   text(config.source_revision, /^[a-f0-9]{40}$/);
-  for (const value of [config.python, config.source_root, config.database, config.application_database, config.application_binding]) {
+  for (const value of [config.source_root, config.database, config.application_database, config.application_binding]) {
     if (typeof value !== 'string' || !path.isAbsolute(value)) fail();
   }
+  if (config.python !== nativeStore.SYSTEM_PYTHON) fail();
+  try {
+    nativeStore.assertSystemPython();
+    nativeStore.validateDatabaseMetadata(config.database,{uid:process.getuid?.(),gid:process.getgid?.()});
+  } catch { fail(); }
   text(config.source_version, /^v[0-9]+\.[0-9]+\.[0-9]+-mock$/);
   return Object.freeze({...config});
 }

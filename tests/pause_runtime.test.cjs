@@ -13,6 +13,17 @@ const python=process.env.AWSOPS_TEST_PYTHON || '/usr/bin/python3';
 const fixture=path.join(root,'artifacts/native-upstream/client.js');
 const hasFixture=fs.existsSync(fixture);
 if(process.env.AWSOPS_REQUIRE_NATIVE_FIXTURE==='1' && !hasFixture)throw Error('Pinned producer required');
+function seedDecisionStore(database,{withEvent=false}={}){
+  const seed=path.join(root,'tests/pause_seed.py');
+  const candidate=JSON.parse(execFileSync(python,['-I','-B',seed,database,'candidate']));
+  if(!withEvent)return candidate;
+  const message={version:1,operation:'prepare_pause',binding:{principal_id:'fixture-owner',
+    tenant_id:'tenant:fixture',conversation_id:'fixture-conversation',action_id:'fixture-action',
+    generation_id:'1',tool_call_id:'fixture-call',tool:'decide_s3_ssl_reject_only'},candidate,
+    pause_expires_at:Math.floor(Date.now()/1000)+600};
+  execFileSync(python,['-I','-B',seed,database],{input:JSON.stringify(message)});
+  return candidate;
+}
 test('deterministic fixture labels canary tool request as synthetic, leaving decision to human',()=>{
   const result=fixtureModel.responseFor({model:fixtureModel.MODEL,messages:[{role:'user',content:'review'}],
     tools:[{function:{name:fixtureModel.CANARY_TOOL}}]},{});
@@ -24,10 +35,11 @@ test('deterministic fixture labels canary tool request as synthetic, leaving dec
 function setup(t){
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'awsops-pause-'));
   t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
-  const database=path.join(dir,'ledger.sqlite3');
+  const state=path.join(dir,'state');fs.mkdirSync(state,{mode:0o700});
+  const database=path.join(state,'receipt.sqlite3');
   const seed=path.join(root,'tests/pause_seed.py');
   const candidate=JSON.parse(execFileSync(python,['-I','-B',seed,database,'candidate']));
-  const config={version:1,enabled:true,agent_id:'canary',python,source_root:root,database,source_revision:'a'.repeat(40),application_database:database,application_binding:database,source_version:'v1.0.0-mock'};
+  const config={version:1,enabled:true,agent_id:'canary',python:'/usr/bin/python3',source_root:root,database,source_revision:'a'.repeat(40),application_database:database,application_binding:database,source_version:'v1.0.0-mock'};
   const user={id:'native-user',tenantId:'tenant-1'};
   const job={status:'running',createdAt:Date.now(),metadata:{userId:user.id,tenantId:user.tenantId,agent_id:'canary',endpoint:'agents'}};
   const pendingAction={actionId:'action-1',expiresAt:Date.now()+120000,payload:{type:'tool_approval',
@@ -234,9 +246,11 @@ test('native source pin migration is old-revision guarded, private, read-back ve
   t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
   const state=path.join(root,'state'),awsops=path.join(root,'awsops');
   fs.mkdirSync(state,{mode:0o700});fs.mkdirSync(awsops,{mode:0o700});
+  const database=path.join(state,'native.sqlite');
+  seedDecisionStore(database);
   fs.writeFileSync(path.join(awsops,'SOURCE_REVISION'),'b'.repeat(40)+'\n',{mode:0o644});
   const original={version:1,enabled:true,agent_id:'canary',python:'/usr/bin/python3',
-    source_root:awsops,database:path.join(state,'native.sqlite'),source_revision:'d9545f7cd3aca485a137c5b8e8b8d55f02a004c8',
+    source_root:awsops,database,source_revision:'d9545f7cd3aca485a137c5b8e8b8d55f02a004c8',
     application_database:path.join(state,'canary.sqlite'),application_binding:path.join(state,'binding.private.json'),
     source_version:'v1.0.0-mock'};
   const native=path.join(state,'native.json'),raw=Buffer.from(JSON.stringify(original,null,2)+'\n');
@@ -260,12 +274,23 @@ test('known historical native-gate v1 config upgrades without changing owner or 
   t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
   const state=path.join(root,'state'),awsops=path.join(root,'awsops');
   fs.mkdirSync(state,{mode:0o700});fs.mkdirSync(awsops,{mode:0o700});
+  const database=path.join(state,'receipt.sqlite3');
+  seedDecisionStore(database,{withEvent:true});
   const revision='c'.repeat(40);
   fs.writeFileSync(path.join(awsops,'SOURCE_REVISION'),revision+'\n',{mode:0o644});
-  const legacy={version:1,enabled:true,agent_id:'preserved-agent',python:'/usr/bin/python3',
-    source_root:awsops,database:path.join(state,'native.sqlite')};
+  const pythonAlias=path.join(root,'legacy-venv/bin/python');
+  fs.mkdirSync(path.dirname(pythonAlias),{recursive:true,mode:0o700});
+  fs.symlinkSync('/usr/bin/python3',pythonAlias);
+  const legacy={version:1,enabled:true,agent_id:'preserved-agent',python:pythonAlias,
+    source_root:awsops,database};
   const native=path.join(state,'native.json'),original=Buffer.from(JSON.stringify(legacy,null,2)+'\n');
   fs.writeFileSync(native,original,{mode:0o600});
+  const databaseBytes=fs.readFileSync(database);
+  execFileSync(python,['-I','-B',path.join(__dirname,'native_seed.py'),database]);
+  assert.deepEqual(fs.readFileSync(database),databaseBytes);
+  const databaseFacts=()=>JSON.parse(execFileSync(python,['-I','-B','-c',
+    "import sqlite3,sys;d=sqlite3.connect('file:'+sys.argv[1]+'?mode=ro&immutable=1',uri=True);print(__import__('json').dumps({'version':d.execute('PRAGMA user_version').fetchone()[0],'events':d.execute('SELECT count(*) FROM events').fetchone()[0],'objects':sorted((r[0],r[1]) for r in d.execute(\"SELECT type,name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'\"))}))",database]));
+  const factsBefore=databaseFacts();assert.equal(factsBefore.version,1);assert.equal(factsBefore.events,1);
   const account='000000000001';
   fs.writeFileSync(path.join(state,'read.json'),JSON.stringify({region:'ap-southeast-1',
     source_account_id:account,profile:'amit',accounts:[
@@ -280,6 +305,7 @@ test('known historical native-gate v1 config upgrades without changing owner or 
   assert.deepEqual(runtimeConfig.migrateNativeSourceRevision(root),{state:'UPDATED'});
   const migrated=JSON.parse(fs.readFileSync(native,'utf8'));
   assert.equal(migrated.agent_id,legacy.agent_id);
+  assert.equal(migrated.python,'/usr/bin/python3');
   assert.equal(migrated.source_root,legacy.source_root);
   assert.equal(migrated.database,legacy.database);
   assert.equal(migrated.source_revision,revision);
@@ -287,8 +313,12 @@ test('known historical native-gate v1 config upgrades without changing owner or 
   assert.equal(migrated.application_binding,path.join(state,'binding.private.json'));
   assert.equal(migrated.source_version,'v1.0.0-mock');
   assert.deepEqual(fs.readFileSync(path.join(state,runtimeConfig.NATIVE_SOURCE_BACKUP)),original);
+  assert.deepEqual(fs.readFileSync(database),databaseBytes);
+  assert.deepEqual(databaseFacts(),factsBefore);
+  assert.equal(fs.existsSync(path.join(state,'native.sqlite')),false);
   assert.deepEqual(runtimeConfig.rollbackNativeSourceRevision(root),{state:'ROLLED_BACK'});
   assert.deepEqual(fs.readFileSync(native),original);
+  assert.deepEqual(fs.readFileSync(database),databaseBytes);
   assert.equal(fs.existsSync(path.join(state,runtimeConfig.NATIVE_SOURCE_BACKUP)),false);
   assert.throws(()=>runtimeConfig.prepareNativeCanaryBinding(root,'awsops-dev-issue90-s3-canary-abcdefabcdef'),
     /NATIVE_TARGET_BINDING_MISMATCH/);
@@ -308,6 +338,19 @@ test('known historical native-gate v1 config upgrades without changing owner or 
   read.accounts[0].alias='lab-dev';fs.writeFileSync(readPath,JSON.stringify(read),{mode:0o600});
   fs.unlinkSync(path.join(state,'binding.private.json'));
   assert.throws(()=>runtimeConfig.migrateNativeSourceRevision(root),/NATIVE_TARGET_BINDING_UNAVAILABLE/);
+  assert.deepEqual(fs.readFileSync(native),original);
+  assert.equal(fs.existsSync(path.join(state,runtimeConfig.NATIVE_SOURCE_BACKUP)),false);
+  for(const changed of [
+    {...legacy,database:path.join(state,'other.sqlite')},
+    {...legacy,python:'/bin/false'},
+  ]){
+    const refused=Buffer.from(JSON.stringify(changed,null,2)+'\n');fs.writeFileSync(native,refused,{mode:0o600});
+    assert.throws(()=>runtimeConfig.migrateNativeSourceRevision(root),/NATIVE_LEGACY_(SCHEMA|RUNTIME)_UNSUPPORTED/);
+    assert.deepEqual(fs.readFileSync(native),refused);
+    assert.equal(fs.existsSync(path.join(state,runtimeConfig.NATIVE_SOURCE_BACKUP)),false);
+  }
+  fs.writeFileSync(native,original,{mode:0o600});fs.chmodSync(database,0o640);
+  assert.throws(()=>runtimeConfig.migrateNativeSourceRevision(root),/NATIVE_LEGACY_RUNTIME_UNSUPPORTED/);
   assert.deepEqual(fs.readFileSync(native),original);
   assert.equal(fs.existsSync(path.join(state,runtimeConfig.NATIVE_SOURCE_BACKUP)),false);
 });

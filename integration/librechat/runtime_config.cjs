@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {isDeepStrictEqual} = require('node:util');
 const crypto = require('node:crypto');
+const nativeStore = require('./native_store.cjs');
 
 const TOOL = 'approve_s3_canary_once_mcp_awsops';
 const FIXTURE_ENDPOINT = 'awsops_canary_fixture';
@@ -40,19 +41,22 @@ function readPrivateBackup(file, uid, gid) {
     return {data, sha256:crypto.createHash('sha256').update(data).digest('hex')};
   } finally { fs.closeSync(fd); }
 }
-function validateNativeConfig(value, root) {
+function validateNativeConfig(value, root, ownerStat) {
+  const owner = ownerStat || fs.lstatSync(path.join(root,'state/native.json'));
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
       Object.keys(value).sort().join(',') !== [...CURRENT_NATIVE_KEYS].sort().join(',') ||
       value.version !== 1 || value.enabled !== true || typeof value.agent_id !== 'string' ||
-      !/^[A-Za-z0-9_.:-]{1,128}$/.test(value.agent_id) || value.python !== '/usr/bin/python3' ||
+      !/^[A-Za-z0-9_.:-]{1,128}$/.test(value.agent_id) || value.python !== nativeStore.SYSTEM_PYTHON ||
       value.source_root !== path.join(root,'awsops') ||
-      value.database !== path.join(root,'state/native.sqlite') ||
+      ![path.join(root,'state/native.sqlite'),path.join(root,'state/receipt.sqlite3')].includes(value.database) ||
       value.application_database !== path.join(root,'state/canary.sqlite') ||
       typeof value.application_binding !== 'string' || !path.isAbsolute(value.application_binding) ||
       !value.application_binding.startsWith(path.join(root,'state') + path.sep) ||
       typeof value.source_revision !== 'string' || !/^[a-f0-9]{40}$/.test(value.source_revision) ||
       typeof value.source_version !== 'string' || !/^v[0-9]+\.[0-9]+\.[0-9]+-mock$/.test(value.source_version))
     fail('NATIVE_CONFIG_SCHEMA_DRIFT');
+  try { nativeStore.validateDecisionDatabase(value.database,{root,uid:owner.uid,gid:owner.gid}); }
+  catch { fail('NATIVE_CONFIG_DATABASE_UNSAFE'); }
   return value;
 }
 function readPrivateJson(file, code, maxBytes=8192) {
@@ -68,13 +72,19 @@ function readPrivateJson(file, code, maxBytes=8192) {
     return JSON.parse(fs.readFileSync(fd,'utf8'));
   } finally { fs.closeSync(fd); }
 }
-function validateLegacyNativeConfig(value, root) {
+function validateLegacyNativeConfig(value, root, ownerStat) {
+  const owner = ownerStat || fs.lstatSync(path.join(root,'state/native.json'));
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
       Object.keys(value).sort().join(',') !== [...LEGACY_NATIVE_KEYS].sort().join(',') ||
       value.version !== 1 || value.enabled !== true || typeof value.agent_id !== 'string' ||
-      !/^[A-Za-z0-9_.:-]{1,128}$/.test(value.agent_id) || value.python !== '/usr/bin/python3' ||
+      !/^[A-Za-z0-9_.:-]{1,128}$/.test(value.agent_id) ||
       value.source_root !== path.join(root,'awsops') ||
-      value.database !== path.join(root,'state/native.sqlite')) fail('NATIVE_LEGACY_SCHEMA_UNSUPPORTED');
+      ![path.join(root,'state/native.sqlite'),path.join(root,'state/receipt.sqlite3')].includes(value.database))
+    fail('NATIVE_LEGACY_SCHEMA_UNSUPPORTED');
+  try {
+    nativeStore.validateLegacyPython(value.python);
+    nativeStore.validateDecisionDatabase(value.database,{root,uid:owner.uid,gid:owner.gid});
+  } catch { fail('NATIVE_LEGACY_RUNTIME_UNSUPPORTED'); }
   return value;
 }
 function validateReadConfig(value) {
@@ -104,6 +114,11 @@ function prepareNativeCanaryBinding(root, bucket) {
   const stateStat=fs.lstatSync(state);
   if (!stateStat.isDirectory() || stateStat.isSymbolicLink() || stateStat.uid !== process.getuid() ||
       (stateStat.mode & 0o777) !== 0o700) fail('NATIVE_STATE_DIRECTORY_UNSAFE');
+  const {file:nativeFile,st:nativeStat}=nativeTarget(root);
+  const native=JSON.parse(readNativeBytes(nativeFile).toString('utf8'));
+  const nativeKeys=native && typeof native==='object' && !Array.isArray(native) ? Object.keys(native).sort().join(',') : '';
+  if (nativeKeys === [...LEGACY_NATIVE_KEYS].sort().join(',')) validateLegacyNativeConfig(native,root,nativeStat);
+  else validateNativeConfig(native,root,nativeStat);
   const read=validateReadConfig(readPrivateJson(path.join(state,'read.json'),'NATIVE_READ_CONFIG_UNAVAILABLE'));
   const bindingPath=path.join(state,'binding.private.json');
   const expected={account_id:read.source_account_id,bucket};
@@ -134,17 +149,17 @@ function prepareNativeCanaryBinding(root, bucket) {
   if (!isDeepStrictEqual(written,expected)) fail('NATIVE_TARGET_BINDING_READBACK');
   return {state:'BOUND'};
 }
-function expandedLegacyNativeConfig(value, root, revision) {
-  const legacy=validateLegacyNativeConfig(value,root);
-  return {...legacy,source_revision:revision,
+function expandedLegacyNativeConfig(value, root, revision, ownerStat) {
+  const legacy=validateLegacyNativeConfig(value,root,ownerStat);
+  return {...legacy,python:nativeStore.SYSTEM_PYTHON,source_revision:revision,
     application_database:path.join(root,'state/canary.sqlite'),
     application_binding:path.join(root,'state/binding.private.json'),
     source_version:CANARY_SOURCE_VERSION};
 }
-function normalizeNativeConfig(value, root, revision) {
+function normalizeNativeConfig(value, root, revision, ownerStat) {
   const keysValue = value && typeof value === 'object' && !Array.isArray(value) ? Object.keys(value) : [];
   if (keysValue.sort().join(',') === [...LEGACY_NATIVE_KEYS].sort().join(',')) {
-    const upgraded=expandedLegacyNativeConfig(value,root,revision);
+    const upgraded=expandedLegacyNativeConfig(value,root,revision,ownerStat);
     const state=path.join(root,'state');
     const read=validateReadConfig(readPrivateJson(path.join(state,'read.json'),'NATIVE_READ_CONFIG_UNAVAILABLE'));
     const bindingPath=path.join(state,'binding.private.json');
@@ -159,7 +174,7 @@ function normalizeNativeConfig(value, root, revision) {
   }
   if (keysValue.sort().join(',') !== [...CURRENT_NATIVE_KEYS].sort().join(','))
     fail('NATIVE_CONFIG_SCHEMA_UNSUPPORTED');
-  const current=validateNativeConfig(value,root);
+  const current=validateNativeConfig(value,root,ownerStat);
   if (current.source_revision === revision) return current;
   if (current.source_revision !== LEGACY_SOURCE_REVISION) fail('NATIVE_SOURCE_REVISION_UNEXPECTED');
   return {...current,source_revision:revision};
@@ -193,7 +208,7 @@ function migrateNativeSourceRevision(root) {
   const backup = path.join(root,'state',NATIVE_SOURCE_BACKUP);
   const original = readNativeBytes(file);
   const parsed=JSON.parse(original.toString('utf8'));
-  const updated = Buffer.from(JSON.stringify(normalizeNativeConfig(parsed,root,revision),null,2) + '\n');
+  const updated = Buffer.from(JSON.stringify(normalizeNativeConfig(parsed,root,revision,st),null,2) + '\n');
   let backupStat;
   try { backupStat = fs.lstatSync(backup); } catch (error) { if (error.code !== 'ENOENT') throw error; }
   if (!backupStat && Object.keys(parsed).sort().join(',') === [...CURRENT_NATIVE_KEYS].sort().join(',') &&
@@ -205,8 +220,8 @@ function migrateNativeSourceRevision(root) {
       const prior=JSON.parse(saved.toString('utf8'));
       const priorKeys=prior && typeof prior==='object' && !Array.isArray(prior) ? Object.keys(prior).sort().join(',') : '';
       const normalized=priorKeys === [...LEGACY_NATIVE_KEYS].sort().join(',')
-        ? expandedLegacyNativeConfig(prior,root,revision)
-        : normalizeNativeConfig(prior,root,revision);
+        ? expandedLegacyNativeConfig(prior,root,revision,st)
+        : normalizeNativeConfig(prior,root,revision,st);
       expected=Buffer.from(JSON.stringify(normalized,null,2)+'\n');
     }
     catch { fail('NATIVE_CONFIG_BACKUP_DRIFT'); }
@@ -230,7 +245,7 @@ function migrateNativeSourceRevision(root) {
   }
   const verifyStat = fs.lstatSync(file);
   const verifiedBytes = readNativeBytes(file);
-  const verified = validateNativeConfig(JSON.parse(verifiedBytes.toString('utf8')),root);
+  const verified = validateNativeConfig(JSON.parse(verifiedBytes.toString('utf8')),root,st);
   if (!verifiedBytes.equals(updated) || verified.source_revision !== revision || verifyStat.uid !== st.uid || verifyStat.gid !== st.gid ||
       (verifyStat.mode & 0o777) !== (st.mode & 0o777)) fail('NATIVE_CONFIG_READBACK_DRIFT');
   return {state:'UPDATED'};
@@ -249,8 +264,8 @@ function rollbackNativeSourceRevision(root) {
     const prior=JSON.parse(saved.toString('utf8'));
     const priorKeys=prior && typeof prior==='object' && !Array.isArray(prior) ? Object.keys(prior).sort().join(',') : '';
     const normalized=priorKeys === [...LEGACY_NATIVE_KEYS].sort().join(',')
-      ? expandedLegacyNativeConfig(prior,root,revision)
-      : normalizeNativeConfig(prior,root,revision);
+      ? expandedLegacyNativeConfig(prior,root,revision,st)
+      : normalizeNativeConfig(prior,root,revision,st);
     expected=Buffer.from(JSON.stringify(normalized,null,2)+'\n');
   }
   catch { fail('NATIVE_CONFIG_BACKUP_DRIFT'); }
