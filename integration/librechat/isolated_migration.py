@@ -20,6 +20,7 @@ SAFE_ERROR_CODES = {
     "MIGRATION_PATH_UNSAFE", "MIGRATION_PATH_ESCAPE", "MIGRATION_DIRECTORY_DRIFT",
     "MIGRATION_FILE_SYMLINK", "ISOLATED_ROOT_REQUIRED", "BUNDLE_PATH_UNSAFE",
     "MIGRATION_MANIFEST_UNSUPPORTED", "MIGRATION_SOURCE_PIN_INVALID",
+    "MIGRATION_RECOVERY_POLICY_INVALID",
     "MIGRATION_MANIFEST_EMPTY", "MIGRATION_MANIFEST_INVALID",
     "BUNDLE_FILE_DIGEST_MISMATCH", "RENDERED_CONTROLLER_PIN_MISMATCH",
     "SOURCE_REVISION_MISMATCH", "BUNDLE_ARCHIVE_REQUIRED",
@@ -66,7 +67,8 @@ def load_manifest(bundle: Path, manifest_path: Path, root: Path) -> tuple[dict, 
     if bundle.resolve(strict=True) != bundle or manifest_path.resolve(strict=True) != manifest_path:
         fail("BUNDLE_PATH_UNSAFE")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if (manifest.get("version") != 1 or manifest.get("build_template") is not False
+    version = manifest.get("version")
+    if (version not in (1, 2) or manifest.get("build_template") is not False
             or manifest.get("isolated_root") != EXPECTED_ROOT
             or manifest.get("target", {}).get("owner") != "ssm-user"
             or manifest.get("target", {}).get("group") != "ssm-user"):
@@ -88,6 +90,26 @@ def load_manifest(bundle: Path, manifest_path: Path, root: Path) -> tuple[dict, 
         target = item["target"]
         if target in seen or item.get("legacy_presence_policy") not in ("absent_only", "absent_or_exact_known_legacy"):
             fail("MIGRATION_MANIFEST_INVALID")
+        if version == 2:
+            recovery = manifest.get("recovery_policy")
+            tuples = item.get("recovery_preconditions")
+            if (recovery != {"version": 1, "kind": "exact-prestate-tuples"}
+                    or not isinstance(tuples, list) or not tuples):
+                fail("MIGRATION_RECOVERY_POLICY_INVALID")
+            for expected in tuples:
+                if expected == {"state": "ABSENT"}:
+                    continue
+                if (not isinstance(expected, dict)
+                        or set(expected) != {"sha256", "git_blob", "uid", "gid", "mode"}
+                        or not all(isinstance(expected.get(key), str) and len(expected[key]) == length
+                                   for key, length in (("sha256", 64), ("git_blob", 40), ("mode", 4)))
+                        or any(c not in "0123456789abcdef" for key in ("sha256", "git_blob")
+                               for c in expected[key])
+                        or any(c not in "01234567" for c in expected["mode"])
+                        or int(expected["mode"], 8) & ~0o777
+                        or type(expected.get("uid")) is not int or expected["uid"] < 0
+                        or type(expected.get("gid")) is not int or expected["gid"] < 0):
+                    fail("MIGRATION_RECOVERY_POLICY_INVALID")
         seen.add(target)
         data_path = checked_path(bundle, target)
         data = data_path.read_bytes()
@@ -120,14 +142,22 @@ def _identity() -> tuple[int, int]:
     return pwd.getpwnam("ssm-user").pw_uid, grp.getgrnam("ssm-user").gr_gid
 
 
-def _legacy_ok(target: Path, item: dict) -> bool:
+def _legacy_ok(target: Path, item: dict, manifest: dict | None = None) -> bool:
     if not target.exists():
+        if manifest and manifest.get("version") == 2:
+            return {"state": "ABSENT"} in item["recovery_preconditions"]
         return item["legacy_presence_policy"] in ("absent_only", "absent_or_exact_known_legacy")
-    if item["legacy_presence_policy"] == "absent_only":
+    if (item["legacy_presence_policy"] == "absent_only"
+            and not (manifest and manifest.get("version") == 2)):
         return False
     info = target.lstat()
     if not stat.S_ISREG(info.st_mode) or target.resolve(strict=True) != target:
         return False
+    if manifest and manifest.get("version") == 2:
+        data = target.read_bytes()
+        observed = {"sha256": sha(data), "git_blob": git_blob(data), "uid": info.st_uid,
+                    "gid": info.st_gid, "mode": format(stat.S_IMODE(info.st_mode), "04o")}
+        return observed in item["recovery_preconditions"]
     user, group = pwd.getpwuid(info.st_uid).pw_name, grp.getgrgid(info.st_gid).gr_name
     if (user, group, format(stat.S_IMODE(info.st_mode), "04o")) != (
             item.get("legacy_owner"), item.get("legacy_group"), item.get("legacy_mode")):
@@ -136,12 +166,73 @@ def _legacy_ok(target: Path, item: dict) -> bool:
     return git_blob(target.read_bytes()) in allowed
 
 
+def _file_tuple(target: Path, info: os.stat_result | None = None) -> dict:
+    info = info or target.lstat()
+    data = target.read_bytes()
+    return {"sha256": sha(data), "git_blob": git_blob(data), "uid": info.st_uid,
+            "gid": info.st_gid, "mode": format(stat.S_IMODE(info.st_mode), "04o")}
+
+
+def _journal_prior_allowed(prior: dict, item: dict, manifest: dict) -> bool:
+    if manifest.get("version") == 2:
+        if prior in item["recovery_preconditions"]:
+            return True
+        try:
+            expected_uid = pwd.getpwnam(item["owner"]).pw_uid
+            expected_gid = grp.getgrnam(item["group"]).gr_gid
+        except KeyError:
+            return False
+        return (prior["sha256"] == item["sha256"]
+                and prior["uid"] == expected_uid and prior["gid"] == expected_gid
+                and prior["mode"] == item["mode"])
+    try:
+        expected_uid = pwd.getpwnam(item["owner"]).pw_uid
+        expected_gid = grp.getgrnam(item["group"]).gr_gid
+        if (prior["sha256"] == item["sha256"] and prior["uid"] == expected_uid
+                and prior["gid"] == expected_gid and prior["mode"] == item["mode"]):
+            return True
+    except KeyError:
+        pass
+    allowed = (set(item.get("legacy_git_blobs", []))
+               | set(item.get("legacy_git_blob_alternates", [])))
+    return prior["git_blob"] in allowed
+
+
+def _installed_exact(target: Path, item: dict, uid: int, gid: int) -> bool:
+    try:
+        info = target.lstat()
+        return (stat.S_ISREG(info.st_mode) and not stat.S_ISLNK(info.st_mode)
+                and sha(target.read_bytes()) == item["sha256"]
+                and stat.S_IMODE(info.st_mode) == int(item["mode"], 8)
+                and info.st_uid == uid and info.st_gid == gid)
+    except OSError:
+        return False
+
+
+def _write_exclusive(path: Path, data: bytes, mode: int, uid: int, gid: int) -> None:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(path, flags, mode)
+    try:
+        os.fchown(fd, uid, gid)
+        os.fchmod(fd, mode)
+        with os.fdopen(fd, "wb", closefd=True) as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+    except Exception:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        raise
+
+
 def _atomic(path: Path, data: bytes, mode: int, uid: int, gid: int) -> None:
     fd, name = tempfile.mkstemp(prefix=".awsops-stage-", dir=path.parent)
     temp = Path(name)
     try:
-        os.fchmod(fd, mode)
         os.fchown(fd, uid, gid)
+        os.fchmod(fd, mode)
         with os.fdopen(fd, "wb", closefd=True) as stream:
             stream.write(data)
             stream.flush()
@@ -162,19 +253,41 @@ def apply(bundle: Path, manifest_path: Path, archive: Path, root: Path) -> dict:
     verify_archive(manifest, archive)
     uid, gid = _identity()
     backup = root / BACKUP
-    if backup.exists() or backup.is_symlink():
-        fail("MIGRATION_ALREADY_STARTED_RECONCILE")
     states = []
     for item in files:
         target = checked_path(root, item["target"])
-        if not _legacy_ok(target, item):
+        already_installed = _installed_exact(target, item, uid, gid)
+        if not (already_installed or _legacy_ok(target, item, manifest)):
             fail("LEGACY_TARGET_DRIFT")
-        states.append((item, target, target.read_bytes() if target.exists() else None))
+        if target.exists():
+            info = target.lstat()
+            prior = target.read_bytes()
+            prior_meta = {"uid": info.st_uid, "gid": info.st_gid,
+                          "mode": format(stat.S_IMODE(info.st_mode), "04o"),
+                          "sha256": sha(prior), "git_blob": git_blob(prior)}
+        else:
+            prior, prior_meta = None, None
+        states.append((item, target, prior, prior_meta, already_installed))
+    if states and all(row[4] for row in states):
+        if backup.exists() or backup.is_symlink():
+            journal_state, backup_state = _inspect_journal(root, manifest, files)
+            if journal_state != "VALID" or backup_state != "ROOT_0700":
+                fail("MIGRATION_ALREADY_STARTED_RECONCILE")
+        return {"state": "ALREADY_INSTALLED", "migration_id": manifest["migration_id"],
+                "files": len(files)}
+    if backup.exists() or backup.is_symlink():
+        fail("MIGRATION_ALREADY_STARTED_RECONCILE")
     backup.mkdir(mode=0o700)
     os.chown(backup, os.geteuid(), os.getegid())
-    journal = {"version": 1, "migration_id": manifest["migration_id"], "files": []}
+    os.chmod(backup, 0o700)
+    root_fd = os.open(root, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
     try:
-        for item, target, prior in states:
+        os.fsync(root_fd)
+    finally:
+        os.close(root_fd)
+    journal = {"version": 2, "migration_id": manifest["migration_id"], "files": []}
+    try:
+        for item, target, prior, prior_meta, _already_installed in states:
             if not target.parent.exists():
                 missing = []
                 parent = target.parent
@@ -190,18 +303,30 @@ def apply(bundle: Path, manifest_path: Path, archive: Path, root: Path) -> dict:
             prior_name = hashlib.sha256(item["target"].encode()).hexdigest()
             if prior is not None:
                 prior_path = backup / prior_name
-                prior_path.write_bytes(prior)
-                prior_path.chmod(0o600)
+                _write_exclusive(prior_path, prior, 0o600, os.geteuid(), os.getegid())
                 journal["files"].append({"target": item["target"], "prior": prior_name,
-                                         "prior_sha256": sha(prior), "installed_sha256": item["sha256"]})
+                                         "prior_sha256": sha(prior), "prior_git_blob": git_blob(prior),
+                                         "prior_uid": prior_meta["uid"], "prior_gid": prior_meta["gid"],
+                                         "prior_mode": prior_meta["mode"],
+                                         "installed_sha256": item["sha256"]})
             else:
                 journal["files"].append({"target": item["target"], "prior": None,
-                                         "prior_sha256": None, "installed_sha256": item["sha256"]})
+                                         "prior_sha256": None, "prior_git_blob": None,
+                                         "prior_uid": None, "prior_gid": None, "prior_mode": None,
+                                         "installed_sha256": item["sha256"]})
         journal_path = backup / "journal.json"
-        journal_path.write_text(json.dumps(journal, sort_keys=True, separators=(",", ":")) + "\n")
-        journal_path.chmod(0o600)
-        for item, target, _prior in states:
-            _atomic(target, checked_path(bundle, item["target"]).read_bytes(), 0o644, uid, gid)
+        _write_exclusive(journal_path,
+                         (json.dumps(journal, sort_keys=True, separators=(",", ":")) + "\n").encode(),
+                         0o600, os.geteuid(), os.getegid())
+        dir_fd = os.open(backup, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+        for item, target, _prior, _prior_meta, already_installed in states:
+            if not already_installed:
+                _atomic(target, checked_path(bundle, item["target"]).read_bytes(),
+                        int(item["mode"], 8), uid, gid)
     except Exception:
         # Do not auto-restore after an uncertain rename; journal plus per-file
         # hashes give the explicit rollback command exact reconciliation data.
@@ -228,12 +353,12 @@ def _inspect_root(root: Path) -> str:
     return "SSM_USER_0700"
 
 
-def _inspect_target(root: Path, item: dict) -> str:
+def _inspect_target(root: Path, item: dict, manifest: dict | None = None) -> str:
     try:
         target = checked_path(root, item["target"])
         info = target.lstat()
     except FileNotFoundError:
-        return "ABSENT_ALLOWED" if _legacy_ok(root / item["target"], item) else "ABSENT_NOT_ALLOWED"
+        return "ABSENT_ALLOWED" if _legacy_ok(root / item["target"], item, manifest) else "ABSENT_NOT_ALLOWED"
     except (OSError, ValueError):
         return "TARGET_PATH_REFUSED"
     if stat.S_ISLNK(info.st_mode):
@@ -249,7 +374,7 @@ def _inspect_target(root: Path, item: dict) -> str:
     if (sha(data) == item["sha256"] and mode == item["mode"]
             and owner == item["owner"] and group == item["group"]):
         return "INSTALLED_EXACT"
-    if _legacy_ok(target, item):
+    if _legacy_ok(target, item, manifest):
         return "LEGACY_EXACT"
     if sha(data) == item["sha256"]:
         return "INSTALLED_METADATA_DRIFT"
@@ -290,7 +415,7 @@ def _inspect_journal(root: Path, manifest: dict, files: list[dict]) -> tuple[str
     rows = journal.get("files") if isinstance(journal, dict) else None
     expected = {item["target"]: item for item in files}
     if (not isinstance(journal, dict)
-            or journal.get("version") != 1
+            or journal.get("version") not in (1, 2)
             or journal.get("migration_id") != manifest["migration_id"]
             or not isinstance(rows, list) or len(rows) != len(files)):
         return "INVALID", backup_status
@@ -305,7 +430,7 @@ def _inspect_journal(root: Path, manifest: dict, files: list[dict]) -> tuple[str
         if prior is None:
             if row.get("prior_sha256") is not None:
                 return "INVALID", backup_status
-            target_state = _inspect_target(root, expected[target])
+            target_state = _inspect_target(root, expected[target], manifest)
             if target_state not in ("ABSENT_ALLOWED", "INSTALLED_EXACT"):
                 return "INVALID", backup_status
         else:
@@ -321,17 +446,30 @@ def _inspect_journal(root: Path, manifest: dict, files: list[dict]) -> tuple[str
                         or sha(prior_path.read_bytes()) != row["prior_sha256"]):
                     return "INVALID", backup_status
                 prior_data = prior_path.read_bytes()
-                allowed = (set(expected[target].get("legacy_git_blobs", []))
-                           | set(expected[target].get("legacy_git_blob_alternates", [])))
-                if git_blob(prior_data) not in allowed:
+                if journal["version"] == 1:
+                    allowed = (set(expected[target].get("legacy_git_blobs", []))
+                               | set(expected[target].get("legacy_git_blob_alternates", [])))
+                    if git_blob(prior_data) not in allowed:
+                        return "INVALID", backup_status
+                else:
+                    prior_meta = {"sha256": row["prior_sha256"],
+                                  "git_blob": row.get("prior_git_blob"),
+                                  "uid": row.get("prior_uid"), "gid": row.get("prior_gid"),
+                                  "mode": row.get("prior_mode")}
+                    if (prior_meta["git_blob"] != git_blob(prior_data)
+                            or not _journal_prior_allowed(prior_meta, expected[target], manifest)):
+                        return "INVALID", backup_status
+                target_state = _inspect_target(root, expected[target], manifest)
+                if target_state not in ("LEGACY_EXACT", "INSTALLED_EXACT"):
                     return "INVALID", backup_status
-                target_state = _inspect_target(root, expected[target])
                 if target_state == "LEGACY_EXACT":
                     current_target = checked_path(root, target)
-                    if sha(current_target.read_bytes()) != row["prior_sha256"]:
+                    if journal["version"] == 2:
+                        current_tuple = _file_tuple(current_target, current_target.lstat())
+                        if current_tuple != prior_meta:
+                            return "INVALID", backup_status
+                    elif sha(current_target.read_bytes()) != row["prior_sha256"]:
                         return "INVALID", backup_status
-                elif target_state != "INSTALLED_EXACT":
-                    return "INVALID", backup_status
             except (OSError, KeyError):
                 return "INVALID", backup_status
         actual[target] = row
@@ -355,7 +493,7 @@ def inspect_migration(bundle: Path, manifest_path: Path, archive: Path, root: Pa
     verify_archive(manifest, archive)
     root_status = _inspect_root(root)
     journal_status, backup_status = _inspect_journal(root, manifest, files)
-    targets = [{"key": f"T{index:02d}", "state": _inspect_target(root, item)}
+    targets = [{"key": f"T{index:02d}", "state": _inspect_target(root, item, manifest)}
                for index, item in enumerate(files, 1)]
     states = [row["state"] for row in targets]
     pre_states = {"ABSENT_ALLOWED", "LEGACY_EXACT"}
@@ -400,32 +538,77 @@ def rollback(bundle: Path, manifest_path: Path, archive: Path, root: Path) -> di
     backup = root / BACKUP
     if backup.is_symlink() or not backup.is_dir():
         fail("MIGRATION_JOURNAL_MISSING")
+    journal_state, backup_state = _inspect_journal(root, manifest, files)
+    if journal_state != "VALID" or backup_state != "ROOT_0700":
+        fail("MIGRATION_JOURNAL_MISMATCH")
     journal = json.loads((backup / "journal.json").read_text(encoding="utf-8"))
-    if journal.get("migration_id") != manifest["migration_id"] or len(journal.get("files", [])) != len(files):
+    version = journal.get("version") if isinstance(journal, dict) else None
+    if (version not in (1, 2) or journal.get("migration_id") != manifest["migration_id"]
+            or len(journal.get("files", [])) != len(files)):
         fail("MIGRATION_JOURNAL_MISMATCH")
     by_target = {item["target"]: item for item in journal["files"]}
-    installed = set()
-    restore_data = {}
+    restore_data: dict[str, tuple[bytes, int, int, int]] = {}
+    installed: set[str] = set()
     for item in files:
         state = by_target.get(item["target"])
         target = checked_path(root, item["target"])
         if not state or state.get("installed_sha256") != item["sha256"]:
             fail("MIGRATION_INSTALLED_FILE_DRIFT")
-        if target.is_file() and sha(target.read_bytes()) == item["sha256"]:
+        try:
+            target_info = target.lstat()
+        except FileNotFoundError:
+            target_info = None
+        if target_info and stat.S_ISLNK(target_info.st_mode):
+            fail("MIGRATION_INSTALLED_FILE_DRIFT")
+        target_is_installed = bool(target_info and stat.S_ISREG(target_info.st_mode)
+                                   and _installed_exact(target, item, uid, gid))
+        if target_is_installed:
             installed.add(item["target"])
-        elif state["prior"] is None:
-            if target.exists():
-                fail("MIGRATION_INSTALLED_FILE_DRIFT")
-        else:
-            prior = backup / state["prior"]
-            if not target.is_file() or sha(target.read_bytes()) != state["prior_sha256"]:
-                fail("MIGRATION_INSTALLED_FILE_DRIFT")
+        elif target_info and state.get("prior") is None:
+            fail("MIGRATION_INSTALLED_FILE_DRIFT")
+        elif target_info is None and state.get("prior") is not None:
+            fail("MIGRATION_INSTALLED_FILE_DRIFT")
         if state["prior"] is not None:
             prior = backup / state["prior"]
-            if (prior.is_symlink() or not prior.is_file()
-                    or sha(prior.read_bytes()) != state["prior_sha256"]):
+            try:
+                prior_info = prior.lstat()
+            except OSError:
                 fail("MIGRATION_INSTALLED_FILE_DRIFT")
-            restore_data[item["target"]] = prior.read_bytes()
+            if (stat.S_ISLNK(prior_info.st_mode) or not stat.S_ISREG(prior_info.st_mode)
+                    or _owner_group(prior_info) != ("root", "root")
+                    or stat.S_IMODE(prior_info.st_mode) != 0o600):
+                fail("MIGRATION_INSTALLED_FILE_DRIFT")
+            prior_data = prior.read_bytes()
+            if sha(prior_data) != state.get("prior_sha256"):
+                fail("MIGRATION_INSTALLED_FILE_DRIFT")
+            if version == 2:
+                expected_tuple = {"sha256": state["prior_sha256"],
+                                  "git_blob": state.get("prior_git_blob"),
+                                  "uid": state.get("prior_uid"), "gid": state.get("prior_gid"),
+                                  "mode": state.get("prior_mode")}
+                if (expected_tuple["git_blob"] != git_blob(prior_data)
+                        or type(expected_tuple["uid"]) is not int
+                        or type(expected_tuple["gid"]) is not int
+                        or not isinstance(expected_tuple["mode"], str)
+                        or not _journal_prior_allowed(expected_tuple, item, manifest)):
+                    fail("MIGRATION_INSTALLED_FILE_DRIFT")
+                prior_uid, prior_gid, prior_mode = (expected_tuple["uid"], expected_tuple["gid"],
+                                                     int(expected_tuple["mode"], 8))
+                if target_info and not target_is_installed:
+                    if _file_tuple(target, target_info) != expected_tuple:
+                        fail("MIGRATION_INSTALLED_FILE_DRIFT")
+            else:
+                allowed = (set(item.get("legacy_git_blobs", []))
+                           | set(item.get("legacy_git_blob_alternates", [])))
+                if git_blob(prior_data) not in allowed:
+                    fail("MIGRATION_INSTALLED_FILE_DRIFT")
+                prior_uid, prior_gid, prior_mode = uid, gid, int(item["legacy_mode"], 8)
+                if target_info and not target_is_installed:
+                    if not _legacy_ok(target, item, manifest) or sha(target.read_bytes()) != state["prior_sha256"]:
+                        fail("MIGRATION_INSTALLED_FILE_DRIFT")
+            restore_data[item["target"]] = (prior_data, prior_uid, prior_gid, prior_mode)
+        elif target_info and not target_is_installed:
+            fail("MIGRATION_INSTALLED_FILE_DRIFT")
     for item in reversed(files):
         state = by_target[item["target"]]
         target = checked_path(root, item["target"])
@@ -434,8 +617,20 @@ def rollback(bundle: Path, manifest_path: Path, archive: Path, root: Path) -> di
         if state["prior"] is None:
             target.unlink()
         else:
-            data = restore_data[item["target"]]
-            _atomic(target, data, int(item["legacy_mode"], 8), uid, gid)
+            data, prior_uid, prior_gid, prior_mode = restore_data[item["target"]]
+            _atomic(target, data, prior_mode, prior_uid, prior_gid)
+    for item in files:
+        target = checked_path(root, item["target"])
+        state = by_target[item["target"]]
+        if state["prior"] is None:
+            if target.exists():
+                fail("MIGRATION_INSTALLED_FILE_DRIFT")
+        elif _file_tuple(target, target.lstat()) != {
+                "sha256": state["prior_sha256"],
+                "git_blob": state.get("prior_git_blob") if version == 2 else git_blob(restore_data[item["target"]][0]),
+                "uid": restore_data[item["target"]][1], "gid": restore_data[item["target"]][2],
+                "mode": format(restore_data[item["target"]][3], "04o")}:
+            fail("MIGRATION_INSTALLED_FILE_DRIFT")
     shutil.rmtree(backup)
     return {"state": "ROLLED_BACK", "migration_id": manifest["migration_id"], "files": len(files)}
 

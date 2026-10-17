@@ -182,6 +182,17 @@ digest check (`--archive` is required by both operations) before extraction.
 These source contracts do not prove current host compatibility or authorize
 installation.
 
+For a reviewed recovery from known metadata drift, manifest version 2 uses a
+versioned exact-prestate tuple allowlist per target (content SHA-256, Git blob,
+numeric uid/gid and mode, or explicit absence). Host observations belong only
+in the private generated manifest, never this repository. Apply validates all
+targets before creating exclusive root-only backups, records and fsyncs each
+original byte/metadata tuple before replacement, and leaves already-exact
+files untouched. Rollback validates every backup and current target before its
+first restore, then restores the recorded metadata; it does not infer prior
+ownership or mode from the legacy template. Existing v1 bundles remain
+readable. A present journal or any tuple mismatch remains reconciliation-only.
+
 The resume failure path still uses generation-fenced terminalization, conditional
 checkpoint cleanup and independent slot release; timeout reports reconciliation.
 The producer failure path raises before pause publication and relies on the
