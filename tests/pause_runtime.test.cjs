@@ -229,6 +229,32 @@ test('runtime config reapply is bound to immutable backup and rejects backup sym
   assert.throws(()=>runtimeConfig.configure(app,root),/CONFIG_BACKUP_DRIFT/);
 });
 
+test('native source pin migration is old-revision guarded, private, read-back verified and reversible',t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'awsops-native-pin-'));
+  t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const state=path.join(root,'state'),awsops=path.join(root,'awsops');
+  fs.mkdirSync(state,{mode:0o700});fs.mkdirSync(awsops,{mode:0o700});
+  fs.writeFileSync(path.join(awsops,'SOURCE_REVISION'),'b'.repeat(40)+'\n',{mode:0o644});
+  const original={version:1,enabled:true,agent_id:'canary',python:'/usr/bin/python3',
+    source_root:awsops,database:path.join(state,'native.sqlite'),source_revision:'d9545f7cd3aca485a137c5b8e8b8d55f02a004c8',
+    application_database:path.join(state,'canary.sqlite'),application_binding:path.join(state,'binding.private.json'),
+    source_version:'v1.0.0-mock'};
+  const native=path.join(state,'native.json'),raw=Buffer.from(JSON.stringify(original,null,2)+'\n');
+  fs.writeFileSync(native,raw,{mode:0o600});
+  assert.deepEqual(runtimeConfig.migrateNativeSourceRevision(root),{state:'UPDATED'});
+  const migrated=JSON.parse(fs.readFileSync(native,'utf8'));
+  assert.deepEqual({...migrated,source_revision:original.source_revision},original);
+  assert.deepEqual(fs.readFileSync(path.join(state,runtimeConfig.NATIVE_SOURCE_BACKUP)),raw);
+  const stat=fs.statSync(native);assert.equal(stat.mode&0o777,0o600);
+  assert.deepEqual(runtimeConfig.migrateNativeSourceRevision(root),{state:'UPDATED'});
+  migrated.agent_id='foreign';fs.writeFileSync(native,JSON.stringify(migrated)+'\n',{mode:0o600});
+  assert.throws(()=>runtimeConfig.migrateNativeSourceRevision(root),/NATIVE_CONFIG_BACKUP_DRIFT/);
+  fs.writeFileSync(native,Buffer.from(JSON.stringify({...original,source_revision:'b'.repeat(40)},null,2)+'\n'),{mode:0o600});
+  assert.deepEqual(runtimeConfig.rollbackNativeSourceRevision(root),{state:'ROLLED_BACK'});
+  assert.deepEqual(fs.readFileSync(native),raw);
+  assert.equal(fs.existsSync(path.join(state,runtimeConfig.NATIVE_SOURCE_BACKUP)),false);
+});
+
 test('provider pipe excludes browser and ambient AWS credentials from child environment',async t=>{
   const f=setup(t),configPath=path.join(f.dir,'read.json'),fake=path.join(f.dir,'env-python');
   fs.writeFileSync(configPath,'{}',{mode:0o600});
