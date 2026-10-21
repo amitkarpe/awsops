@@ -1,7 +1,7 @@
 """Private, append-only native decision evidence. No executor or cloud client."""
 from __future__ import annotations
 
-from contextlib import closing, contextmanager
+from contextlib import closing, contextmanager, nullcontext
 from dataclasses import asdict, dataclass
 import json
 import os
@@ -10,6 +10,11 @@ import sqlite3
 import stat
 import time
 from typing import Callable, Iterator
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - the runtime requires POSIX file locks
+    fcntl = None
 
 from awsops.domain.freeze import FrozenScope
 from awsops.domain.models import Finding, canonical_digest, require_text
@@ -28,6 +33,7 @@ _TRIGGERS = {
     "events_no_update": "CREATE TRIGGER events_no_update BEFORE UPDATE ON events BEGIN SELECT RAISE(ABORT, 'append-only ledger'); END",
     "events_no_delete": "CREATE TRIGGER events_no_delete BEFORE DELETE ON events BEGIN SELECT RAISE(ABORT, 'append-only ledger'); END",
 }
+_DATABASE_LOCK_TIMEOUT_SECONDS = 2.0
 
 
 class DecisionError(ValueError):
@@ -88,6 +94,62 @@ def _scope(value: dict) -> FrozenScope:
     return frozen
 
 
+@contextmanager
+def _database_lock(path: Path, *, fd: int | None = None) -> Iterator[None]:
+    """Serialize ledger validation and transactions without hiding stale sidecars.
+
+    Every DecisionStore writer takes this lock before opening SQLite. A second
+    process therefore waits for a legitimate DELETE-journal transaction to
+    finish before applying the strict sidecar check. A sidecar left by a
+    process that did not hold this lock remains a hard refusal.
+    """
+    if fcntl is None:
+        raise DecisionError("DATABASE_LOCKING_UNAVAILABLE")
+    target = Path(path).absolute()
+    owns_fd = fd is None
+    if fd is None:
+        named = target.lstat()
+        if stat.S_ISLNK(named.st_mode) or not stat.S_ISREG(named.st_mode):
+            raise DecisionError("UNSAFE_DATABASE_FILE")
+        if os.name == "posix" and stat.S_IMODE(named.st_mode) & 0o077:
+            raise DecisionError("UNSAFE_DATABASE_FILE")
+        fd = os.open(target, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0)
+                     | getattr(os, "O_NOFOLLOW", 0))
+    try:
+        info = os.fstat(fd)
+        named = target.lstat()
+        if (not stat.S_ISREG(info.st_mode) or stat.S_ISLNK(named.st_mode)
+                or (info.st_dev, info.st_ino) != (named.st_dev, named.st_ino)
+                or (os.name == "posix" and stat.S_IMODE(info.st_mode) & 0o077)):
+            raise DecisionError("UNSAFE_DATABASE_FILE")
+        deadline = time.monotonic() + _DATABASE_LOCK_TIMEOUT_SECONDS
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError as exc:
+                if time.monotonic() >= deadline:
+                    raise DecisionError("DATABASE_BUSY") from exc
+                time.sleep(0.01)
+        info = os.fstat(fd)
+        named = target.lstat()
+        if (not stat.S_ISREG(info.st_mode) or stat.S_ISLNK(named.st_mode)
+                or (info.st_dev, info.st_ino) != (named.st_dev, named.st_ino)
+                or (os.name == "posix" and stat.S_IMODE(info.st_mode) & 0o077)):
+            raise DecisionError("UNSAFE_DATABASE_FILE")
+        for suffix in ("-journal", "-wal", "-shm"):
+            sidecar = Path(str(target) + suffix)
+            if sidecar.exists() or sidecar.is_symlink():
+                raise DecisionError("UNSAFE_DATABASE_SIDECAR")
+        yield
+    finally:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            if owns_fd:
+                os.close(fd)
+
+
 class DecisionStore:
     """One local database. The hosting server and filesystem are trusted.
 
@@ -97,28 +159,33 @@ class DecisionStore:
     def __init__(self, path: Path, *, clock: Callable[[], float] = time.time):
         self.path = Path(path).absolute()
         self.clock = clock
+        if fcntl is None:
+            raise DecisionError("DATABASE_LOCKING_UNAVAILABLE")
         if not self.path.parent.is_dir():
             raise DecisionError("PRIVATE_PARENT_DIRECTORY_REQUIRED")
         if self.path.exists() or self.path.is_symlink():
             self.validate_existing(self.path)
             return
         try:
-            fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600)
         except FileExistsError:
             self.validate_existing(self.path)
             return
         else:
-            os.close(fd)
-        self._check_file()
-        with self._transaction() as db:
-            version = db.execute("PRAGMA user_version").fetchone()[0]
-            objects = db.execute("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").fetchall()
-            if version == 0 and not objects:
-                db.execute(_TABLE)
-                for ddl in _TRIGGERS.values():
-                    db.execute(ddl)
-                db.execute("PRAGMA user_version=1")
-            self._verify(db)
+            try:
+                with _database_lock(self.path, fd=fd):
+                    self._check_file()
+                    with self._transaction(lock_held=True) as db:
+                        version = db.execute("PRAGMA user_version").fetchone()[0]
+                        objects = db.execute("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").fetchall()
+                        if version == 0 and not objects:
+                            db.execute(_TABLE)
+                            for ddl in _TRIGGERS.values():
+                                db.execute(ddl)
+                            db.execute("PRAGMA user_version=1")
+                        self._verify(db)
+            finally:
+                os.close(fd)
 
     @classmethod
     def validate_existing(cls, path: Path) -> None:
@@ -126,21 +193,18 @@ class DecisionStore:
         target = Path(path).absolute()
         if target.is_symlink() or not target.exists() or not target.parent.is_dir():
             raise DecisionError("UNSAFE_DATABASE_PATH")
-        mode = target.lstat().st_mode
-        if not stat.S_ISREG(mode) or (os.name == "posix" and stat.S_IMODE(mode) & 0o077):
-            raise DecisionError("UNSAFE_DATABASE_FILE")
-        for suffix in ("-journal", "-wal", "-shm"):
-            sidecar = Path(str(target) + suffix)
-            if sidecar.exists() or sidecar.is_symlink():
-                raise DecisionError("UNSAFE_DATABASE_SIDECAR")
-        uri = target.as_uri() + "?mode=ro&immutable=1"
-        try:
-            with closing(sqlite3.connect(uri, uri=True, timeout=2)) as db:
-                if db.execute("PRAGMA journal_mode").fetchone()[0] != "delete":
-                    raise DecisionError("UNSUPPORTED_JOURNAL_MODE")
-                cls._verify(db)
-        except sqlite3.Error as exc:
-            raise DecisionError("LEDGER_SCHEMA_DRIFT") from exc
+        with _database_lock(target):
+            mode = target.lstat().st_mode
+            if not stat.S_ISREG(mode) or (os.name == "posix" and stat.S_IMODE(mode) & 0o077):
+                raise DecisionError("UNSAFE_DATABASE_FILE")
+            uri = target.as_uri() + "?mode=ro&immutable=1"
+            try:
+                with closing(sqlite3.connect(uri, uri=True, timeout=2)) as db:
+                    if db.execute("PRAGMA journal_mode").fetchone()[0] != "delete":
+                        raise DecisionError("UNSUPPORTED_JOURNAL_MODE")
+                    cls._verify(db)
+            except sqlite3.Error as exc:
+                raise DecisionError("LEDGER_SCHEMA_DRIFT") from exc
 
     def _check_file(self) -> None:
         mode = self.path.lstat().st_mode
@@ -163,15 +227,17 @@ class DecisionStore:
         db.commit()
 
     @contextmanager
-    def _transaction(self) -> Iterator[sqlite3.Connection]:
-        with closing(self._connect()) as db:
-            db.execute("BEGIN IMMEDIATE")
-            try:
-                yield db
-                self._commit(db)
-            except BaseException:
-                db.rollback()
-                raise
+    def _transaction(self, *, lock_held: bool = False) -> Iterator[sqlite3.Connection]:
+        guard = nullcontext() if lock_held else _database_lock(self.path)
+        with guard:
+            with closing(self._connect()) as db:
+                db.execute("BEGIN IMMEDIATE")
+                try:
+                    yield db
+                    self._commit(db)
+                except BaseException:
+                    db.rollback()
+                    raise
 
     @staticmethod
     def _verify(db: sqlite3.Connection) -> list[dict]:
