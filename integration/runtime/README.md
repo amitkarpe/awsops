@@ -58,6 +58,14 @@ See `home/README.md` and `docs/architecture/HOME_DEMO_RUNTIME.md`.
 
 ## Issue90 isolated activation source contract
 
+The Issue90 runtime-only operator requires a Python interpreter with `boto3`
+and `botocore` available. Select only an existing interpreter whose SDK
+environment is verified for this operator; the default `/usr/bin/python3`
+currently lacks both modules in the Home checkout. If imports are unavailable,
+the operator refuses with `BOTO3_RUNTIME_DEPENDENCY_MISSING` before constructing
+the provider or making provider calls. Fake-provider tests do not establish
+that a live SDK environment is ready.
+
 `issue90-isolated-launcher.sh` is a separate, bounded operator entrypoint for
 the exact `/opt/awsops-native-canary` root. After the reviewed bundle and
 runtime config are installed, the fixed commands are:
