@@ -58,6 +58,14 @@ See `home/README.md` and `docs/architecture/HOME_DEMO_RUNTIME.md`.
 
 ## Issue90 isolated activation source contract
 
+The Issue90 runtime-only operator requires a Python interpreter with `boto3`
+and `botocore` available. Select only an existing interpreter whose SDK
+environment is verified for this operator; the default `/usr/bin/python3`
+currently lacks both modules in the Home checkout. If imports are unavailable,
+the operator refuses with `BOTO3_RUNTIME_DEPENDENCY_MISSING` before constructing
+the provider or making provider calls. Fake-provider tests do not establish
+that a live SDK environment is ready.
+
 `issue90-isolated-launcher.sh` is a separate, bounded operator entrypoint for
 the exact `/opt/awsops-native-canary` root. After the reviewed bundle and
 runtime config are installed, the fixed commands are:
@@ -112,3 +120,15 @@ That request is not a decision, authentication, or approval. Only the real
 authenticated owner's Reject in the existing UI creates a decision. No
 synthetic or automated browser action counts as human evidence. The launcher
 does not contact AWS or create cloud resources.
+
+The tracked runtime-only outer operator is `src/awsops/runtime/issue90_operator.py`.
+It uses the explicit `amit`/`ap-southeast-1` Boto3 session for exact-ID,
+read-only checks of the attached security groups, volumes, address, and subnet
+before any lifecycle request. Its private config must pin the SHA-256 of the
+four existing activation property snapshots; absent, changed, or mismatching
+snapshots refuse before Start. It does not enumerate resources. The native
+READY notifier is injected by the existing private caller and has a bounded
+wait; no Codex queue command is guessed by the AWS operator. Receipt checks
+reopen the canonical application ledger and do not claim provider readback.
+The notifier must deliver a private pointer while the owner window is active;
+synthetic fixture stimulus is not an owner decision.
