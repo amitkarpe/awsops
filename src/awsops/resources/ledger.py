@@ -119,7 +119,7 @@ def render_markdown(rows: Iterable[LedgerRow], *, verified_at: str, coverage: st
                 _text(item["state"]), f"**{_text(item['cost'])}**", _text(item["action"]),
             )) + " |")
         lines += ["", "## Account cost summary", "",
-                  "| Account | Period | Actual Cost Explorer | Notes |",
+                  "| Account | Period | Cost Explorer MTD | Notes |",
                   "| --- | --- | ---: | --- |"]
         for item in cost_snapshot.get("accounts", []):
             lines.append("| " + " | ".join((

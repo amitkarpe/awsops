@@ -5,8 +5,10 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "scripts"))
 
 from awsops.resources.ledger import LedgerRow, parse_date, render_markdown, right_size_t3
+from aws_resources_report import decision
 
 
 class ResourceLedgerTests(unittest.TestCase):
@@ -28,6 +30,9 @@ class ResourceLedgerTests(unittest.TestCase):
 
     def test_right_size_needs_complete_metrics(self):
         self.assertEqual(right_size_t3({})["recommendation"], "NEEDS-EVIDENCE")
+
+    def test_expired_ttl_is_review_until_owner_protection_is_checked(self):
+        self.assertEqual(decision({"TTL": "2026-09-01"}, date(2026, 10, 21)), "REVIEW")
 
     def test_render_is_kiss_and_uses_aliases(self):
         row = LedgerRow(
@@ -60,6 +65,8 @@ class ResourceLedgerTests(unittest.TestCase):
         self.assertIn("23d (created)", text)
         self.assertIn("**amit**", text)
         self.assertIn("agentcore-issue19-librechat-poc-r01", text)
+        self.assertIn("Cost Explorer MTD", text)
+        self.assertNotIn("Actual Cost Explorer", text)
         self.assertNotIn("ResourceARN", text)
 
     def test_bad_enum_is_rejected(self):

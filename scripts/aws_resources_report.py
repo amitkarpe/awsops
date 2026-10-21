@@ -65,7 +65,8 @@ def decision(tags: dict[str, str], as_of) -> str:
         return "RETAIN"
     ttl = parse_date(tags.get("TTL") or tags.get("ttl"))
     if ttl and ttl < as_of:
-        return "CLEANUP-CANDIDATE"
+        # Expiry alone cannot screen owner protections or authorize cleanup.
+        return "REVIEW"
     if ttl:
         return "RETAIN"
     return "REVIEW"
@@ -239,7 +240,11 @@ def main() -> int:
     text = render_markdown(
         rows,
         verified_at=verified_at,
-        coverage="live amit account project tags + live vagent retained EC2 snapshot + explicit repo-evidence seeds",
+        coverage=(
+            "live selected-session project-tag rows + fixed owner=amit host query + "
+            "explicit repository-evidence seeds (vagent seed rows remain historical; "
+            "an amit read does not refresh vagent)"
+        ),
         sizing=sizing,
         cost_snapshot=cost_snapshot,
     )
