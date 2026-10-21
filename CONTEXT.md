@@ -2,7 +2,7 @@
 
 Repository: `amitkarpe/awsops`; `aws-secops` remains reference/archive only.
 
-Updated 17 October 2026. Manager coordinates; the same existing repository X is
+Updated 21 October 2026. Manager coordinates; the same existing repository X is
 sole writer under the current #90 owner override. Routine FAST communication uses
 the existing conversation/queue; admission is not execution. Active task scope
 controls work. The #77 [technical runbook](docs/architecture/DEV_COMPUTE_MODEL.md)
@@ -19,21 +19,28 @@ No separate dispatcher or cross-account architecture for this MVP.
 
 [Current design](docs/proposals/defence-lab-execution/README.md).
 The [current owner override](https://github.com/amitkarpe/awsops/issues/90#issuecomment-6207039365)
-supersedes earlier DOT-only, USD10 and repeated live-GO language. This delegated
-milestone is narrower: repository-only, no AWS/provider operation, PR for M review.
-No root, company/PROD access, secret exposure or destructive shortcuts.
+supersedes earlier DOT-only, USD10 and repeated live-GO language. Manager owns
+technical research, delivery, exact-head review and eligible merges under
+Issue13; the existing repository X is the sole writer. G/owner review applies
+only when explicitly required. Keep personal-LAB, per-batch authenticated
+approval, protected #89, and source-versus-live evidence boundaries.
 
-Current source milestone: [fixed disposable S3-canary adapter](docs/current/S3_CANARY_ADAPTER.md)
-uses canonical Batch/Decision/Run/Evidence and durable one-time claims, only `amit`.
-Fake-provider proof distinguishes simulated writes and independent readback from
-UNKNOWN Config compliance/freshness. Legacy native Approve remains blocked.
-PR #94 included no live provider/SDK, AWS operation or protected #89 change.
-Actual viewer, hosted release, MOCK and REAL AWS evidence stay distinct.
+## Latest accepted Issue #90 runtime checkpoint
 
-Home's Issue #90 source slice adds an exact SDK provider and human-operated
-operator route for one new empty canary. Live approve and cleanup both fail
-closed because no separately trusted canary approval binding is wired. PR95 is
-merged; the follow-up handles only proven acknowledged partial creation using
-fake-SDK proof. The owner-private binding is not in Git; no AWS call or resource
-is part of this source milestone. See the provider section of the canary adapter
-note.
+The [17 October checkpoint](https://github.com/amitkarpe/awsops/issues/90#issuecomment-6236410010)
+records source `948e8bb6b1d6915d2f585e2a2e5c20cc7caf3ced` installed and the
+config-only resume reaching isolated launcher READY at 22:56 SGT. Launcher
+cleanup and an independent EC2 readback reported STOPPED at 23:10 SGT. This is
+the last accepted observation, not a fresh provider-state read.
+
+The genuine owner Reject receipt is `NOT_VERIFIED`; this does not establish
+whether an owner action occurred or indicate a verifier defect. S3 remediation
+and cleanup were `NOT_RUN`. The full upstream LibreChat revision remains
+`UNVERIFIED`, and the runtime-only executor has offline proof only. Preserve
+these distinctions and the historical PR13 draft; do not treat source or offline
+proof as a live decision or provider operation.
+
+Next: when the owner is available, use the reviewed runtime-only path for a real
+normal-login Reject and verify its bound receipt plus independent STOPPED
+readback. Any later provider write still requires a genuine authenticated
+Approve Once for its fresh exact batch.

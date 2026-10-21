@@ -12,10 +12,11 @@ not an enterprise production platform. **BUILD → DEMONSTRATE → IMPROVE.**
 5. No unnecessary frameworks, layers or infrastructure.
 6. Minimal meaningful tests and evidence only; reuse completed proof.
 7. Do not repeatedly request GO for routine development.
-8. Manager owns Defence Factory technical decisions and acceptance under Manager
-   Issue #13; existing AWSOPS X remains the sole implementation writer. DOT is
-   not a writer. G independently reviews and may merge eligible PRs; approved
-   scope continues without another GO.
+8. Manager owns Defence Factory technical decisions, acceptance, exact-head
+   review and eligible merges under Manager Issue #13; existing AWSOPS X remains
+   the sole implementation writer. G/owner review applies only when explicitly
+   required by an active instruction. DOT is not a writer; approved scope
+   continues without another GO.
 9. Optional hardening must NOT block MVP milestones.
 10. Enterprise security, scalability, multi-tenant complexity and comprehensive
     edge-case coverage are future phases.
