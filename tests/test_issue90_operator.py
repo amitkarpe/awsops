@@ -420,7 +420,7 @@ class Issue90OperatorTests(unittest.TestCase):
             config_path = Path(temp) / "config.private.json"
             _write_private(config_path, {})
             factory = Mock()
-            with patch.object(operator.shutil, "which", return_value=None):
+            with patch.object(operator, "NATIVE_CODEX_EXECUTABLE", "/missing/codex"):
                 result = operator.main([
                     "--execute-runtime-only", "--private-config", str(config_path)],
                     provider_factory=factory)
@@ -428,7 +428,7 @@ class Issue90OperatorTests(unittest.TestCase):
             factory.assert_not_called()
 
     def test_main_wires_available_native_queue_into_runtime(self):
-        codex = "/usr/bin/codex"
+        codex = operator.NATIVE_CODEX_EXECUTABLE
         receipt = "01a15ef6-4da8-7c72-b00b-356bd44c5313"
         message = "Issue90 runtime READY; genuine owner login/Reject required."
         with tempfile.TemporaryDirectory() as temp:
@@ -444,8 +444,7 @@ class Issue90OperatorTests(unittest.TestCase):
                 return {"status": "OWNER_REJECT_RECEIPT_VERIFIED"
                         if runtime.notifier("run", message) == receipt else "NOT_READY"}
 
-            with (patch.object(operator.shutil, "which", return_value=codex),
-                  patch.object(operator.subprocess, "run", return_value=queued) as send,
+            with (patch.object(operator.subprocess, "run", return_value=queued) as send,
                   patch.object(operator.RuntimeOperator, "run", exercise_notifier)):
                 result = operator.main([
                     "--execute-runtime-only", "--private-config", str(config_path)],

@@ -18,7 +18,6 @@ from pathlib import Path
 from pathlib import PurePosixPath
 import re
 import shlex
-import shutil
 import signal
 import subprocess
 import sys
@@ -37,6 +36,7 @@ MAX_SSM_BYTES = 4096
 MAX_SSM_COMMENT_CHARS = 100
 SSM_DOCUMENT = "AWS-RunShellScript"
 NATIVE_MANAGER_THREAD = "01a142e5-6c7f-7801-bc3d-2bca3c3ad3fc"
+NATIVE_CODEX_EXECUTABLE = "/home/dev/.local/bin/codex"
 NATIVE_QUEUE_TIMEOUT_SECONDS = 10
 OWNER_COST_DIRECTIVE = "https://github.com/amitkarpe/awsops/issues/90#issuecomment-6319701453"
 TOTAL_INCREMENTAL_CEILING_USD = "100.00"
@@ -1556,10 +1556,10 @@ def main(argv: list[str] | None = None, *,
     try:
         config = _load_private_json(args.private_config, expected_uid=os.getuid())
         if notifier is None:
-            codex_executable = shutil.which("codex")
-            if codex_executable is None:
+            if (not Path(NATIVE_CODEX_EXECUTABLE).is_file()
+                    or not os.access(NATIVE_CODEX_EXECUTABLE, os.X_OK)):
                 raise RuntimeRefused("RUNTIME_READY_NOTIFIER_UNAVAILABLE")
-            notifier = make_native_manager_notifier(codex_executable)
+            notifier = make_native_manager_notifier(NATIVE_CODEX_EXECUTABLE)
         if not callable(notifier):
             raise RuntimeRefused("RUNTIME_READY_NOTIFIER_UNAVAILABLE")
         provider = provider_factory()
