@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ast
+from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, replace
 import json
@@ -11,12 +12,14 @@ from pathlib import Path
 import sqlite3
 import sys
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from awsops.approval import decisions as decisions_module
 from awsops.approval.decisions import DecisionError, DecisionReceipt, DecisionStore, NativeBinding, TOOL, _TRIGGERS
 from awsops.domain.freeze import freeze_finding
 from awsops.domain.models import Finding
@@ -224,6 +227,53 @@ class NativeDecisionTests(unittest.TestCase):
         self.assertEqual(results.count("DECISION_ALREADY_RECORDED"), 1)
         self.assertEqual(sum(r in ("APPROVE_BLOCKED", "REJECTED") for r in results), 1)
         self.assertEqual(len(self.store.timeline(self.frozen.batch_id, self.binding)), 2)
+
+    def test_constructor_waits_for_valid_transaction_before_sidecar_check(self):
+        transaction_open = threading.Event()
+        release_transaction = threading.Event()
+        validation_waiting = threading.Event()
+        journal = Path(str(self.path) + "-journal")
+
+        def hold_valid_transaction():
+            try:
+                with self.store._transaction() as db:
+                    db.execute("CREATE TABLE transient_probe (value TEXT)")
+                    transaction_open.set()
+                    if not release_transaction.wait(5):
+                        raise RuntimeError("test transaction release timed out")
+                    raise RuntimeError("rollback the test-only schema change")
+            except RuntimeError as exc:
+                if str(exc) != "rollback the test-only schema change":
+                    raise
+
+        original_lock = decisions_module._database_lock
+
+        @contextmanager
+        def observed_lock(path, *, fd=None):
+            if fd is None:
+                validation_waiting.set()
+            with original_lock(path, fd=fd):
+                yield
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            writer = pool.submit(hold_valid_transaction)
+            self.assertTrue(transaction_open.wait(2))
+            self.assertTrue(journal.exists())
+            with patch.object(decisions_module, "_database_lock", observed_lock):
+                constructor = pool.submit(DecisionStore, self.path, clock=lambda: NOW)
+                self.assertTrue(validation_waiting.wait(2))
+                self.assertFalse(constructor.done())
+                release_transaction.set()
+                reopened = constructor.result(timeout=3)
+            writer.result(timeout=3)
+
+        self.assertIsInstance(reopened, DecisionStore)
+        self.assertFalse(journal.exists())
+        self.assertEqual(len(reopened.timeline(self.frozen.batch_id, self.binding)), 1)
+        journal.write_bytes(b"stale sidecar")
+        with self.assertRaisesRegex(DecisionError, "UNSAFE_DATABASE_SIDECAR"):
+            DecisionStore(self.path, clock=lambda: NOW)
+        journal.unlink()
 
     def test_ledger_update_and_delete_are_blocked(self):
         self.decide()
