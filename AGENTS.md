@@ -12,9 +12,10 @@ not an enterprise production platform. **BUILD → DEMONSTRATE → IMPROVE.**
 5. No unnecessary frameworks, layers or infrastructure.
 6. Minimal meaningful tests and evidence only; reuse completed proof.
 7. Do not repeatedly request GO for routine development.
-8. Under Manager Issue13, Manager owns Defence Factory technical delivery and
-   coordinates the existing repository X as sole writer; G reviews independently
-   and may merge eligible PRs. Follow the [canonical policy](https://github.com/amitkarpe/manager/blob/main/projects/defence-factory/POLICY.md)
+8. Under Manager Issue13, Manager owns Defence Factory technical delivery,
+   exact-head review and eligible merges, and coordinates the existing
+   repository X as sole writer. G/owner review is needed only when an active
+   instruction explicitly requires it. Follow the [canonical policy](https://github.com/amitkarpe/manager/blob/main/projects/defence-factory/POLICY.md)
    for standing ownership and decision rights; DOT is not a writer.
 9. Optional hardening must NOT block MVP milestones.
 10. Enterprise security, scalability, multi-tenant complexity and comprehensive
@@ -70,9 +71,9 @@ Relevant canonical guidance:
 - [GitHub OIDC and AWS-Owned Control](https://github.com/amitkarpe/agent-os/blob/main/kb/playbooks/integrations/github-oidc-aws-control.md) — durable bounded AWS control and provider readback.
 
 Working default:
-- For Defence Factory, Manager owns technical delivery and coordinates the existing repository writers; G reviews independently and may merge eligible PRs. See the [canonical policy](https://github.com/amitkarpe/manager/blob/main/projects/defence-factory/POLICY.md).
+- For Defence Factory, Manager owns technical delivery, exact-head review and eligible merges, coordinating the existing repository writers. G/owner review applies only when explicitly required. See the [canonical policy](https://github.com/amitkarpe/manager/blob/main/projects/defence-factory/POLICY.md).
 - The existing repository X owns live environment facts, implementation, low-level CLI/SSM/AWS execution and validation, and must challenge stale/infeasible plans.
-- Manager owns technical research, repository discovery, design and resolution of routine blockers for Defence Factory; G reviews independently.
+- Manager owns technical research, repository discovery, design and resolution of routine blockers for Defence Factory. Manager reviews exact PR heads and merges eligible work; G/owner review applies only when explicitly required.
 - Local `SPEC.md` plus the owning Issue/user instruction define actual AWS authority. Agent OS guidance never widens permission.
 
 ## Migration rule

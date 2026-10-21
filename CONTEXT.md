@@ -20,9 +20,10 @@ No separate dispatcher or cross-account architecture for this MVP.
 [Current design](docs/proposals/defence-lab-execution/README.md).
 The [current owner override](https://github.com/amitkarpe/awsops/issues/90#issuecomment-6207039365)
 supersedes earlier DOT-only, USD10 and repeated live-GO language. Manager owns
-technical research and delivery under Issue13; the existing repository X is
-the sole writer, and G independently reviews. Keep personal-LAB, per-batch
-authenticated approval, protected #89, and source-versus-live evidence boundaries.
+technical research, delivery, exact-head review and eligible merges under
+Issue13; the existing repository X is the sole writer. G/owner review applies
+only when explicitly required. Keep personal-LAB, per-batch authenticated
+approval, protected #89, and source-versus-live evidence boundaries.
 
 ## Latest accepted Issue #90 runtime checkpoint
 
