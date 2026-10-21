@@ -427,6 +427,36 @@ class Issue90OperatorTests(unittest.TestCase):
             self.assertEqual(result, 2)
             factory.assert_not_called()
 
+    def test_main_wires_available_native_queue_into_runtime(self):
+        codex = "/usr/bin/codex"
+        receipt = "01a15ef6-4da8-7c72-b00b-356bd44c5313"
+        message = "Issue90 runtime READY; genuine owner login/Reject required."
+        with tempfile.TemporaryDirectory() as temp:
+            config_path = Path(temp) / "config.private.json"
+            _write_private(config_path, {})
+            factory = Mock(return_value=object())
+            queued = subprocess.CompletedProcess(
+                [codex], 0,
+                stdout=f"Queued message {receipt} for thread {operator.NATIVE_MANAGER_THREAD}.\n",
+                stderr="")
+
+            def exercise_notifier(runtime):
+                return {"status": "OWNER_REJECT_RECEIPT_VERIFIED"
+                        if runtime.notifier("run", message) == receipt else "NOT_READY"}
+
+            with (patch.object(operator.shutil, "which", return_value=codex),
+                  patch.object(operator.subprocess, "run", return_value=queued) as send,
+                  patch.object(operator.RuntimeOperator, "run", exercise_notifier)):
+                result = operator.main([
+                    "--execute-runtime-only", "--private-config", str(config_path)],
+                    provider_factory=factory)
+            self.assertEqual(result, 0)
+            factory.assert_called_once_with()
+            send.assert_called_once_with(
+                [codex, "queue", "--thread", operator.NATIVE_MANAGER_THREAD,
+                 "--message", message], shell=False, capture_output=True, text=True,
+                timeout=operator.NATIVE_QUEUE_TIMEOUT_SECONDS, check=False)
+
     def test_target_property_readbacks_match_pinned_exact_baselines(self):
         original_lane = operator.PRIVATE_LANE
         with tempfile.TemporaryDirectory() as temp:
