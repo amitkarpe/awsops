@@ -65,7 +65,8 @@ def decision(tags: dict[str, str], as_of) -> str:
         return "RETAIN"
     ttl = parse_date(tags.get("TTL") or tags.get("ttl"))
     if ttl and ttl < as_of:
-        return "CLEANUP-CANDIDATE"
+        # Expiry alone cannot screen owner protections or authorize cleanup.
+        return "REVIEW"
     if ttl:
         return "RETAIN"
     return "REVIEW"

@@ -61,22 +61,22 @@ The live resource-tag read used only the explicit `amit` profile and `ap-southea
 | Project | Resource class | Count | TTL-derived disposition |
 | --- | --- | ---: | --- |
 | aws-secops | AWS Config rule | 2 | REVIEW |
-| aws-secops | AgentCore Gateway | 1 | CLEANUP-CANDIDATE (recommendation only) |
+| aws-secops | AgentCore Gateway | 1 | REVIEW (expired TTL; ownership not screened) |
 | aws-secops | AgentCore Harness | 3 | RETAIN |
-| aws-secops | AgentCore Policy engine | 1 | CLEANUP-CANDIDATE (recommendation only) |
+| aws-secops | AgentCore Policy engine | 1 | REVIEW (expired TTL; ownership not screened) |
 | aws-secops | AgentCore Runtime | 2 | RETAIN |
 | aws-secops | AgentCore workload identity | 1 | RETAIN |
 | aws-secops | CloudFormation stack | 1 | RETAIN |
-| aws-secops | CloudWatch log group | 2 | CLEANUP-CANDIDATE (recommendation only) |
+| aws-secops | CloudWatch log group | 2 | REVIEW (expired TTL; ownership not screened) |
 | aws-secops | CodeBuild project | 1 | RETAIN |
-| aws-secops | Lambda function | 3 | CLEANUP-CANDIDATE (recommendation only) |
+| aws-secops | Lambda function | 3 | REVIEW (expired TTL; ownership not screened) |
 | aws-secops | S3 bucket | 1 | RETAIN |
 | aws-secops | S3 bucket | 1 | REVIEW |
-| aws-secops | Security Group | 1 | CLEANUP-CANDIDATE (recommendation only) |
-| aws-secops | Security Group rule | 1 | CLEANUP-CANDIDATE (recommendation only) |
+| aws-secops | Security Group | 1 | REVIEW (expired TTL; ownership not screened) |
+| aws-secops | Security Group rule | 1 | REVIEW (expired TTL; ownership not screened) |
 | awsops | Secrets Manager resource | 1 | RETAIN |
 
-TTL-based candidate labels are review recommendations only. No cleanup was performed; protected Issue #89 fixtures remain unchanged.
+Expired TTL is a review signal only. These rows were not checked against the private protected Issue #89 mapping, so the report does not imply they are safe cleanup candidates. Ownership and protection decisions override tags. No cleanup or deletion was authorized or performed.
 
 The exact retained `amit` EC2 host was read as **stopped, `t3.medium`**. CloudWatch returned 13 hourly datapoints in the 14-day window; their mean was 2.31% and maximum 45.78%. That sparse set is not a representative full-window workload sample. Current Linux/shared Singapore On-Demand price was USD 0.0528/hour, or USD 38.54 under a 730-hour assumption; this is a list-price reference, not actual host spend, and the host is stopped. The 2026-09-25 memory/swap snapshot remains the sizing basis: keep `t3.medium` if the host is separately reactivated; no resize is authorized.
 
