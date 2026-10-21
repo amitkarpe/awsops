@@ -35,6 +35,10 @@ MAX_WINDOW_SECONDS = MAX_ACTIVE_SECONDS + STOP_RESERVE_SECONDS
 MAX_SSM_BYTES = 4096
 MAX_SSM_COMMENT_CHARS = 100
 SSM_DOCUMENT = "AWS-RunShellScript"
+NATIVE_CODEX_EXECUTABLE = "/home/dev/.local/bin/codex"
+NATIVE_QUEUE_TIMEOUT_SECONDS = 10
+OWNER_COST_DIRECTIVE = "https://github.com/amitkarpe/awsops/issues/90#issuecomment-6319701453"
+TOTAL_INCREMENTAL_CEILING_USD = "100.00"
 ISOLATED_ROOT = "/opt/awsops-native-canary"
 ISOLATED_STATE = f"{ISOLATED_ROOT}/state"
 ISOLATED_LAUNCHER = f"{ISOLATED_ROOT}/awsops/integration/runtime/issue90-isolated-launcher.sh"
@@ -79,6 +83,21 @@ TERMINAL_SSM = frozenset({
     "Success", "Failed", "TimedOut", "Cancelled", "Cancelling",
     "DeliveryTimedOut", "ExecutionTimedOut", "Undeliverable", "Terminated",
 })
+RUNTIME_AUTHORITY = {
+    "directive": OWNER_COST_DIRECTIVE,
+    "mode": "OWNER_LOGIN_REJECT_ONLY",
+    "total_incremental_ceiling_usd": TOTAL_INCREMENTAL_CEILING_USD,
+    "max_active_seconds": MAX_ACTIVE_SECONDS,
+    "stop_reserve_seconds": STOP_RESERVE_SECONDS,
+    "historical_cost_gate": "SUPERSEDED_FOR_REJECT_ONLY",
+    "monthly_reset": False,
+    "remediation_writes": False,
+}
+NATIVE_QUEUE_RECEIPT = re.compile(
+    r"Queued message ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}) "
+    r"for thread ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.\n?\Z"
+)
+UUID_VALUE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\Z")
 
 
 class RuntimeRefused(RuntimeError):
@@ -169,52 +188,55 @@ def _private_file(path: Path, expected_hash: str, *, mode: int = 0o600) -> None:
         raise RuntimeRefused("PRIVATE_PIN_REFUSED")
 
 
-def _decimal(value: Any, code: str):
-    from decimal import Decimal, InvalidOperation
-    if type(value) is not str:
-        raise RuntimeRefused(code)
-    try:
-        amount = Decimal(value)
-    except InvalidOperation as exc:
-        raise RuntimeRefused(code) from exc
-    if not amount.is_finite() or amount < 0:
-        raise RuntimeRefused(code)
-    return amount
+def validate_runtime_authority(authority: Any) -> None:
+    """Pin the owner-authorized bounded Reject-only runtime contract.
+
+    This does not measure spend or reconstruct historical costs. It prevents
+    this operator from widening the USD100 total ceiling, adding a monthly
+    reset, extending the fixed runtime bounds, or enabling remediation writes.
+    """
+    if type(authority) is not dict or authority != RUNTIME_AUTHORITY:
+        raise RuntimeRefused("RUNTIME_AUTHORITY_REFUSED")
 
 
-def validate_incremental_budget(config: dict[str, Any]) -> None:
-    """Require a private cumulative experiment-spend record; MTD is not authority."""
-    budget = config.get("incremental_budget")
-    if type(budget) is not dict or set(budget) != {
-        "evidence_path", "evidence_sha256", "planned_reserve_usd"
-    }:
-        raise RuntimeRefused("INCREMENTAL_BUDGET_EVIDENCE_REQUIRED")
-    if type(budget.get("evidence_path")) is not str:
-        raise RuntimeRefused("INCREMENTAL_BUDGET_PATH_REFUSED")
-    evidence_path = Path(budget["evidence_path"])
+def _valid_reply_to(value: Any) -> bool:
+    if type(value) is not str or UUID_VALUE.fullmatch(value) is None:
+        return False
     try:
-        relative = evidence_path.relative_to(PRIVATE_LANE)
-    except ValueError as exc:
-        raise RuntimeRefused("INCREMENTAL_BUDGET_PATH_REFUSED") from exc
-    if not evidence_path.is_absolute() or ".." in relative.parts or len(relative.parts) != 1:
-        raise RuntimeRefused("INCREMENTAL_BUDGET_PATH_REFUSED")
-    digest = budget["evidence_sha256"]
-    if type(digest) is not str or not re.fullmatch(r"[0-9a-f]{64}", digest):
-        raise RuntimeRefused("INCREMENTAL_BUDGET_EVIDENCE_INVALID")
-    evidence = _load_private_json(evidence_path, expected_uid=os.getuid())
-    if _sha256(evidence_path) != digest:
-        raise RuntimeRefused("INCREMENTAL_BUDGET_EVIDENCE_CHANGED")
-    if (set(evidence) != {"schema", "status", "total_authorized_usd",
-                          "cumulative_incremental_spend_usd"}
-            or evidence.get("schema") != "issue90-incremental-spend/v1"
-            or evidence.get("status") != "RECONCILED"
-            or evidence.get("total_authorized_usd") != "100.00"):
-        raise RuntimeRefused("INCREMENTAL_BUDGET_NOT_RECONCILED")
-    spent = _decimal(evidence.get("cumulative_incremental_spend_usd"),
-                     "INCREMENTAL_SPEND_UNKNOWN")
-    reserve = _decimal(budget.get("planned_reserve_usd"), "INCREMENTAL_RESERVE_INVALID")
-    if spent + reserve > _decimal("100.00", "INCREMENTAL_BUDGET_INVALID"):
-        raise RuntimeRefused("INCREMENTAL_BUDGET_RESERVE_EXCEEDED")
+        return str(uuid.UUID(value)) == value
+    except ValueError:
+        return False
+
+
+def make_native_manager_notifier(
+        codex_executable: str, reply_to: str) -> Callable[[str, str], str | None]:
+    """Build the one-shot notifier bound to an explicit native queue thread."""
+    if type(codex_executable) is not str or not os.path.isabs(codex_executable):
+        raise RuntimeRefused("READY_NOTIFIER_EXECUTABLE_REFUSED")
+    if not _valid_reply_to(reply_to):
+        raise RuntimeRefused("READY_REPLY_TO_REFUSED")
+
+    def notify(_run_id: str, message: str) -> str | None:
+        if type(message) is not str or not message or "\x00" in message:
+            return None
+        argv = [codex_executable, "queue", "--thread", reply_to,
+                "--message", message]
+        try:
+            response = subprocess.run(argv, shell=False, capture_output=True,
+                                      text=True, timeout=NATIVE_QUEUE_TIMEOUT_SECONDS,
+                                      check=False)
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        if (response.returncode != 0 or response.stderr != ""
+                or type(response.stdout) is not str):
+            return None
+        match = NATIVE_QUEUE_RECEIPT.fullmatch(response.stdout)
+        if match is None or match.group(2) != reply_to:
+            return None
+        return match.group(1)
+
+    notify.reply_to = reply_to  # type: ignore[attr-defined]
+    return notify
 
 
 def _compressed_python(script: str, args: list[str], *, as_root: bool,
@@ -841,10 +863,12 @@ def _request_ok(provider: Any, request: dict[str, Any]) -> None:
 class RuntimeOperator:
     def __init__(self, config: dict[str, Any], provider: Any,
                  notifier: Callable[[str, str], str | None] | None, *,
+                 ready_reply_to: str | None = None,
                  monotonic: Callable[[], float] = time.monotonic,
                  sleep: Callable[[float], None] = time.sleep,
                  repo_root: Path | None = None):
         self.config, self.provider, self.notifier = config, provider, notifier
+        self.ready_reply_to = ready_reply_to
         self.monotonic, self.sleep = monotonic, sleep
         self.repo_root = repo_root or Path(__file__).resolve().parents[3]
 
@@ -854,13 +878,13 @@ class RuntimeOperator:
             "target_archive_sha256", "operator_source_head", "instance_id",
             "instance_type", "expected_account_id", "expected_principal_arn",
             "target_tags", "target_attachments", "target_property_baselines",
-            "previous_window", "remote",
-            "incremental_budget", "evidence_root", "start_claim_path",
+            "previous_window", "remote", "runtime_authority",
+            "evidence_root", "start_claim_path",
             "stop_claim_path",
         }
         if type(self.config) is not dict or set(self.config) != required:
             raise RuntimeRefused("RUNTIME_CONFIG_FIELDS")
-        if self.config.get("schema") != "issue90-runtime-only-private/v1":
+        if self.config.get("schema") != "issue90-runtime-only-private/v2":
             raise RuntimeRefused("RUNTIME_CONFIG_SCHEMA")
         if self.config.get("aws_profile") != PROFILE or self.config.get("region") != REGION:
             raise RuntimeRefused("RUNTIME_IDENTITY_SCOPE")
@@ -909,9 +933,14 @@ class RuntimeOperator:
             raise RuntimeRefused("RUNTIME_PREVIOUS_WINDOW_MISSING")
         self._verify_remote_scope(self.config.get("remote"))
         self._verify_private_paths()
+        if not _valid_reply_to(self.ready_reply_to):
+            raise RuntimeRefused("RUNTIME_READY_REPLY_TO_REQUIRED")
         if not callable(self.notifier):
             raise RuntimeRefused("RUNTIME_READY_NOTIFIER_UNAVAILABLE")
-        validate_incremental_budget(self.config)
+        notifier_reply_to = getattr(self.notifier, "reply_to", self.ready_reply_to)
+        if notifier_reply_to != self.ready_reply_to:
+            raise RuntimeRefused("RUNTIME_READY_REPLY_TO_MISMATCH")
+        validate_runtime_authority(self.config.get("runtime_authority"))
 
     @staticmethod
     def _remote_path(value: Any, expected: str, code: str) -> None:
@@ -1302,7 +1331,8 @@ class RuntimeOperator:
             "target_property_read_request_ids": target_property_request_ids,
             "previous_stop_evidence_sha256": self.config["previous_window"]["result_sha256"],
             "fixed_ssm_requests": len(steps), "all_request_shapes_validated": True,
-            "incremental_budget_gate": "PRIVATE_TOTAL_SPEND_RECORD_ONLY"})
+            "runtime_authority": RUNTIME_AUTHORITY,
+            "historical_spend_reconstruction": "NOT_REQUIRED_FOR_REJECT_ONLY"})
 
         now = datetime.now(timezone.utc).isoformat()
         evidence.write_once(start_claim, {
@@ -1540,16 +1570,28 @@ def main(argv: list[str] | None = None, *,
     parser.add_argument("--execute-runtime-only", action="store_true")
     parser.add_argument("--private-config", type=Path,
                         default=Path.home() / ".AGENTS-temp/manager/issue90-live-activation/runtime-only.private.json")
+    parser.add_argument("--ready-reply-to",
+                        help="explicit UUID of the caller-bound native READY recipient")
     args = parser.parse_args(argv)
     if not args.execute_runtime_only:
         parser.error("the fixed lifecycle requires --execute-runtime-only")
-    if not callable(notifier):
-        print("RUNTIME_REFUSED=RUNTIME_READY_NOTIFIER_UNAVAILABLE")
-        return 2
     try:
         config = _load_private_json(args.private_config, expected_uid=os.getuid())
+        reply_to = args.ready_reply_to or getattr(notifier, "reply_to", None)
+        if not _valid_reply_to(reply_to):
+            raise RuntimeRefused("RUNTIME_READY_REPLY_TO_REQUIRED")
+        if notifier is None:
+            if (not Path(NATIVE_CODEX_EXECUTABLE).is_file()
+                    or not os.access(NATIVE_CODEX_EXECUTABLE, os.X_OK)):
+                raise RuntimeRefused("RUNTIME_READY_NOTIFIER_UNAVAILABLE")
+            notifier = make_native_manager_notifier(NATIVE_CODEX_EXECUTABLE, reply_to)
+        if not callable(notifier):
+            raise RuntimeRefused("RUNTIME_READY_NOTIFIER_UNAVAILABLE")
+        if getattr(notifier, "reply_to", None) != reply_to:
+            raise RuntimeRefused("RUNTIME_READY_REPLY_TO_MISMATCH")
         provider = provider_factory()
-        result = RuntimeOperator(config, provider, notifier).run()
+        result = RuntimeOperator(config, provider, notifier,
+                                 ready_reply_to=reply_to).run()
     except RuntimeRefused as exc:
         print(f"RUNTIME_REFUSED={exc}")
         return 2

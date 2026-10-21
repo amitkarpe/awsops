@@ -16,7 +16,7 @@ import time
 from datetime import datetime, timezone
 import unittest
 import zlib
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src"), str(ROOT / "tests")]
@@ -25,6 +25,8 @@ from awsops.runtime import issue90_operator as operator  # noqa: E402
 from awsops.approval.decisions import DecisionStore  # noqa: E402
 from awsops.domain.models import canonical_digest  # noqa: E402
 from test_issue90_approval_e2e import make_case  # noqa: E402
+
+TEST_REPLY_TO = "00000000-0000-4000-8000-000000000001"
 
 
 class FakeProvider:
@@ -157,11 +159,6 @@ def _make_runtime_case(lane: Path, repo: Path, *, now: int):
         _write_private(path, value)
         property_hashes[name] = hashlib.sha256(path.read_bytes()).hexdigest()
 
-    budget_path = lane / "incremental-spend.private.json"
-    _write_private(budget_path, {
-        "schema": "issue90-incremental-spend/v1", "status": "RECONCILED",
-        "total_authorized_usd": "100.00", "cumulative_incremental_spend_usd": "0.00",
-    })
     previous_path = lane / "previous-result.private.json"
     _write_private(previous_path, {
         "source_revision": operator.EXPECTED_TARGET_REVISION,
@@ -196,7 +193,7 @@ def _make_runtime_case(lane: Path, repo: Path, *, now: int):
         "owner_uid": os.getuid(),
     }
     config = {
-        "schema": "issue90-runtime-only-private/v1", "aws_profile": operator.PROFILE,
+        "schema": "issue90-runtime-only-private/v2", "aws_profile": operator.PROFILE,
         "region": operator.REGION, "target_source_revision": operator.EXPECTED_TARGET_REVISION,
         "target_archive_sha256": operator.EXPECTED_TARGET_ARCHIVE_SHA256,
         "operator_source_head": source_head, "instance_id": instance_id,
@@ -211,9 +208,7 @@ def _make_runtime_case(lane: Path, repo: Path, *, now: int):
             "result_sha256": hashlib.sha256(previous_path.read_bytes()).hexdigest(),
             "instance_id": instance_id},
         "remote": remote,
-        "incremental_budget": {"evidence_path": str(budget_path),
-            "evidence_sha256": hashlib.sha256(budget_path.read_bytes()).hexdigest(),
-            "planned_reserve_usd": "1.00"},
+        "runtime_authority": copy.deepcopy(operator.RUNTIME_AUTHORITY),
         "evidence_root": str(lane / "evidence"),
         "start_claim_path": str(lane / "start-claim.private.json"),
         "stop_claim_path": str(lane / "stop-claim.private.json"),
@@ -360,6 +355,129 @@ class FakeRuntimeProvider:
 
 
 class Issue90OperatorTests(unittest.TestCase):
+    def test_reject_only_authority_needs_no_historical_spend_file(self):
+        with tempfile.TemporaryDirectory() as temp:
+            lane = Path(temp) / "private"
+            repo = Path(temp) / "source"
+            with (patch.object(operator, "PRIVATE_LANE", lane),
+                  patch.object(operator, "RUNTIME_OWNER_UID", os.getuid()),
+                  patch.object(operator, "RUNTIME_OWNER_GID", os.getgid())):
+                config, _instance_id, _baseline_rows = _make_runtime_case(
+                    lane, repo, now=int(time.time()))
+                self.assertFalse((lane / "incremental-spend.private.json").exists())
+                runtime = operator.RuntimeOperator(
+                    config, None, lambda *_args: "unused", ready_reply_to=TEST_REPLY_TO)
+                runtime._verify_config()
+
+                for key, value in (
+                    ("total_incremental_ceiling_usd", "200.00"),
+                    ("max_active_seconds", operator.MAX_ACTIVE_SECONDS + 1),
+                    ("monthly_reset", True),
+                    ("remediation_writes", True),
+                ):
+                    changed = copy.deepcopy(config)
+                    changed["runtime_authority"][key] = value
+                    with self.subTest(key=key), self.assertRaisesRegex(
+                            operator.RuntimeRefused, "RUNTIME_AUTHORITY_REFUSED"):
+                        operator.RuntimeOperator(
+                            changed, None, lambda *_args: "unused",
+                            ready_reply_to=TEST_REPLY_TO)._verify_config()
+
+    def test_native_queue_notifier_uses_exact_route_and_rejects_unknown_receipts(self):
+        codex = "/usr/bin/codex"
+        message = "READY private pointer"
+        receipt = "01a15ef6-4da8-7c72-b00b-356bd44c5313"
+        expected = subprocess.CompletedProcess(
+            [codex], 0,
+            stdout=f"Queued message {receipt} for thread {TEST_REPLY_TO}.\n",
+            stderr="")
+        notifier = operator.make_native_manager_notifier(codex, TEST_REPLY_TO)
+        with self.assertRaisesRegex(operator.RuntimeRefused, "READY_REPLY_TO_REFUSED"):
+            operator.make_native_manager_notifier(codex, "not-a-uuid")
+        with patch.object(operator.subprocess, "run", return_value=expected) as send:
+            self.assertEqual(notifier("run", message), receipt)
+        argv, kwargs = send.call_args
+        self.assertEqual(argv[0], [codex, "queue", "--thread",
+                                   TEST_REPLY_TO,
+                                   "--message", message])
+        self.assertIs(kwargs["shell"], False)
+        self.assertEqual(kwargs["timeout"], operator.NATIVE_QUEUE_TIMEOUT_SECONDS)
+        self.assertIs(kwargs["check"], False)
+
+        for response in (
+            subprocess.CompletedProcess([codex], 0,
+                stdout=f"Queued message {receipt} for thread 00000000-0000-0000-0000-000000000000.\n",
+                stderr=""),
+            subprocess.CompletedProcess([codex], 0, stdout="unrecognized output\n", stderr=""),
+            subprocess.CompletedProcess([codex], 1, stdout="", stderr="failed"),
+        ):
+            with self.subTest(response=response), patch.object(
+                    operator.subprocess, "run", return_value=response) as send:
+                self.assertIsNone(notifier("run", message))
+                send.assert_called_once()
+
+        with patch.object(operator.subprocess, "run",
+                          side_effect=subprocess.TimeoutExpired([codex], 10)) as send:
+            self.assertIsNone(notifier("run", message))
+            send.assert_called_once()
+
+    def test_main_refuses_missing_reply_to_before_provider_construction(self):
+        with tempfile.TemporaryDirectory() as temp:
+            config_path = Path(temp) / "config.private.json"
+            _write_private(config_path, {})
+            factory = Mock()
+            with patch.object(operator, "NATIVE_CODEX_EXECUTABLE", "/missing/codex"):
+                for extra in ([], ["--ready-reply-to", "not-a-uuid"]):
+                    with self.subTest(extra=extra):
+                        result = operator.main([
+                            "--execute-runtime-only", "--private-config", str(config_path),
+                            *extra], provider_factory=factory)
+                        self.assertEqual(result, 2)
+            def wrong_route(_run_id, _message):
+                return "unexpected-receipt"
+            wrong_route.reply_to = "00000000-0000-4000-8000-000000000002"
+            result = operator.main([
+                "--execute-runtime-only", "--private-config", str(config_path),
+                "--ready-reply-to", TEST_REPLY_TO], notifier=wrong_route,
+                provider_factory=factory)
+            self.assertEqual(result, 2)
+            factory.assert_not_called()
+
+    def test_main_wires_available_native_queue_into_runtime(self):
+        receipt = "01a15ef6-4da8-7c72-b00b-356bd44c5313"
+        message = "Issue90 runtime READY; genuine owner login/Reject required."
+        reply_to = TEST_REPLY_TO
+        with tempfile.TemporaryDirectory() as temp:
+            codex_path = Path(temp) / "codex"
+            codex_path.write_text("#!/bin/sh\nexit 0\n")
+            codex_path.chmod(0o700)
+            codex = str(codex_path)
+            config_path = Path(temp) / "config.private.json"
+            _write_private(config_path, {})
+            factory = Mock(return_value=object())
+            queued = subprocess.CompletedProcess(
+                [codex], 0,
+                stdout=f"Queued message {receipt} for thread {reply_to}.\n",
+                stderr="")
+
+            def exercise_notifier(runtime):
+                return {"status": "OWNER_REJECT_RECEIPT_VERIFIED"
+                        if runtime.notifier("run", message) == receipt else "NOT_READY"}
+
+            with (patch.object(operator, "NATIVE_CODEX_EXECUTABLE", codex),
+                  patch.object(operator.subprocess, "run", return_value=queued) as send,
+                  patch.object(operator.RuntimeOperator, "run", exercise_notifier)):
+                result = operator.main([
+                    "--execute-runtime-only", "--private-config", str(config_path),
+                    "--ready-reply-to", reply_to],
+                    provider_factory=factory)
+            self.assertEqual(result, 0)
+            factory.assert_called_once_with()
+            send.assert_called_once_with(
+                [codex, "queue", "--thread", reply_to,
+                 "--message", message], shell=False, capture_output=True, text=True,
+                timeout=operator.NATIVE_QUEUE_TIMEOUT_SECONDS, check=False)
+
     def test_target_property_readbacks_match_pinned_exact_baselines(self):
         original_lane = operator.PRIVATE_LANE
         with tempfile.TemporaryDirectory() as temp:
@@ -559,7 +677,8 @@ const record = JSON.parse(process.argv[8]);
                     runtime = operator.RuntimeOperator(
                         config, provider,
                         lambda run_id, _message: notifications.append(run_id) or "fake-native-receipt",
-                        monotonic=clock.monotonic, sleep=clock.sleep, repo_root=repo)
+                        ready_reply_to=TEST_REPLY_TO, monotonic=clock.monotonic,
+                        sleep=clock.sleep, repo_root=repo)
 
                     if scenario == "prestart_refusal":
                         with self.assertRaisesRegex(operator.RuntimeRefused,
