@@ -41,14 +41,21 @@ Repository: `amitkarpe/awsops`
 
 ## Bootstrap
 
-Read in this order:
+Use event-driven loading rather than rereading every context file on each task.
+Start with the owning Issue/PR and current HEAD; load only the governing files
+the task needs:
 
 1. `AGENTS.md`
-2. `CONTEXT.md`
-3. `SPEC.md`
-4. owning Issue/PR
-5. `ROADMAP.md` when selecting the next milestone
-6. `docs/architecture/MIGRATION.md` when porting from `aws-secops`
+2. owning Issue/PR, latest authorized delta, and current HEAD/diff
+3. `SPEC.md` when the task needs its authority, safety, or behavior contract
+4. `CONTEXT.md` when it contains required recovery state or the Issue/PR points
+   to it
+5. `ROADMAP.md` when selecting a milestone; `docs/architecture/MIGRATION.md`
+   when porting from `aws-secops`
+
+For AWS work, read the applicable `SPEC.md` before any provider action. Follow
+the [Context Loading Economy](https://github.com/amitkarpe/agent-os/blob/main/kb/playbooks/integrations/context-loading-economy.md)
+for warm continuation and recovery triggers.
 
 GitHub is durable engineering state. Chat history is not authoritative.
 
@@ -58,7 +65,7 @@ Use this repository file as the local router; do **not** load all of Agent OS fo
 
 Relevant canonical guidance:
 - [Agent Operating Principles](https://github.com/amitkarpe/agent-os/blob/main/kb/principles/amit-agent-operating-principles.md) — intent-led, evidence-gated delivery and Critical Path First.
-- [ChatGPT and Codex Collaboration Protocol](https://github.com/amitkarpe/agent-os/blob/main/kb/playbooks/integrations/chatgpt-codex-collaboration-protocol.md) — G research/planning, X execution truth, handoffs and acceptance.
+- [ChatGPT and Codex Collaboration Protocol](https://github.com/amitkarpe/agent-os/blob/main/kb/playbooks/integrations/chatgpt-codex-collaboration-protocol.md) — visible identity, bounded handoffs, durable evidence, review and acceptance.
 - [Context Loading Economy](https://github.com/amitkarpe/agent-os/blob/main/kb/playbooks/integrations/context-loading-economy.md) — warm continuation versus authority/recovery reloads.
 - [GitHub OIDC and AWS-Owned Control](https://github.com/amitkarpe/agent-os/blob/main/kb/playbooks/integrations/github-oidc-aws-control.md) — durable bounded AWS control and provider readback.
 
