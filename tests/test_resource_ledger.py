@@ -60,6 +60,8 @@ class ResourceLedgerTests(unittest.TestCase):
         self.assertIn("23d (created)", text)
         self.assertIn("**amit**", text)
         self.assertIn("agentcore-issue19-librechat-poc-r01", text)
+        self.assertIn("Cost Explorer MTD", text)
+        self.assertNotIn("Actual Cost Explorer", text)
         self.assertNotIn("ResourceARN", text)
 
     def test_bad_enum_is_rejected(self):

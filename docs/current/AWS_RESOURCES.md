@@ -3,9 +3,10 @@
 > KISS public ledger. **Canonical account names are `amit` and `vagent`.**
 > Raw AWS account IDs and provider identifiers stay out of this public repository.
 
-- Last verified: `2026-09-28T16:54:34+08:00` (resource state); cost figures retain their stated 2026-09-27 period
-- Scope: personal LAB / `ap-southeast-1`
-- Cost period: `2026-09-01..2026-09-27`
+- Latest bounded read: `2026-10-21` (`amit` only, personal LAB / `ap-southeast-1`; Cost Explorer and Pricing used documented global endpoints)
+- Scope: two project-tag filters and the exact tagged retained host; not an account-wide resource sweep
+- `amit` Cost Explorer period: `2026-10-01..2026-10-21` (partial month; AWS marked it Estimated; credits/refunds excluded)
+- `vagent` resource and cost facts remain historical from `2026-09-27/28`; no `vagent` profile or data was refreshed
 - Current rule: **look at the red/high-cost tables first**
 - **Protection rule (2026-09-27): legacy Lightsail and the `vagent` retained `t3.small` are DO NOT TOUCH.** Read-only inspection is allowed; stop/start/terminate/delete/resize/repurpose/tag/IAM/network changes require a new explicit user authorization.
 
@@ -13,36 +14,36 @@
 
 | Priority | Account | Resource / service | State | Cost evidence | Action |
 | --- | --- | --- | --- | ---: | --- |
-| ✅ **STOPPED** | **amit** | **EC2 `agentcore-issue19-librechat-poc-r01` / `t3.medium`** | stopped; EBS/EIP retained | **USD 31.52 MTD actual through prior period**; active compute accrual stopped | **RETAIN stopped; start only for approved recovery/demo** |
-| 🛡️ **PROTECTED** | **amit** | **Amazon Lightsail** | 1 running + 1 stopped legacy instance | **USD 8.28 MTD actual** | **DO NOT TOUCH** |
-| 🛡️ **PROTECTED** | **vagent** | **EC2 `seccop-project1-old-ami-host-r01` / `t3.small`** | running; old demo TTL expired | Cost Explorer reports **USD 0.00 MTD**; list-price/public-IPv4 exposure still exists | **DO NOT TOUCH** |
+| 1 | **amit** | **EC2 - Other (account-wide)** | not attributed to one resource | **USD 7.20 MTD; Estimated period** | **Review account evidence only; no cleanup or attribution** |
+| 2 | **amit** | **Amazon Lightsail** | legacy instances remain protected | **USD 6.50 MTD; Estimated period** | **DO NOT TOUCH** |
+| 3 | **amit** | **Amazon EC2 - Compute (account-wide)** | tagged retained host is stopped | **USD 6.01 MTD; Estimated period** | Do not attribute account charges to one host; no start/stop/resize |
+| 4 | **vagent** | **EC2 t3.small** | last reported running 2026-09-27; not refreshed | Historical report: **USD 0.00 MTD** | **DO NOT TOUCH; no vagent read was made** |
 
 ## Account cost summary
 
-| Account | Actual Cost Explorer MTD | Current inventory signal | What to check first |
+| Account | Cost Explorer MTD | Current inventory signal | What to check first |
 | --- | ---: | --- | --- |
-| **amit** | **USD 58.51** | 1 stopped retained EC2, 18 S3 buckets, 140 tagged resources | **retained EBS/EIP, Lightsail, VPC, Bedrock** |
-| **vagent** | **USD 0.00 reported** | 1 running EC2, 109 S3 buckets, 219 tagged resources | **protected EC2 + retained 100-bucket fleet** |
+| **amit** | **USD 29.52 estimated** | 21 `aws-secops` and 1 `awsops` project-tagged resources; one exact retained host stopped | **account-wide cost; not all attributed to awsops** |
+| **vagent** | **USD 0.00 reported 2026-09-27; stale** | Historical 2026-09-27/28 inventory only | **protected host + retained 100-bucket fleet; no refresh** |
 
-> Cost Explorer is account/service billing evidence, not proof that every dollar belongs to `awsops` or `aws-secops`.
-> A reported zero does not mean a running resource is guaranteed to be free.
+> Cost Explorer is account/service billing evidence, not proof that every dollar belongs to `awsops` or `aws-secops`. The current `amit` period is partial and AWS marked it Estimated. A reported zero does not mean a running resource is guaranteed to be free.
 
 ### `amit` top billed services this month
 
-| Service | MTD actual |
+| Service | MTD USD (AWS marked current period Estimated) |
 | --- | ---: |
-| **Amazon EC2 - Compute** | **USD 31.52** |
-| **Amazon Lightsail** | **USD 8.28** |
-| Tax | USD 4.83 |
-| Amazon VPC | USD 3.00 |
-| Amazon Bedrock | USD 2.67 |
-| EC2 - Other | USD 1.84 |
-| AWS Config | USD 1.60 |
-| Amazon Bedrock AgentCore | USD 1.48 |
-| Amazon Inspector | USD 1.41 |
+| **EC2 - Other** | **USD 7.20** |
+| **Amazon Lightsail** | **USD 6.50** |
+| **Amazon EC2 - Compute** | **USD 6.01** |
+| **Amazon Virtual Private Cloud** | **USD 4.84** |
+| Tax | USD 2.44 |
 | Amazon Route 53 | USD 0.65 |
-| AWS Key Management Service | USD 0.63 |
-| CodeBuild | USD 0.45 |
+| AWS Key Management Service | USD 0.65 |
+| AWS Config | USD 0.56 |
+| AWS Secrets Manager | USD 0.26 |
+| AWS Cost Explorer | USD 0.25 |
+| Amazon Bedrock AgentCore | USD 0.06 |
+| Amazon Simple Storage Service | USD 0.05 |
 
 ## 🔴 EC2 / always-on compute
 
@@ -50,18 +51,43 @@ Always-on compute is intentionally separated because it is the first cost lever 
 
 | Account | EC2 name | Project | Compute | State | Age | Estimated monthly | Decision |
 | --- | --- | --- | --- | --- | --- | ---: | --- |
-| **amit** | **`agentcore-issue19-librechat-poc-r01`** | shared-runtime | **`t3.medium`** | **stopped** | 26d at audit | **active compute stopped; EBS/EIP retained** | **RETAIN stopped** |
-| **vagent** | **`seccop-project1-old-ami-host-r01`** | Security Copilot | **`t3.small`** | running + public IPv4 | 27d | **~USD 19.27 compute list-price** | **RETAIN / DO NOT TOUCH** |
+| **amit** | **`agentcore-issue19-librechat-poc-r01`** | shared-runtime | **`t3.medium`** | **stopped (observed 2026-10-21)** | prior age evidence retained; not recalculated from restart time | stopped instance; account-level EC2 costs are not attributable to this host | **KEEP type if reactivated; no resize** |
+| **vagent** | **`seccop-project1-old-ami-host-r01`** | Security Copilot | **`t3.small`** | last reported running 2026-09-27; not refreshed | historical age only | historical EST ~USD 19.27/mo list-price; not refreshed | **RETAIN / DO NOT TOUCH** |
 
-## `amit` retained host
+## 2026-10-21 bounded read-only refresh
 
-**STOPPED and retained as the recovery host.** Keep the `t3.medium` type unchanged for any separately approved restart.
+The live resource-tag read used only the explicit `amit` profile and `ap-southeast-1` project-tag filters. It returned 21 `aws-secops` and 1 `awsops` tagged resources. These are project-tag matches, not a full account inventory; untagged dependencies and other accounts were not searched.
 
-- 14-day CPU: **1.63% average**, **77.89% observed maximum**.
+| Project | Resource class | Count | TTL-derived disposition |
+| --- | --- | ---: | --- |
+| aws-secops | AWS Config rule | 2 | REVIEW |
+| aws-secops | AgentCore Gateway | 1 | CLEANUP-CANDIDATE (recommendation only) |
+| aws-secops | AgentCore Harness | 3 | RETAIN |
+| aws-secops | AgentCore Policy engine | 1 | CLEANUP-CANDIDATE (recommendation only) |
+| aws-secops | AgentCore Runtime | 2 | RETAIN |
+| aws-secops | AgentCore workload identity | 1 | RETAIN |
+| aws-secops | CloudFormation stack | 1 | RETAIN |
+| aws-secops | CloudWatch log group | 2 | CLEANUP-CANDIDATE (recommendation only) |
+| aws-secops | CodeBuild project | 1 | RETAIN |
+| aws-secops | Lambda function | 3 | CLEANUP-CANDIDATE (recommendation only) |
+| aws-secops | S3 bucket | 1 | RETAIN |
+| aws-secops | S3 bucket | 1 | REVIEW |
+| aws-secops | Security Group | 1 | CLEANUP-CANDIDATE (recommendation only) |
+| aws-secops | Security Group rule | 1 | CLEANUP-CANDIDATE (recommendation only) |
+| awsops | Secrets Manager resource | 1 | RETAIN |
+
+TTL-based candidate labels are review recommendations only. No cleanup was performed; protected Issue #89 fixtures remain unchanged.
+
+The exact retained `amit` EC2 host was read as **stopped, `t3.medium`**. CloudWatch returned 13 hourly datapoints in the 14-day window; their mean was 2.31% and maximum 45.78%. That sparse set is not a representative full-window workload sample. Current Linux/shared Singapore On-Demand price was USD 0.0528/hour, or USD 38.54 under a 730-hour assumption; this is a list-price reference, not actual host spend, and the host is stopped. The 2026-09-25 memory/swap snapshot remains the sizing basis: keep `t3.medium` if the host is separately reactivated; no resize is authorized.
+
+The account-level `amit` Cost Explorer read covered 2026-10-01 through 2026-10-21 (end exclusive 2026-10-22), excluded Credits and Refunds, and was marked Estimated by AWS. The grouped UnblendedCost total was USD 29.52. It is account baseline, not project attribution or cumulative Issue #90 experiment spend. The `vagent` cost and resource observations above remain historical; no vagent profile was used.
+
+## Historical `amit` host metrics (2026-09-25)
+
 - Memory snapshot: **3.74 GiB total**, **2.05 GiB available**, **no swap**.
 - Main retained services: LibreChat ~623.5 MiB, Ops service ~215.8 MiB, MongoDB ~148.6 MiB.
 - `t3.small` would leave only about **0.31 GiB theoretical RAM headroom** at the sampled working set.
-- Therefore the ~USD 19/month compute saving is not worth the memory risk today.
+- These are historical guest/service facts; the stopped host was not booted for a new sample.
 
 ### Disk expansion completed
 
@@ -75,7 +101,7 @@ Always-on compute is intentionally separated because it is the first cost lever 
 The partition and ext4 filesystem were grown online. No instance stop/restart or instance-type change occurred.
 Approximate incremental gp3 cost: **~USD 0.96/month**.
 
-## 🧹 2026-09-27 read-only audit
+## Historical 2026-09-27 read-only audit
 
 | Account | Live finding | Decision |
 | --- | --- | --- |
@@ -98,7 +124,7 @@ Direct vagent host dependencies observed: **1 ENI, 1 security group, 1 instance 
   Status / Explain / no-change Plan proof remained valid.
 - Legacy Lightsail and `vagent` were untouched.
 
-## Full resource ledger
+## Historical full resource ledger (2026-09-28 snapshot)
 
 | Project | Account | Name | Resource class | Qty | State | Age | Purpose | Cost | Decision | Evidence |
 | --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- |
@@ -120,7 +146,7 @@ Direct vagent host dependencies observed: **1 ENI, 1 security group, 1 instance 
 | aws-secops | **amit** | - | S3 bucket | 1 | present | 15d | versioning-exception-demo | USAGE-BASED | RETAIN | LIVE |
 | aws-secops | **amit** | - | Security Group | 1 | present | 16d | pilot-compliance-demo | DIRECT-$0 | RETAIN | LIVE |
 | aws-secops | **amit** | - | Security Group rule | 1 | present | 15d | authenticated-ui-https | DIRECT-$0 | RETAIN | LIVE |
-| Security Copilot | **vagent** | `seccop-project1-old-ami-host-r01` | EC2 retained learning host | 1 | running | 27d | Inspector-to-SSM old-package learning demo | EST ~USD 19.27/mo compute | RETAIN | LIVE |
+| Security Copilot | **vagent** | `seccop-project1-old-ami-host-r01` | EC2 retained learning host | 1 | last reported running 2026-09-27; not refreshed | 27d at prior audit | Inspector-to-SSM old-package learning demo | historical EST ~USD 19.27/mo compute | RETAIN | REPO-EVIDENCE |
 | aws-secops | **vagent** | - | S3 bounded demo fleet | 100 | retained | 14d first-seen | bounded S3 Block Public Access scale demo | USAGE-BASED | REVIEW | REPO-EVIDENCE |
 
 ## Cost labels

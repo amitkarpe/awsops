@@ -17,14 +17,14 @@
     "account_alias": "vagent",
     "resource_class": "EC2 retained learning host",
     "count": 1,
-    "state": "running",
+    "state": "last reported running (2026-09-27; not refreshed)",
     "purpose": "Inspector-to-SSM old-package learning demo",
     "cost_label": "EST",
     "decision": "RETAIN",
-    "source": "LIVE",
+    "source": "REPO-EVIDENCE",
     "first_seen": "2026-08-31",
     "monthly_usd": 19.27,
-    "note": "PROTECTED / DO NOT TOUCH by owner decision 2026-09-27; live read shows running with public IPv4 and 20 GiB encrypted gp3; read-only inspection only unless new exact authorization",
+    "note": "Historical live observation captured 2026-09-27; carried forward only. Protected / DO NOT TOUCH; no vagent refresh in the 2026-10-21 amit-only read.",
     "resource_name": "seccop-project1-old-ami-host-r01"
   }
 ]

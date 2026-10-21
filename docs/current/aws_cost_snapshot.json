@@ -1,58 +1,83 @@
 {
-  "verified_at": "2026-09-27T12:14:50+08:00",
+  "verified_at": "2026-10-21",
   "accounts": [
     {
       "account": "amit",
-      "period": "2026-09-01..2026-09-27",
-      "actual_usd": 58.51,
-      "note": "Cost Explorer account/service view; includes non-awsops spend."
+      "period": "2026-10-01..2026-10-21 (partial month; Estimated)",
+      "actual_usd": 29.5213354459,
+      "estimated": true,
+      "verified_at": "2026-10-21",
+      "note": "Account-wide Cost Explorer amount; includes non-awsops spend. AWS marked the current period Estimated. Not cumulative Issue90 experiment spend."
     },
     {
       "account": "vagent",
       "period": "2026-09-01..2026-09-27",
       "actual_usd": 0.0,
-      "note": "Cost Explorer reported effectively USD 0.00 MTD in this account; do not assume every running resource is economically free."
+      "estimated": null,
+      "verified_at": "2026-09-27",
+      "note": "Historical Cost Explorer read only; not refreshed in this amit-only run. Reported effectively USD 0.00 MTD then; do not treat as current or assume every running resource is free."
     }
   ],
   "priority": [
     {
-      "priority": "✅ STOPPED",
+      "priority": "1",
       "account": "amit",
-      "name": "EC2 Compute",
-      "state": "retained t3.medium stopped; EBS/EIP retained",
-      "cost": "USD 31.52 prior MTD actual; active compute accrual stopped",
-      "action": "RETAIN stopped; start only for approved recovery/demo"
+      "name": "EC2 - Other",
+      "state": "account-wide service cost; not attributed to the stopped retained host",
+      "cost": "USD 7.20 MTD; AWS marked current period Estimated",
+      "action": "REVIEW account-level evidence only; no cleanup or resource attribution"
     },
     {
-      "priority": "🛡️ PROTECTED",
+      "priority": "2",
       "account": "amit",
       "name": "Amazon Lightsail",
-      "state": "1 running + 1 stopped legacy instance",
-      "cost": "USD 8.28 MTD actual",
+      "state": "legacy instances remain protected",
+      "cost": "USD 6.50 MTD; AWS marked current period Estimated",
       "action": "DO NOT TOUCH; read-only inspection only"
     },
     {
-      "priority": "🛡️ PROTECTED",
+      "priority": "3",
+      "account": "amit",
+      "name": "Amazon EC2 - Compute",
+      "state": "account-wide service cost; the tagged retained host is currently stopped",
+      "cost": "USD 6.01 MTD; AWS marked current period Estimated",
+      "action": "Do not attribute this account-level amount to one host; no start/stop or resize"
+    },
+    {
+      "priority": "4",
       "account": "vagent",
       "name": "EC2 t3.small",
-      "state": "running; old learning-demo TTL expired; public IPv4 present",
-      "cost": "Cost Explorer reports USD 0.00 MTD; list-price/public-IPv4 exposure still exists",
-      "action": "DO NOT TOUCH; read-only inspection only"
+      "state": "last reported running 2026-09-27; not refreshed",
+      "cost": "Historical Cost Explorer report: USD 0.00 MTD; not current",
+      "action": "DO NOT TOUCH; no vagent profile/read used"
     }
   ],
   "amit_top_services": [
-    ["Amazon Elastic Compute Cloud - Compute", 31.52],
-    ["Amazon Lightsail", 8.28],
-    ["Tax", 4.83],
-    ["Amazon Virtual Private Cloud", 3.0],
-    ["Amazon Bedrock", 2.67],
-    ["EC2 - Other", 1.84],
-    ["AWS Config", 1.6],
-    ["Amazon Bedrock AgentCore", 1.48],
-    ["Amazon Inspector", 1.41],
-    ["Amazon Route 53", 0.65],
-    ["AWS Key Management Service", 0.63],
-    ["CodeBuild", 0.45]
+    ["EC2 - Other", 7.2031170907],
+    ["Amazon Lightsail", 6.50496],
+    ["Amazon Elastic Compute Cloud - Compute", 6.0064764179],
+    ["Amazon Virtual Private Cloud", 4.841175],
+    ["Tax", 2.44],
+    ["Amazon Route 53", 0.6507224],
+    ["AWS Key Management Service", 0.650537624],
+    ["AWS Config", 0.561],
+    ["AWS Secrets Manager", 0.2602300496],
+    ["AWS Cost Explorer", 0.25],
+    ["Amazon Bedrock AgentCore", 0.0642710946],
+    ["Amazon Simple Storage Service", 0.0545276902],
+    ["Amazon Inspector", 0.0174],
+    ["Amazon EC2 Container Registry (ECR)", 0.0143049946],
+    ["Amazon Bedrock", 0.001803039],
+    ["AWS Amplify", 0.0008100453],
+    ["AWS Glue", 0.0],
+    ["Amazon Simple Notification Service", 0.0],
+    ["Amazon Simple Queue Service", 0.0],
+    ["AmazonCloudWatch", 0.0]
   ],
-  "resource_state_verified_at": "2026-09-28T16:54:34+08:00"
+  "resource_state_verified_at": "2026-09-28T16:54:34+08:00",
+  "cost_method": "Cost Explorer UnblendedCost, excluding Credit and Refund record types; account-wide, not project-attributed.",
+  "resource_refreshes": {
+    "amit": "2026-10-21: live project-tag query and exact tagged-host read in ap-southeast-1",
+    "vagent": "2026-09-27/28 historical evidence; not refreshed"
+  }
 }

@@ -127,10 +127,10 @@ Mode: **one execution PR, many milestones; standing owner approval recorded
 
 - Canonical public Markdown ledger: `docs/current/AWS_RESOURCES.md`.
 - Canonical account aliases are `amit` and `vagent`; raw account IDs stay private.
-- Account-first cost watch uses Cost Explorer actual MTD plus explicit EST / USAGE-BASED / DIRECT-$0 / UNKNOWN labels.
+- Account-first cost watch uses Cost Explorer MTD with period-estimate and account-attribution qualifiers, plus explicit EST / USAGE-BASED / DIRECT-$0 / UNKNOWN labels.
 - EC2 / always-on compute has a separate high-visibility table.
 - `amit` retained host is stopped/recovery-only; its encrypted 30 GiB gp3 volume and Elastic IP remain retained.
-- `vagent` live read confirms one running expired-TTL `t3.small` learning host plus 109 S3 buckets total. **Owner decision 2026-09-27: the host is PROTECTED / DO NOT TOUCH.**
+- Historical `vagent` live read (2026-09-27) reported one running expired-TTL `t3.small` learning host plus 109 S3 buckets total; it was not refreshed in the 2026-10-21 `amit`-only read. **Owner decision 2026-09-27: the host is PROTECTED / DO NOT TOUCH.**
 - Under #77, ordinary engineering uses Codex Cloud/GitHub; Home retains the NEW private demo runtime. The stopped `amit` host is recovery-only and `vagent` remains separately governed.
 - EC2 Name tags are part of the canonical high-cost/resource ledger view.
 - **Legacy Lightsail and the retained `vagent` t3.small are PROTECTED / DO NOT TOUCH.** Read-only inspection is allowed; any stop/start/delete/resize/repurpose/tag/IAM/network change needs new exact authorization.
