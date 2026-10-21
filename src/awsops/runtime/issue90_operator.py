@@ -35,7 +35,6 @@ MAX_WINDOW_SECONDS = MAX_ACTIVE_SECONDS + STOP_RESERVE_SECONDS
 MAX_SSM_BYTES = 4096
 MAX_SSM_COMMENT_CHARS = 100
 SSM_DOCUMENT = "AWS-RunShellScript"
-NATIVE_MANAGER_THREAD = "01a142e5-6c7f-7801-bc3d-2bca3c3ad3fc"
 NATIVE_CODEX_EXECUTABLE = "/home/dev/.local/bin/codex"
 NATIVE_QUEUE_TIMEOUT_SECONDS = 10
 OWNER_COST_DIRECTIVE = "https://github.com/amitkarpe/awsops/issues/90#issuecomment-6319701453"
@@ -98,6 +97,7 @@ NATIVE_QUEUE_RECEIPT = re.compile(
     r"Queued message ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}) "
     r"for thread ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.\n?\Z"
 )
+UUID_VALUE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\Z")
 
 
 class RuntimeRefused(RuntimeError):
@@ -199,15 +199,27 @@ def validate_runtime_authority(authority: Any) -> None:
         raise RuntimeRefused("RUNTIME_AUTHORITY_REFUSED")
 
 
-def make_native_manager_notifier(codex_executable: str) -> Callable[[str, str], str | None]:
-    """Build the one-shot notifier for the existing local Codex queue route."""
+def _valid_reply_to(value: Any) -> bool:
+    if type(value) is not str or UUID_VALUE.fullmatch(value) is None:
+        return False
+    try:
+        return str(uuid.UUID(value)) == value
+    except ValueError:
+        return False
+
+
+def make_native_manager_notifier(
+        codex_executable: str, reply_to: str) -> Callable[[str, str], str | None]:
+    """Build the one-shot notifier bound to an explicit native queue thread."""
     if type(codex_executable) is not str or not os.path.isabs(codex_executable):
         raise RuntimeRefused("READY_NOTIFIER_EXECUTABLE_REFUSED")
+    if not _valid_reply_to(reply_to):
+        raise RuntimeRefused("READY_REPLY_TO_REFUSED")
 
     def notify(_run_id: str, message: str) -> str | None:
         if type(message) is not str or not message or "\x00" in message:
             return None
-        argv = [codex_executable, "queue", "--thread", NATIVE_MANAGER_THREAD,
+        argv = [codex_executable, "queue", "--thread", reply_to,
                 "--message", message]
         try:
             response = subprocess.run(argv, shell=False, capture_output=True,
@@ -219,10 +231,11 @@ def make_native_manager_notifier(codex_executable: str) -> Callable[[str, str], 
                 or type(response.stdout) is not str):
             return None
         match = NATIVE_QUEUE_RECEIPT.fullmatch(response.stdout)
-        if match is None or match.group(2) != NATIVE_MANAGER_THREAD:
+        if match is None or match.group(2) != reply_to:
             return None
         return match.group(1)
 
+    notify.reply_to = reply_to  # type: ignore[attr-defined]
     return notify
 
 
@@ -850,10 +863,12 @@ def _request_ok(provider: Any, request: dict[str, Any]) -> None:
 class RuntimeOperator:
     def __init__(self, config: dict[str, Any], provider: Any,
                  notifier: Callable[[str, str], str | None] | None, *,
+                 ready_reply_to: str | None = None,
                  monotonic: Callable[[], float] = time.monotonic,
                  sleep: Callable[[float], None] = time.sleep,
                  repo_root: Path | None = None):
         self.config, self.provider, self.notifier = config, provider, notifier
+        self.ready_reply_to = ready_reply_to
         self.monotonic, self.sleep = monotonic, sleep
         self.repo_root = repo_root or Path(__file__).resolve().parents[3]
 
@@ -918,8 +933,13 @@ class RuntimeOperator:
             raise RuntimeRefused("RUNTIME_PREVIOUS_WINDOW_MISSING")
         self._verify_remote_scope(self.config.get("remote"))
         self._verify_private_paths()
+        if not _valid_reply_to(self.ready_reply_to):
+            raise RuntimeRefused("RUNTIME_READY_REPLY_TO_REQUIRED")
         if not callable(self.notifier):
             raise RuntimeRefused("RUNTIME_READY_NOTIFIER_UNAVAILABLE")
+        notifier_reply_to = getattr(self.notifier, "reply_to", self.ready_reply_to)
+        if notifier_reply_to != self.ready_reply_to:
+            raise RuntimeRefused("RUNTIME_READY_REPLY_TO_MISMATCH")
         validate_runtime_authority(self.config.get("runtime_authority"))
 
     @staticmethod
@@ -1550,20 +1570,28 @@ def main(argv: list[str] | None = None, *,
     parser.add_argument("--execute-runtime-only", action="store_true")
     parser.add_argument("--private-config", type=Path,
                         default=Path.home() / ".AGENTS-temp/manager/issue90-live-activation/runtime-only.private.json")
+    parser.add_argument("--ready-reply-to",
+                        help="explicit UUID of the caller-bound native READY recipient")
     args = parser.parse_args(argv)
     if not args.execute_runtime_only:
         parser.error("the fixed lifecycle requires --execute-runtime-only")
     try:
         config = _load_private_json(args.private_config, expected_uid=os.getuid())
+        reply_to = args.ready_reply_to or getattr(notifier, "reply_to", None)
+        if not _valid_reply_to(reply_to):
+            raise RuntimeRefused("RUNTIME_READY_REPLY_TO_REQUIRED")
         if notifier is None:
             if (not Path(NATIVE_CODEX_EXECUTABLE).is_file()
                     or not os.access(NATIVE_CODEX_EXECUTABLE, os.X_OK)):
                 raise RuntimeRefused("RUNTIME_READY_NOTIFIER_UNAVAILABLE")
-            notifier = make_native_manager_notifier(NATIVE_CODEX_EXECUTABLE)
+            notifier = make_native_manager_notifier(NATIVE_CODEX_EXECUTABLE, reply_to)
         if not callable(notifier):
             raise RuntimeRefused("RUNTIME_READY_NOTIFIER_UNAVAILABLE")
+        if getattr(notifier, "reply_to", None) != reply_to:
+            raise RuntimeRefused("RUNTIME_READY_REPLY_TO_MISMATCH")
         provider = provider_factory()
-        result = RuntimeOperator(config, provider, notifier).run()
+        result = RuntimeOperator(config, provider, notifier,
+                                 ready_reply_to=reply_to).run()
     except RuntimeRefused as exc:
         print(f"RUNTIME_REFUSED={exc}")
         return 2

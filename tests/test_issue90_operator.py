@@ -26,6 +26,8 @@ from awsops.approval.decisions import DecisionStore  # noqa: E402
 from awsops.domain.models import canonical_digest  # noqa: E402
 from test_issue90_approval_e2e import make_case  # noqa: E402
 
+TEST_REPLY_TO = "00000000-0000-4000-8000-000000000001"
+
 
 class FakeProvider:
     def __init__(self, responses):
@@ -363,7 +365,8 @@ class Issue90OperatorTests(unittest.TestCase):
                 config, _instance_id, _baseline_rows = _make_runtime_case(
                     lane, repo, now=int(time.time()))
                 self.assertFalse((lane / "incremental-spend.private.json").exists())
-                runtime = operator.RuntimeOperator(config, None, lambda *_args: "unused")
+                runtime = operator.RuntimeOperator(
+                    config, None, lambda *_args: "unused", ready_reply_to=TEST_REPLY_TO)
                 runtime._verify_config()
 
                 for key, value in (
@@ -377,7 +380,8 @@ class Issue90OperatorTests(unittest.TestCase):
                     with self.subTest(key=key), self.assertRaisesRegex(
                             operator.RuntimeRefused, "RUNTIME_AUTHORITY_REFUSED"):
                         operator.RuntimeOperator(
-                            changed, None, lambda *_args: "unused")._verify_config()
+                            changed, None, lambda *_args: "unused",
+                            ready_reply_to=TEST_REPLY_TO)._verify_config()
 
     def test_native_queue_notifier_uses_exact_route_and_rejects_unknown_receipts(self):
         codex = "/usr/bin/codex"
@@ -385,14 +389,16 @@ class Issue90OperatorTests(unittest.TestCase):
         receipt = "01a15ef6-4da8-7c72-b00b-356bd44c5313"
         expected = subprocess.CompletedProcess(
             [codex], 0,
-            stdout=f"Queued message {receipt} for thread {operator.NATIVE_MANAGER_THREAD}.\n",
+            stdout=f"Queued message {receipt} for thread {TEST_REPLY_TO}.\n",
             stderr="")
-        notifier = operator.make_native_manager_notifier(codex)
+        notifier = operator.make_native_manager_notifier(codex, TEST_REPLY_TO)
+        with self.assertRaisesRegex(operator.RuntimeRefused, "READY_REPLY_TO_REFUSED"):
+            operator.make_native_manager_notifier(codex, "not-a-uuid")
         with patch.object(operator.subprocess, "run", return_value=expected) as send:
             self.assertEqual(notifier("run", message), receipt)
         argv, kwargs = send.call_args
         self.assertEqual(argv[0], [codex, "queue", "--thread",
-                                   operator.NATIVE_MANAGER_THREAD,
+                                   TEST_REPLY_TO,
                                    "--message", message])
         self.assertIs(kwargs["shell"], False)
         self.assertEqual(kwargs["timeout"], operator.NATIVE_QUEUE_TIMEOUT_SECONDS)
@@ -415,21 +421,32 @@ class Issue90OperatorTests(unittest.TestCase):
             self.assertIsNone(notifier("run", message))
             send.assert_called_once()
 
-    def test_main_refuses_missing_native_route_before_provider_construction(self):
+    def test_main_refuses_missing_reply_to_before_provider_construction(self):
         with tempfile.TemporaryDirectory() as temp:
             config_path = Path(temp) / "config.private.json"
             _write_private(config_path, {})
             factory = Mock()
             with patch.object(operator, "NATIVE_CODEX_EXECUTABLE", "/missing/codex"):
-                result = operator.main([
-                    "--execute-runtime-only", "--private-config", str(config_path)],
-                    provider_factory=factory)
+                for extra in ([], ["--ready-reply-to", "not-a-uuid"]):
+                    with self.subTest(extra=extra):
+                        result = operator.main([
+                            "--execute-runtime-only", "--private-config", str(config_path),
+                            *extra], provider_factory=factory)
+                        self.assertEqual(result, 2)
+            def wrong_route(_run_id, _message):
+                return "unexpected-receipt"
+            wrong_route.reply_to = "00000000-0000-4000-8000-000000000002"
+            result = operator.main([
+                "--execute-runtime-only", "--private-config", str(config_path),
+                "--ready-reply-to", TEST_REPLY_TO], notifier=wrong_route,
+                provider_factory=factory)
             self.assertEqual(result, 2)
             factory.assert_not_called()
 
     def test_main_wires_available_native_queue_into_runtime(self):
         receipt = "01a15ef6-4da8-7c72-b00b-356bd44c5313"
         message = "Issue90 runtime READY; genuine owner login/Reject required."
+        reply_to = TEST_REPLY_TO
         with tempfile.TemporaryDirectory() as temp:
             codex_path = Path(temp) / "codex"
             codex_path.write_text("#!/bin/sh\nexit 0\n")
@@ -440,7 +457,7 @@ class Issue90OperatorTests(unittest.TestCase):
             factory = Mock(return_value=object())
             queued = subprocess.CompletedProcess(
                 [codex], 0,
-                stdout=f"Queued message {receipt} for thread {operator.NATIVE_MANAGER_THREAD}.\n",
+                stdout=f"Queued message {receipt} for thread {reply_to}.\n",
                 stderr="")
 
             def exercise_notifier(runtime):
@@ -451,12 +468,13 @@ class Issue90OperatorTests(unittest.TestCase):
                   patch.object(operator.subprocess, "run", return_value=queued) as send,
                   patch.object(operator.RuntimeOperator, "run", exercise_notifier)):
                 result = operator.main([
-                    "--execute-runtime-only", "--private-config", str(config_path)],
+                    "--execute-runtime-only", "--private-config", str(config_path),
+                    "--ready-reply-to", reply_to],
                     provider_factory=factory)
             self.assertEqual(result, 0)
             factory.assert_called_once_with()
             send.assert_called_once_with(
-                [codex, "queue", "--thread", operator.NATIVE_MANAGER_THREAD,
+                [codex, "queue", "--thread", reply_to,
                  "--message", message], shell=False, capture_output=True, text=True,
                 timeout=operator.NATIVE_QUEUE_TIMEOUT_SECONDS, check=False)
 
@@ -659,7 +677,8 @@ const record = JSON.parse(process.argv[8]);
                     runtime = operator.RuntimeOperator(
                         config, provider,
                         lambda run_id, _message: notifications.append(run_id) or "fake-native-receipt",
-                        monotonic=clock.monotonic, sleep=clock.sleep, repo_root=repo)
+                        ready_reply_to=TEST_REPLY_TO, monotonic=clock.monotonic,
+                        sleep=clock.sleep, repo_root=repo)
 
                     if scenario == "prestart_refusal":
                         with self.assertRaisesRegex(operator.RuntimeRefused,

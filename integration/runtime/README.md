@@ -127,8 +127,14 @@ read-only checks of the attached security groups, volumes, address, and subnet
 before any lifecycle request. Its private config must pin the SHA-256 of the
 four existing activation property snapshots; absent, changed, or mismatching
 snapshots refuse before Start. It does not enumerate resources. The native
-READY notifier is injected by the existing private caller and has a bounded
-wait; no Codex queue command is guessed by the AWS operator. Receipt checks
+READY delivery is caller-bound per invocation. CLI callers must provide an
+explicit canonical UUID with `--ready-reply-to`; a Python caller may instead
+inject a notifier carrying the same `reply_to` binding. Missing, malformed, or
+mismatched routing refuses before provider construction. The default adapter
+uses the fixed local `/home/dev/.local/bin/codex` executable, a bounded
+no-shell queue call, and accepts a receipt only when its thread exactly matches
+the supplied UUID. There is no machine-specific default receiver; the actual
+Home thread belongs only in the private invocation contract. Receipt checks
 reopen the canonical application ledger and do not claim provider readback.
 The notifier must deliver a private pointer while the owner window is active;
 synthetic fixture stimulus is not an owner decision.
