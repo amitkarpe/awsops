@@ -37,7 +37,7 @@ MAX_SSM_COMMENT_CHARS = 100
 SSM_DOCUMENT = "AWS-RunShellScript"
 ISOLATED_ROOT = "/opt/awsops-native-canary"
 ISOLATED_STATE = f"{ISOLATED_ROOT}/state"
-ISOLATED_LAUNCHER = f"{ISOLATED_ROOT}/integration/runtime/issue90-isolated-launcher.sh"
+ISOLATED_LAUNCHER = f"{ISOLATED_ROOT}/awsops/integration/runtime/issue90-isolated-launcher.sh"
 RUNTIME_OWNER_UID = 1001
 RUNTIME_OWNER_GID = 1001
 PRIVATE_LANE = Path.home() / ".AGENTS-temp/manager/issue90-live-activation"
@@ -218,14 +218,22 @@ def validate_incremental_budget(config: dict[str, Any]) -> None:
 
 
 def _compressed_python(script: str, args: list[str], *, as_root: bool,
-                      as_owner: bool = False) -> str:
+                      as_owner: bool = False, compression: str = "zlib") -> str:
     if as_root and as_owner:
         raise RuntimeRefused("SSM_EXECUTION_IDENTITY_CONFLICT")
-    encoded = base64.b64encode(zlib.compress(script.encode("utf-8"), 9)).decode("ascii")
+    if compression == "zlib":
+        encoded = base64.b64encode(zlib.compress(script.encode("utf-8"), 9)).decode("ascii")
+        decoder = ("import base64,sys,zlib;source=zlib.decompress(base64.b64decode(sys.argv[1]));"
+                   "sys.argv=sys.argv[1:];exec(source)")
+    elif compression == "lzma":
+        import lzma
+        encoded = base64.b85encode(lzma.compress(script.encode("utf-8"), preset=9)).decode("ascii")
+        decoder = ("import base64,lzma,sys;source=lzma.decompress(base64.b85decode(sys.argv[1]));"
+                   "sys.argv=sys.argv[1:];exec(source)")
+    else:
+        raise RuntimeRefused("SSM_COMPRESSION_REFUSED")
     # sys.argv[1] is the compressed program. Shift it away before the decoded
     # program consumes its own argv, matching the previously reviewed probe.
-    decoder = ("import base64,sys,zlib;source=zlib.decompress(base64.b64decode(sys.argv[1]));"
-               "sys.argv=sys.argv[1:];exec(source)")
     if as_owner:
         prefix = "sudo -u ssm-user -- /usr/bin/python3 -I -B -c "
     elif as_root:
@@ -298,7 +306,7 @@ except Exception: refuse('STAGE_READBACK')
 def _composed_probe(config: dict[str, Any]) -> str:
     script = r'''import hashlib,importlib.util,json,os,stat,sys,tarfile,types
 from pathlib import Path
-root,old_payload,old_manifest,old_archive,new_payload,new_manifest,new_archive,old_manifest_sha,old_archive_sha,new_source_manifest_sha=sys.argv[1:]
+old_name,new_name=sys.argv[1:]
 def refuse(code): print(json.dumps({'state':'REFUSED','code':code},separators=(',',':'))); raise SystemExit(0)
 def sha(data): return hashlib.sha256(data).hexdigest()
 def git_blob(data): return hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
@@ -326,64 +334,76 @@ def execute_source(data,path,name):
  exec(compile(data,str(path),'exec'),module.__dict__)
  return module
 try:
- root=Path(root); op=Path(old_payload); np=Path(new_payload)
- old_helper=root/'awsops/integration/librechat/isolated_migration.py'
- new_helper=np/'awsops/integration/librechat/isolated_migration.py'
- old_manifest_bytes=read_fixed(Path(old_manifest),0,0,0o600)
- old_archive_bytes=read_fixed(Path(old_archive),0,0,0o600)
- new_source_manifest_bytes=read_fixed(np/'source-manifest.private.json',0,0,0o600)
- if sha(old_manifest_bytes)!=old_manifest_sha or sha(old_archive_bytes)!=old_archive_sha: refuse('PINNED_PREDECESSOR_ARTIFACT')
- if sha(new_source_manifest_bytes)!=new_source_manifest_sha: refuse('PINNED_RUNTIME_SOURCE_MANIFEST')
- old_manifest_value=json.loads(old_manifest_bytes)
- old_rows=[r for r in old_manifest_value.get('files',[]) if type(r) is dict and r.get('target')=='awsops/integration/librechat/isolated_migration.py']
- old_bytes=read_fixed(old_helper,1001,1001,0o644)
- old_member=archive_member(Path(old_archive),'awsops/integration/librechat/isolated_migration.py')
- if (len(old_rows)!=1 or old_rows[0].get('sha256')!='72628fa7f2a898da6525d123815470e63efe2cfd5de08aa9bd6a6d3548502524' or old_rows[0].get('git_blob')!='635dca4dcf36c8809c19df8ee5a7fa594226a2e9' or sha(old_bytes)!=old_rows[0]['sha256'] or git_blob(old_bytes)!=old_rows[0]['git_blob'] or old_member!=old_bytes): refuse('INSTALLED_PREDECESSOR_HELPER_PIN')
- new_bytes=read_fixed(new_helper,0,0,0o644)
- if sha(new_bytes)!='b949129984ef289b8304fd3d2c66d848a9c766a8e8cace8725dd045414346fcc' or git_blob(new_bytes)!='17d892306faf161de2bd04af11de3845996a204a': refuse('STAGED_RUNTIME_HELPER_PIN')
- old=execute_source(old_bytes,old_helper,'old_migration')
- new=execute_source(new_bytes,new_helper,'runtime_migration')
- om,of=old.load_manifest(op,Path(old_manifest),root); old.verify_archive(om,Path(old_archive))
- nm,nf=new._config_resume_manifest(np,Path(new_manifest),root); new.verify_archive(nm,Path(new_archive))
- raw=old.inspect_migration(op,Path(old_manifest),Path(old_archive),root)
- current=new.inspect_config_resume(np,Path(new_manifest),Path(new_archive),root)
- journal,files=new._config_resume_read_journal(root,nf,nm['migration_id'])
- if journal is None: refuse('CONFIG_RESUME_JOURNAL')
- overlaps={'T06':'C03','T12':'C01','T14':'C02'}
- tmap={f'T{i:02d}':r['target'] for i,r in enumerate(of,1)}; cby={r['target']:r for r in nf}
- jby={r['target']:r for r in journal['files']}
- for tk,ck in overlaps.items():
-  target=tmap[tk]; c=cby.get(target); j=jby.get(target)
-  if c is None or j is None or not j.get('prior'): refuse('OVERLAY_BINDING')
-  old_bytes=(op/target).read_bytes(); backup=(root/new.CONFIG_RESUME_BACKUP/j['prior']).read_bytes(); pre=c.get('recovery_preconditions')
-  if type(pre) is not list or len(pre)!=1 or backup!=old_bytes or hashlib.sha256(old_bytes).hexdigest()!=pre[0].get('sha256') or pre[0].get('uid')!=1001 or pre[0].get('gid')!=1001 or pre[0].get('mode')!='0644': refuse('OVERLAY_PREDECESSOR')
- states={r['key']:r['state'] for r in raw.get('targets',[]) if type(r) is dict}
- if raw.get('journal')!='INVALID' or raw.get('backup')!='ROOT_0700' or raw.get('state')!='JOURNAL_RECONCILE_REQUIRED': refuse('ORIGINAL_JOURNAL')
- if any(states.get(f'T{i:02d}')!='INSTALLED_EXACT' for i in range(1,42) if f'T{i:02d}' not in overlaps): refuse('ORIGINAL_UNAFFECTED_TARGET')
- if any(states.get(k)!='TARGET_DRIFT' for k in overlaps): refuse('ORIGINAL_OVERLAY_TARGET')
- new_states={r['key']:r['state'] for r in current.get('targets',[]) if type(r) is dict}
- if current.get('state')!='INSTALLED' or current.get('journal')!='VALID' or current.get('backup')!='PRESENT' or new_states!={f'C{i:02d}':'INSTALLED_EXACT' for i in range(1,4)}: refuse('CONFIG_RESUME_STATE')
- original=old._inspect_target; by={r['target']:r for r in nf}
- def composed(check_root,item,manifest):
-  c=by.get(item['target'])
-  if c is None: return original(check_root,item,manifest)
-  state=new._config_resume_current(root/item['target'])
-  if state is not None and state['sha256']==c['sha256'] and state['uid']==1001 and state['gid']==1001 and state['mode']==c['mode']: return 'INSTALLED_EXACT'
-  return 'TARGET_DRIFT'
- old._inspect_target=composed
- try: jstate,bstate=old._inspect_journal(root,om,of)
- finally: old._inspect_target=original
- if jstate!='VALID' or bstate!='ROOT_0700': refuse('COMPOSED_BACKUP')
- print(json.dumps({'state':'COMPOSED_RUNTIME_READY','original41_journal':'VALID','original41_backup':'ROOT_0700','original41_unaffected_exact':38,'overlay_target_count':3,'overlay_predecessor_bytes_exact':3,'config_resume_journal':'VALID','config_resume_backup':'PRESENT','config_targets_exact':3},separators=(',',':')))
+    root=Path('/opt/awsops-native-canary')
+    if ('/' in old_name or old_name in {'.','..'} or not old_name.startswith('.issue90-stage-')
+        or '/' in new_name or new_name in {'.','..'} or not new_name.startswith('.issue90-config-resume-948e8bb6-')):
+        refuse('STAGE_ROOT_BINDING')
+    old_stage=root/old_name; new_stage=root/new_name
+    op=old_stage/'payload'; np=new_stage/'payload'
+    old_manifest=old_stage/'migration.private.json'
+    old_archive=old_stage/'awsops-native-canary-d090c98-final.tar.gz'
+    new_manifest=new_stage/'config-resume.private.json'
+    new_archive=new_stage/'awsops-config-resume-948e8bb6.tar.gz'
+    old_manifest_sha='5638c7ff290385ecf1839e42171aab9d6ec7ac71b0da9322c6b3352f95c72460'
+    old_archive_sha='3932ba704ce02ccde6393a362a28e6bf2e7ea0b4f883dbd9043f90b0b13877e3'
+    new_source_manifest_sha='3c8e23d83954f433830251f8f98be44415afd72e621d587aee1851297777532f'
+    old_helper=root/'awsops/integration/librechat/isolated_migration.py'
+    new_helper=np/'awsops/integration/librechat/isolated_migration.py'
+    old_manifest_bytes=read_fixed(old_manifest,0,0,0o600)
+    old_archive_bytes=read_fixed(old_archive,0,0,0o600)
+    # The transfer contract keeps the source manifest beside payload/, at the
+    # runtime stage root. It is not a payload member.
+    new_source_manifest_bytes=read_fixed(new_stage/'source-manifest.private.json',0,0,0o600)
+    if sha(old_manifest_bytes)!=old_manifest_sha or sha(old_archive_bytes)!=old_archive_sha: refuse('PINNED_PREDECESSOR_ARTIFACT')
+    if sha(new_source_manifest_bytes)!=new_source_manifest_sha: refuse('PINNED_RUNTIME_SOURCE_MANIFEST')
+    old_manifest_value=json.loads(old_manifest_bytes)
+    old_rows=[r for r in old_manifest_value.get('files',[]) if type(r) is dict and r.get('target')=='awsops/integration/librechat/isolated_migration.py']
+    old_bytes=read_fixed(old_helper,1001,1001,0o644)
+    old_member=archive_member(old_archive,'awsops/integration/librechat/isolated_migration.py')
+    if (len(old_rows)!=1 or old_rows[0].get('sha256')!='72628fa7f2a898da6525d123815470e63efe2cfd5de08aa9bd6a6d3548502524' or old_rows[0].get('sha256')!=sha(old_bytes) or git_blob(old_bytes)!='635dca4dcf36c8809c19df8ee5a7fa594226a2e9' or old_member!=old_bytes): refuse('INSTALLED_PREDECESSOR_HELPER_PIN')
+    new_bytes=read_fixed(new_helper,0,0,0o644)
+    if sha(new_bytes)!='b949129984ef289b8304fd3d2c66d848a9c766a8e8cace8725dd045414346fcc' or git_blob(new_bytes)!='17d892306faf161de2bd04af11de3845996a204a': refuse('STAGED_RUNTIME_HELPER_PIN')
+    old=execute_source(old_bytes,old_helper,'old_migration')
+    new=execute_source(new_bytes,new_helper,'runtime_migration')
+    om,of=old.load_manifest(op,old_manifest,root); old.verify_archive(om,old_archive)
+    nm,nf=new._config_resume_manifest(np,new_manifest,root); new.verify_archive(nm,new_archive)
+    raw=old.inspect_migration(op,old_manifest,old_archive,root)
+    current=new.inspect_config_resume(np,new_manifest,new_archive,root)
+    journal,files=new._config_resume_read_journal(root,nf,nm['migration_id'])
+    if journal is None: refuse('CONFIG_RESUME_JOURNAL')
+    overlaps={'T06':'C03','T12':'C01','T14':'C02'}
+    tmap={f'T{i:02d}':r['target'] for i,r in enumerate(of,1)}; cby={r['target']:r for r in nf}
+    jby={r['target']:r for r in journal['files']}
+    for tk,ck in overlaps.items():
+        target=tmap[tk]; c=cby.get(target); j=jby.get(target)
+        if c is None or j is None or not j.get('prior'): refuse('OVERLAY_BINDING')
+        old_bytes=(op/target).read_bytes(); backup=(root/new.CONFIG_RESUME_BACKUP/j['prior']).read_bytes(); pre=c.get('recovery_preconditions')
+        if type(pre) is not list or len(pre)!=1 or backup!=old_bytes or hashlib.sha256(old_bytes).hexdigest()!=pre[0].get('sha256') or pre[0].get('uid')!=1001 or pre[0].get('gid')!=1001 or pre[0].get('mode')!='0644': refuse('OVERLAY_PREDECESSOR')
+    states={r['key']:r['state'] for r in raw.get('targets',[]) if type(r) is dict}
+    if raw.get('journal')!='INVALID' or raw.get('backup')!='ROOT_0700' or raw.get('state')!='JOURNAL_RECONCILE_REQUIRED': refuse('ORIGINAL_JOURNAL')
+    if any(states.get(f'T{i:02d}')!='INSTALLED_EXACT' for i in range(1,42) if f'T{i:02d}' not in overlaps): refuse('ORIGINAL_UNAFFECTED_TARGET')
+    if any(states.get(k)!='TARGET_DRIFT' for k in overlaps): refuse('ORIGINAL_OVERLAY_TARGET')
+    new_states={r['key']:r['state'] for r in current.get('targets',[]) if type(r) is dict}
+    if current.get('state')!='INSTALLED' or current.get('journal')!='VALID' or current.get('backup')!='PRESENT' or new_states!={f'C{i:02d}':'INSTALLED_EXACT' for i in range(1,4)}: refuse('CONFIG_RESUME_STATE')
+    original=old._inspect_target; by={r['target']:r for r in nf}
+    def composed(check_root,item,manifest):
+        c=by.get(item['target'])
+        if c is None: return original(check_root,item,manifest)
+        state=new._config_resume_current(root/item['target'])
+        if state is not None and state['sha256']==c['sha256'] and state['uid']==1001 and state['gid']==1001 and state['mode']==c['mode']: return 'INSTALLED_EXACT'
+        return 'TARGET_DRIFT'
+    old._inspect_target=composed
+    try: jstate,bstate=old._inspect_journal(root,om,of)
+    finally: old._inspect_target=original
+    if jstate!='VALID' or bstate!='ROOT_0700': refuse('COMPOSED_BACKUP')
+    print(json.dumps({'state':'COMPOSED_RUNTIME_READY','original41_journal':'VALID','original41_backup':'ROOT_0700','original41_unaffected_exact':38,'overlay_target_count':3,'overlay_predecessor_bytes_exact':3,'config_resume_journal':'VALID','config_resume_backup':'PRESENT','config_targets_exact':3},separators=(',',':')))
 except SystemExit: raise
 except Exception: refuse('COMPOSED_INSPECTION')
 '''
     remote = config["remote"]
-    args = [remote["root"], remote["old_payload"], remote["old_manifest"],
-            remote["old_archive"], remote["runtime_payload"], remote["runtime_manifest"],
-            remote["runtime_archive"], EXPECTED_PREDECESSOR_MANIFEST_SHA256,
-            EXPECTED_PREDECESSOR_ARCHIVE_SHA256, EXPECTED_RUNTIME_SOURCE_MANIFEST_SHA256]
-    return _compressed_python(script, args, as_root=True)
+    args = [PurePosixPath(remote["old_stage"]).name,
+            PurePosixPath(remote["runtime_stage"]).name]
+    return _compressed_python(script, args, as_root=True, compression="lzma")
 
 
 def _native_probe(config: dict[str, Any]) -> str:
@@ -407,7 +427,7 @@ try {if(root!==__ISOLATED_ROOT__||path.resolve(root)!==root||!Number.isSafeInteg
  const stateStat=fs.lstatSync(state);if(!stateStat.isDirectory()||stateStat.isSymbolicLink()||stateStat.uid!==ownerUid||stateStat.gid!==ownerGid||(stateStat.mode&0o777)!==0o700)refuse('NATIVE_STATE_OWNER');
  const marker=pinnedBytes(markerPath,null,ownerUid,ownerGid,0o644);
  if(marker.toString('ascii')!==revision+'\n')refuse('NATIVE_SOURCE_MARKER');
- const launcher=path.join(root,'integration/runtime/issue90-isolated-launcher.sh');
+ const launcher=path.join(awsops,'integration/runtime/issue90-isolated-launcher.sh');
  pinnedBytes(launcher,'5070df7ffd5ec608d203e17c53dc0d158a827a173244c6e7e4322e29608f9dc5',ownerUid,ownerGid,0o644);
  const storePath=path.join(awsops,'integration/librechat/native_store.cjs');
  const storeBytes=pinnedBytes(storePath,'d7f7df44625bc67da0638cf72fa471695834e2e4609e10d7417623e8d84118e1',ownerUid,ownerGid,0o644);
@@ -1189,6 +1209,9 @@ class RuntimeOperator:
             if value.get("state") == "REFUSED":
                 return "SSM_PROBE_REFUSED_NO_REPLAY", value
             if value.get("state") != step.json_state:
+                if (step.name == "ledger_readback"
+                        and value.get("state") == "PRIOR_RECORDS_RECONCILE"):
+                    return "Success", value
                 return "SSM_PROBE_STATE_MISMATCH_NO_REPLAY", value
             return "Success", value
         return "Success", response
