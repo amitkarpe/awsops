@@ -678,7 +678,30 @@ const record = JSON.parse(process.argv[8]);
             missing = execute_probe(root / "missing.sqlite")
             self.assertEqual(missing, {
                 "state": "REFUSED", "code": "LEDGER_READONLY",
-                "prior_record_count": {}, "diagnostic_stage": "FILE_LOOKUP"})
+                "prior_record_count": {}, "diagnostic_stage": "FILE_LOOKUP",
+                "lookup": {"error": "NOT_FOUND", "euid": os.geteuid(), "egid": os.getegid(),
+                           "parent": {"state": "DIRECTORY", "uid": root.stat().st_uid,
+                                      "gid": root.stat().st_gid, "mode": 0o700}}})
+            blocked = root / "blocked"
+            blocked.mkdir(mode=0o700)
+            blocked.chmod(0)
+            try:
+                if os.geteuid() != 0:
+                    denied = execute_probe(blocked / "ledger.sqlite")
+                    self.assertEqual(denied["lookup"]["error"], "ACCESS_DENIED")
+                    self.assertEqual(denied["lookup"]["parent"]["mode"], 0)
+                    self.assertTrue(operator._valid_probe_shape("ledger_readback", denied))
+            finally:
+                blocked.chmod(0o700)
+            linked = root / "linked"
+            linked.symlink_to(blocked, target_is_directory=True)
+            symlink = execute_probe(linked / "missing.sqlite")
+            self.assertEqual(symlink["lookup"]["parent"], {"state": "SYMLINK"})
+            self.assertFalse(list(blocked.iterdir()))
+            for bad in ({**missing["lookup"], "error": "private error text"},
+                        {**missing["lookup"], "euid": True},
+                        {**missing["lookup"], "parent": {"state": "DIRECTORY", "path": str(root)}}):
+                self.assertFalse(operator._valid_probe_shape("ledger_readback", {**missing, "lookup": bad}))
 
             corrupt = root / "corrupt.sqlite"
             corrupt.write_bytes(b"not a sqlite database")

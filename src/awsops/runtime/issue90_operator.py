@@ -481,13 +481,33 @@ try {if(root!==__ISOLATED_ROOT__||path.resolve(root)!==root||!Number.isSafeInteg
 
 
 def _ledger_probe(config: dict[str, Any]) -> str:
-    script = r'''import json,sqlite3,stat,sys
+    script = r'''import errno,json,os,sqlite3,stat,sys
 from pathlib import Path
 p=Path(sys.argv[1]); owner=int(sys.argv[2])
-def out(state,code=None,counts=None,diagnostic_stage=None):
+def out(state,code=None,counts=None,diagnostic_stage=None,lookup=None):
  result={'state':state,'code':code,'prior_record_count':counts or {}}
  if diagnostic_stage is not None: result['diagnostic_stage']=diagnostic_stage
+ if lookup is not None: result['lookup']=lookup
  print(json.dumps(result,separators=(',',':')))
+def category(error):
+ return {errno.ENOENT:'NOT_FOUND',errno.EACCES:'ACCESS_DENIED',errno.EPERM:'NOT_PERMITTED',errno.ENOTDIR:'NOT_DIRECTORY',errno.ELOOP:'SYMLINK_LOOP'}.get(getattr(error,'errno',None),'OTHER')
+def lookup_facts(error):
+ parent={'state':'UNKNOWN'}; fd=None
+ try:
+  # Open each ancestor without following symlinks; never open the ledger.
+  fd=os.open('/',os.O_PATH|os.O_DIRECTORY)
+  for part in p.parent.parts[1:]:
+   child=os.open(part,os.O_PATH|os.O_NOFOLLOW,dir_fd=fd)
+   os.close(fd);fd=child;st=os.fstat(fd)
+   if not stat.S_ISDIR(st.st_mode):
+    parent={'state':'SYMLINK' if stat.S_ISLNK(st.st_mode) else 'NOT_DIRECTORY'};break
+  else:
+   st=os.fstat(fd)
+   parent={'state':'DIRECTORY','uid':st.st_uid,'gid':st.st_gid,'mode':stat.S_IMODE(st.st_mode)}
+ except OSError as e: parent={'state':category(e)}
+ finally:
+  if fd is not None: os.close(fd)
+ return {'error':category(error),'euid':os.geteuid(),'egid':os.getegid(),'parent':parent}
 stage='FILE_LOOKUP'
 try:
  st=p.lstat()
@@ -514,7 +534,9 @@ try:
  stage='COMPLETE'
  out('NO_PRIOR_RECORDS' if not sum(counts.values()) else 'PRIOR_RECORDS_RECONCILE',None,counts)
 except SystemExit: raise
-except Exception: out('REFUSED','LEDGER_READONLY',diagnostic_stage=stage)
+except Exception as error:
+ out('REFUSED','LEDGER_READONLY',diagnostic_stage=stage,
+     lookup=lookup_facts(error) if stage=='FILE_LOOKUP' else None)
 '''
     return _compressed_python(script, [config["remote"]["application_database"],
                                       str(config["remote"]["owner_uid"])],
@@ -622,6 +644,23 @@ def build_ssm_request(instance_id: str, run_id: str, step: Step) -> dict[str, An
     return request
 
 
+def _valid_lookup_facts(value: Any) -> bool:
+    categories = {"NOT_FOUND", "ACCESS_DENIED", "NOT_PERMITTED", "NOT_DIRECTORY",
+                  "SYMLINK_LOOP", "OTHER"}
+    if (type(value) is not dict or set(value) != {"error", "euid", "egid", "parent"}
+            or type(value["error"]) is not str or value["error"] not in categories
+            or any(type(value[k]) is not int or value[k] < 0 for k in ("euid", "egid"))):
+        return False
+    parent = value["parent"]
+    if type(parent) is not dict or type(parent.get("state")) is not str:
+        return False
+    if parent["state"] != "DIRECTORY":
+        return set(parent) == {"state"} and parent["state"] in categories | {"UNKNOWN", "SYMLINK"}
+    return (set(parent) == {"state", "uid", "gid", "mode"}
+            and all(type(parent[k]) is int and parent[k] >= 0 for k in ("uid", "gid", "mode"))
+            and parent["mode"] <= 0o7777)
+
+
 def _valid_probe_shape(name: str, value: dict[str, Any]) -> bool:
     if value.get("state") == "REFUSED":
         if name == "ledger_readback":
@@ -632,6 +671,10 @@ def _valid_probe_shape(name: str, value: dict[str, Any]) -> bool:
                 return False
             if value.get("code") in {"LEDGER_SIDECAR", "LEDGER_METADATA", "LEDGER_SCHEMA"}:
                 return set(value) == fields
+            if "lookup" in value:
+                if value.get("diagnostic_stage") != "FILE_LOOKUP" or not _valid_lookup_facts(value["lookup"]):
+                    return False
+                fields = fields | {"lookup"}
             return (set(value) == fields | {"diagnostic_stage"}
                     and value.get("code") == "LEDGER_READONLY"
                     and type(value.get("diagnostic_stage")) is str
@@ -1349,7 +1392,8 @@ class RuntimeOperator:
                 evidence.write_once(run_dir / f"ssm-refusal-{index:02d}.private.json", {
                     "step": step.name, "state": "REFUSED", "code": value["code"],
                     **({"diagnostic_stage": value["diagnostic_stage"]}
-                       if "diagnostic_stage" in value else {})})
+                       if "diagnostic_stage" in value else {}),
+                    **({"lookup": value["lookup"]} if "lookup" in value else {})})
                 return "SSM_PROBE_REFUSED_NO_REPLAY", value
             if value.get("state") != step.json_state:
                 if (step.name == "ledger_readback"
