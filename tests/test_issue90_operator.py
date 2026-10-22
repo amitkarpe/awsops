@@ -713,6 +713,118 @@ const record = JSON.parse(process.argv[8]);
                 "native_owner_decisions": 0})
             self.assertNotIn("diagnostic_stage", accepted)
 
+            for value in (missing, refused, explicit_refusal,
+                          {"state": "REFUSED", "code": "LEDGER_SIDECAR", "prior_record_count": {}},
+                          {"state": "REFUSED", "code": "LEDGER_METADATA", "prior_record_count": {}}):
+                self.assertTrue(operator._valid_probe_shape("ledger_readback", value))
+                responses = [("Success", json.dumps(_probe_success(name)), "")
+                    for name in operator.EXPECTED_STEPS[:3]]
+                responses.append(("Success", json.dumps(value), ""))
+                provider = FakeProvider(responses)
+                runtime = operator.RuntimeOperator({}, provider, None)
+                evidence = operator.PrivateEvidence(root / "parsed")
+                run_dir = evidence.create_run_dir("refusal-" + value["code"] + value.get("diagnostic_stage", ""))
+                steps = tuple(operator.Step(name, "true", 30, json_state=state)
+                    for name, state in zip(operator.EXPECTED_STEPS[:4],
+                        ("PRESERVED_STAGES_VALID", "COMPOSED_RUNTIME_READY", "NATIVE_BINDING_VALID", "NO_PRIOR_RECORDS")))
+                result = runtime._inspect_and_launch(evidence, run_dir, "fixture", "a" * 40,
+                    "i-0123456789abcdef0", steps, 100, float("inf"), float("inf"))
+                self.assertEqual(result, "SSM_PROBE_REFUSED_NO_REPLAY_NO_LAUNCH")
+                self.assertEqual(len(provider.requests), 4)
+            for delta in ({"diagnostic_stage": "UNKNOWN"}, {"diagnostic_stage": []},
+                          {"code": "UNKNOWN"}, {"code": []}, {"extra": "private text"},
+                          {"prior_record_count": {"canaries": 0}}, {"prior_record_count": []}):
+                self.assertFalse(operator._valid_probe_shape("ledger_readback", {**missing, **delta}))
+
+    def test_runtime_predecessor_binds_produced_claims_and_stopped_cleanup(self):
+        class LedgerRefusalProvider(FakeRuntimeProvider):
+            def start_once(self, instance_id):
+                response, _ = super().start_once(instance_id)
+                return response, "11111111-1111-4111-8111-111111111111"
+
+            def stop_once(self, instance_id):
+                response, _ = super().stop_once(instance_id)
+                return response, "22222222-2222-4222-8222-222222222222"
+
+            def invocation(self, command_id, instance_id):
+                if self.steps[command_id] != "ledger_readback":
+                    return super().invocation(command_id, instance_id)
+                tokens = shlex.split(self.commands[command_id])
+                self.assert_owner_command = tokens[:5] == [
+                    "sudo", "-u", "ssm-user", "--", "/usr/bin/python3"]
+                if not self.assert_owner_command:
+                    raise AssertionError("unexpected owner command")
+                # Real generated decoder/probe, only fixed host path/UID adapted.
+                args = tokens[5:]
+                args[-2:] = [str(lane / "missing.sqlite"), str(os.getuid())]
+                output = subprocess.run([sys.executable, *args], check=True,
+                                        capture_output=True, text=True)
+                return {"Status": "Success", "ResponseCode": 0,
+                        "StandardOutputContent": output.stdout,
+                        "StandardErrorContent": output.stderr}, "synthetic-read"
+
+        with tempfile.TemporaryDirectory() as temp:
+            lane, repo = Path(temp) / "private", Path(temp) / "source"
+            with (patch.object(operator, "PRIVATE_LANE", lane),
+                  patch.object(operator, "RUNTIME_OWNER_UID", os.getuid()),
+                  patch.object(operator, "RUNTIME_OWNER_GID", os.getgid())):
+                config, _, rows = _make_runtime_case(lane, repo, now=int(time.time()))
+                provider = LedgerRefusalProvider(config, rows)
+                clock = FakeLifecycleClock()
+                runtime = operator.RuntimeOperator(config, provider, lambda *_: None,
+                    ready_reply_to=TEST_REPLY_TO, repo_root=repo,
+                    monotonic=clock.monotonic, sleep=clock.sleep)
+                self.assertEqual(runtime._validate_previous()["outcome"],
+                                 "OWNER_INTERACTION_DEADLINE")
+                result = runtime.run()
+                self.assertEqual(result["status"], "SSM_PROBE_REFUSED_NO_REPLAY_NO_LAUNCH")
+                self.assertEqual(provider.start_calls, 1)
+                self.assertEqual(provider.stop_calls, 1)
+                self.assertNotIn("launcher_start", [s for s, _ in provider.sends])
+                run_dir = Path(config["evidence_root"]) / result["run_id"]
+                refusal = json.loads((run_dir / "ssm-refusal-04.private.json").read_text())
+                self.assertEqual(refusal["diagnostic_stage"], "FILE_LOOKUP")
+
+                def ref(path):
+                    return {"path": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+
+                previous = {"format": "runtime-only-stopped/v1",
+                    "result_path": str(run_dir / "result.private.json"),
+                    "result_sha256": ref(run_dir / "result.private.json")["sha256"],
+                    "run_id": result["run_id"], "instance_id": config["instance_id"],
+                    "operator_source_head": config["operator_source_head"],
+                    "start_claim": ref(Path(config["start_claim_path"])),
+                    "stop_claim": ref(Path(config["stop_claim_path"])),
+                    "cleanup": ref(run_dir / "cleanup.private.json")}
+                config["previous_window"] = previous
+                self.assertEqual(runtime._validate_previous(), result)
+                # Even with recomputed local pins, contradictions must refuse.
+                for record, key, value in (
+                    ("result", "status", "ARBITRARY_STATUS"),
+                    ("result", "run_id", "i90-runtime-" + "f" * 32),
+                    ("result", "unexpected", True),
+                    ("start_claim", "operator_source_head", "f" * 40),
+                    ("start_claim", "target_source_revision", "f" * 40),
+                    ("stop_claim", "instance_id", "i-" + "f" * 17),
+                    ("stop_claim", "request_count", True),
+                    ("cleanup", "final_state", "UNKNOWN"),
+                    ("cleanup", "verified_at_utc", "not-a-timestamp")):
+                    with self.subTest(record=record, key=key):
+                        path = Path(previous["result_path"] if record == "result"
+                                    else previous[record]["path"])
+                        original = path.read_bytes()
+                        changed = json.loads(original); changed[key] = value
+                        _write_private(path, changed)
+                        if record == "result": previous["result_sha256"] = ref(path)["sha256"]
+                        else: previous[record]["sha256"] = ref(path)["sha256"]
+                        with self.assertRaises(operator.RuntimeRefused): runtime._validate_previous()
+                        path.write_bytes(original)
+                        if record == "result": previous["result_sha256"] = ref(path)["sha256"]
+                        else: previous[record]["sha256"] = ref(path)["sha256"]
+                previous["cleanup"]["sha256"] = "0" * 64
+                with self.assertRaisesRegex(operator.RuntimeRefused, "PRIVATE_PIN_REFUSED"):
+                    runtime._validate_previous()
+
     def test_run_full_fake_lifecycle_uses_production_steps_parser_and_cleanup(self):
         scenarios = ("success", "prestart_refusal", "prior_row_refusal",
                      "unknown_launch", "failure", "interrupt")

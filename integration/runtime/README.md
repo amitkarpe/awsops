@@ -138,3 +138,18 @@ Home thread belongs only in the private invocation contract. Receipt checks
 reopen the canonical application ledger and do not claim provider readback.
 The notifier must deliver a private pointer while the owner window is active;
 synthetic fixture stimulus is not an owner decision.
+
+Runtime predecessor evidence supports two explicit contracts. The retained
+legacy `previous_window` reference is unchanged. For a completed runtime-only
+**prelaunch refusal**, use `format: runtime-only-stopped/v1` with the exact
+`run_id`, `instance_id`, prior `operator_source_head`, `result_path` and
+`result_sha256`, plus `start_claim`, `stop_claim`, and `cleanup` references
+(each exactly `{path, sha256}`). These private, owned files must agree on the
+run, target, source, Stop intent, chronology and independently read-back stopped
+state. Only the supported readback/probe-refused no-launch outcomes qualify;
+unknown outcomes or incomplete cleanup require reconciliation. Do not rewrite
+historical results into the legacy format or reset their consumed claims.
+
+Ledger refusal diagnostics retain only production-defined codes and stages.
+An empty refusal count object never means an empty ledger: every accepted
+refusal still blocks launch and saves a value-free `ssm-refusal` record.
