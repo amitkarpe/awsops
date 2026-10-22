@@ -624,6 +624,21 @@ def build_ssm_request(instance_id: str, run_id: str, step: Step) -> dict[str, An
 
 def _valid_probe_shape(name: str, value: dict[str, Any]) -> bool:
     if value.get("state") == "REFUSED":
+        if name == "ledger_readback":
+            if type(value.get("code")) is not str:
+                return False
+            fields = {"state", "code", "prior_record_count"}
+            if type(value.get("prior_record_count")) is not dict or value["prior_record_count"] != {}:
+                return False
+            if value.get("code") in {"LEDGER_SIDECAR", "LEDGER_METADATA", "LEDGER_SCHEMA"}:
+                return set(value) == fields
+            return (set(value) == fields | {"diagnostic_stage"}
+                    and value.get("code") == "LEDGER_READONLY"
+                    and type(value.get("diagnostic_stage")) is str
+                    and value["diagnostic_stage"] in {
+                        "FILE_LOOKUP", "SIDECAR_LOOKUP", "PARENT_METADATA",
+                        "PATH_VALIDATION", "READONLY_OPEN", "SCHEMA_QUERY",
+                        "COUNT_QUERY", "DATABASE_CLOSE", "COMPLETE"})
         return set(value) == {"state", "code"} and type(value.get("code")) is str
     if name == "stage_readback":
         return value == {"state": "PRESERVED_STAGES_VALID", "old_archive": "PINNED",
@@ -1044,15 +1059,40 @@ class RuntimeOperator:
             claim_paths.append(path)
         if claim_paths[0] == claim_paths[1] or evidence_root in claim_paths:
             raise RuntimeRefused("RUNTIME_CLAIM_PATH_REFUSED")
+        self._verify_previous_references()
+
+    def _verify_previous_references(self) -> None:
         previous = self.config.get("previous_window")
+        base = {"result_path", "result_sha256", "instance_id"}
+        runtime = base | {"format", "run_id", "operator_source_head",
+                          "start_claim", "stop_claim", "cleanup"}
         if (type(previous) is not dict
-                or set(previous) != {"result_path", "result_sha256", "instance_id"}
-                or previous.get("instance_id") != self.config.get("instance_id")
-                or type(previous.get("result_sha256")) is not str
-                or not re.fullmatch(r"[0-9a-f]{64}", previous["result_sha256"])):
+                or set(previous) not in (base, runtime)
+                or previous.get("instance_id") != self.config.get("instance_id")):
             raise RuntimeRefused("RUNTIME_PREVIOUS_TARGET_BINDING_REFUSED")
-        self._private_lane_path(previous.get("result_path"),
-                                "RUNTIME_PREVIOUS_RESULT_PATH_REFUSED", direct=True)
+        is_runtime = set(previous) == runtime
+        if is_runtime and (previous["format"] != "runtime-only-stopped/v1"
+                or type(previous["run_id"]) is not str
+                or not re.fullmatch(r"i90-runtime-[0-9a-f]{32}", previous["run_id"])
+                or type(previous["operator_source_head"]) is not str
+                or not re.fullmatch(r"[0-9a-f]{40}", previous["operator_source_head"])):
+            raise RuntimeRefused("RUNTIME_PREVIOUS_FORMAT_REFUSED")
+        refs = [{"path": previous["result_path"], "sha256": previous["result_sha256"]}]
+        if is_runtime:
+            refs += [previous[key] for key in ("start_claim", "stop_claim", "cleanup")]
+        paths = []
+        for ref in refs:
+            if (type(ref) is not dict or set(ref) != {"path", "sha256"}
+                    or type(ref["sha256"]) is not str
+                    or not re.fullmatch(r"[0-9a-f]{64}", ref["sha256"])):
+                raise RuntimeRefused("RUNTIME_PREVIOUS_PIN_REFUSED")
+            path = self._private_lane_path(ref["path"], "RUNTIME_PREVIOUS_RESULT_PATH_REFUSED",
+                                           direct=not is_runtime)
+            if is_runtime and path.resolve() != path:
+                raise RuntimeRefused("RUNTIME_PREVIOUS_RESULT_PATH_REFUSED")
+            paths.append(path)
+        if len(set(paths)) != len(paths):
+            raise RuntimeRefused("RUNTIME_PREVIOUS_EVIDENCE_ALIAS_REFUSED")
 
     def _verify_source(self) -> str:
         root = self.repo_root
@@ -1066,10 +1106,13 @@ class RuntimeOperator:
         return head
 
     def _validate_previous(self) -> dict[str, Any]:
+        self._verify_previous_references()
         previous = self.config["previous_window"]
         path = Path(previous["result_path"])
         _private_file(path, previous["result_sha256"])
         result = _load_private_json(path, expected_uid=os.getuid())
+        if previous.get("format") == "runtime-only-stopped/v1":
+            return self._validate_runtime_previous(previous, result)
         stop = result.get("stop")
         if (result.get("source_revision") != EXPECTED_TARGET_REVISION
                 or result.get("outcome") != "OWNER_INTERACTION_DEADLINE"
@@ -1077,6 +1120,61 @@ class RuntimeOperator:
                 or type(stop) is not dict or stop.get("verified") is not True
                 or stop.get("final_state") != "stopped"):
             raise RuntimeRefused("RUNTIME_PREVIOUS_STOP_EVIDENCE_REFUSED")
+        return result
+
+    def _validate_runtime_previous(self, previous: dict[str, Any],
+                                   result: dict[str, Any]) -> dict[str, Any]:
+        # Historical runtime results omit target/source fields. Bind them via
+        # separately hash-pinned, genuine claims and readback-produced cleanup;
+        # never synthesize a legacy result or treat Stop API ACK as STOPPED.
+        records = {}
+        for key in ("start_claim", "stop_claim", "cleanup"):
+            ref = previous[key]
+            path = Path(ref["path"])
+            _private_file(path, ref["sha256"])
+            records[key] = _load_private_json(path, expected_uid=os.getuid())
+        start, stop, cleanup = (records[k] for k in ("start_claim", "stop_claim", "cleanup"))
+        fail = "RUNTIME_PREVIOUS_STOP_EVIDENCE_REFUSED"
+        if (set(result) != {"run_id", "status", "provider_readback", "start_request_id", "cleanup"}
+                or result.get("run_id") != previous["run_id"]
+                or type(result.get("status")) is not str
+                or result.get("status") not in {
+                    "SSM_READBACK_REFUSED_NO_LAUNCH", "SSM_PROBE_REFUSED_NO_REPLAY_NO_LAUNCH"}
+                or result.get("provider_readback") != "NOT_VERIFIED"
+                or type(result.get("start_request_id")) is not str
+                or UUID_VALUE.fullmatch(result["start_request_id"]) is None
+                or result.get("cleanup") != cleanup):
+            raise RuntimeRefused(fail)
+        if (set(start) != {"phase", "run_id", "operator_source_head", "target_source_revision",
+                           "previous_result_sha256", "issued_at_utc", "request_count"}
+                or start.get("phase") != "START_INTENT" or start.get("run_id") != previous["run_id"]
+                or start.get("operator_source_head") != previous["operator_source_head"]
+                or start.get("target_source_revision") != EXPECTED_TARGET_REVISION
+                or type(start.get("request_count")) is not int or start["request_count"] != 0
+                or type(start.get("previous_result_sha256")) is not str
+                or not re.fullmatch(r"[0-9a-f]{64}", start["previous_result_sha256"])):
+            raise RuntimeRefused(fail)
+        if (set(stop) != {"phase", "run_id", "instance_id", "issued_at_utc", "request_count"}
+                or stop.get("phase") != "STOP_INTENT" or stop.get("run_id") != previous["run_id"]
+                or stop.get("instance_id") != self.config["instance_id"]
+                or type(stop.get("request_count")) is not int or stop["request_count"] != 1
+                or set(cleanup) != {"launcher_stop", "stop_request_id", "final_state",
+                                    "stop_intent", "verified_at_utc"}
+                or cleanup.get("launcher_stop") != "NOT_NEEDED"
+                or cleanup.get("stop_intent") != "PERSISTED"
+                or cleanup.get("final_state") != "stopped"
+                or type(cleanup.get("stop_request_id")) is not str
+                or UUID_VALUE.fullmatch(cleanup["stop_request_id"]) is None):
+            raise RuntimeRefused(fail)
+        try:
+            times = [datetime.fromisoformat(v) for v in (
+                start["issued_at_utc"], stop["issued_at_utc"], cleanup["verified_at_utc"])]
+            if any(t.utcoffset() != timezone.utc.utcoffset(t) for t in times):
+                raise ValueError("UTC required")
+            if not times[0] <= times[1] <= times[2] <= datetime.now(timezone.utc):
+                raise ValueError("inconsistent chronology")
+        except (KeyError, TypeError, ValueError):
+            raise RuntimeRefused(fail) from None
         return result
 
     def _verify_target(self, instance: dict[str, Any], expected_account: str,
@@ -1248,6 +1346,10 @@ class RuntimeOperator:
             if not _valid_probe_shape(step.name, value):
                 return "SSM_READBACK_REFUSED", value
             if value.get("state") == "REFUSED":
+                evidence.write_once(run_dir / f"ssm-refusal-{index:02d}.private.json", {
+                    "step": step.name, "state": "REFUSED", "code": value["code"],
+                    **({"diagnostic_stage": value["diagnostic_stage"]}
+                       if "diagnostic_stage" in value else {})})
                 return "SSM_PROBE_REFUSED_NO_REPLAY", value
             if value.get("state") != step.json_state:
                 if (step.name == "ledger_readback"
