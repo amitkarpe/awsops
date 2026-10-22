@@ -652,6 +652,67 @@ const record = JSON.parse(process.argv[8]);
             self.assertEqual(execute_probe(app.path, source_revision="a" * 40),
                              "RECEIPT_NOT_VERIFIED\n")
 
+    def test_ledger_readonly_refusal_has_only_allowlisted_stage(self):
+        owner = os.getuid()
+
+        def execute_probe(database: Path) -> dict:
+            captured = {}
+
+            def capture(script, args, *, as_root=False, as_owner=False):
+                captured.update(script=script, args=args)
+                self.assertFalse(as_root)
+                self.assertTrue(as_owner)
+                return "captured-generated-ledger-probe"
+
+            with patch.object(operator, "_compressed_python", side_effect=capture):
+                command = operator._ledger_probe({"remote": {
+                    "application_database": str(database), "owner_uid": str(owner)}})
+            self.assertEqual(command, "captured-generated-ledger-probe")
+            completed = subprocess.run(
+                [sys.executable, "-c", captured["script"], *captured["args"]],
+                check=True, capture_output=True, text=True)
+            return json.loads(completed.stdout)
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            missing = execute_probe(root / "missing.sqlite")
+            self.assertEqual(missing, {
+                "state": "REFUSED", "code": "LEDGER_READONLY",
+                "prior_record_count": {}, "diagnostic_stage": "FILE_LOOKUP"})
+
+            corrupt = root / "corrupt.sqlite"
+            corrupt.write_bytes(b"not a sqlite database")
+            corrupt.chmod(0o600)
+            refused = execute_probe(corrupt)
+            self.assertEqual(refused, {
+                "state": "REFUSED", "code": "LEDGER_READONLY",
+                "prior_record_count": {}, "diagnostic_stage": "SCHEMA_QUERY"})
+            self.assertTrue(set(refused) <= {
+                "state", "code", "prior_record_count", "diagnostic_stage"})
+
+            wrong_schema = root / "wrong-schema.sqlite"
+            with sqlite3.connect(wrong_schema) as db:
+                db.execute("CREATE TABLE unrelated (id INTEGER)")
+            wrong_schema.chmod(0o600)
+            explicit_refusal = execute_probe(wrong_schema)
+            self.assertEqual(explicit_refusal, {
+                "state": "REFUSED", "code": "LEDGER_SCHEMA",
+                "prior_record_count": {}})
+
+            valid = root / "valid.sqlite"
+            with sqlite3.connect(valid) as db:
+                for table in ("canaries", "operations", "application_authority",
+                              "native_owner_decisions"):
+                    db.execute(f'CREATE TABLE "{table}" (id INTEGER)')
+            valid.chmod(0o600)
+            accepted = execute_probe(valid)
+            self.assertEqual(accepted["state"], "NO_PRIOR_RECORDS")
+            self.assertIsNone(accepted["code"])
+            self.assertEqual(accepted["prior_record_count"], {
+                "canaries": 0, "operations": 0, "application_authority": 0,
+                "native_owner_decisions": 0})
+            self.assertNotIn("diagnostic_stage", accepted)
+
     def test_run_full_fake_lifecycle_uses_production_steps_parser_and_cleanup(self):
         scenarios = ("success", "prestart_refusal", "prior_row_refusal",
                      "unknown_launch", "failure", "interrupt")
