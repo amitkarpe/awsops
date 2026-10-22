@@ -942,7 +942,7 @@ class RuntimeOperator:
         self.monotonic, self.sleep = monotonic, sleep
         self.repo_root = repo_root or Path(__file__).resolve().parents[3]
 
-    def _verify_config(self) -> None:
+    def _verify_common_config(self) -> None:
         required = {
             "schema", "aws_profile", "region", "target_source_revision",
             "target_archive_sha256", "operator_source_head", "instance_id",
@@ -1003,6 +1003,10 @@ class RuntimeOperator:
             raise RuntimeRefused("RUNTIME_PREVIOUS_WINDOW_MISSING")
         self._verify_remote_scope(self.config.get("remote"))
         self._verify_private_paths()
+        validate_runtime_authority(self.config.get("runtime_authority"))
+
+    def _verify_config(self) -> None:
+        self._verify_common_config()
         if not _valid_reply_to(self.ready_reply_to):
             raise RuntimeRefused("RUNTIME_READY_REPLY_TO_REQUIRED")
         if not callable(self.notifier):
@@ -1010,7 +1014,6 @@ class RuntimeOperator:
         notifier_reply_to = getattr(self.notifier, "reply_to", self.ready_reply_to)
         if notifier_reply_to != self.ready_reply_to:
             raise RuntimeRefused("RUNTIME_READY_REPLY_TO_MISMATCH")
-        validate_runtime_authority(self.config.get("runtime_authority"))
 
     @staticmethod
     def _remote_path(value: Any, expected: str, code: str) -> None:
@@ -1344,6 +1347,8 @@ class RuntimeOperator:
                 "step": step.name, "state": "SEND_UNKNOWN_NO_REPLAY",
                 "request_id": send_request_id})
             return "SEND_UNKNOWN_NO_REPLAY", {}
+        evidence.write_once(run_dir / f"ssm-ack-{index:02d}.private.json", {
+            "command_id": command_id, "send_request_id": send_request_id})
         deadline = self.monotonic() + step.execution_timeout + 120
         if hard_deadline is not None:
             deadline = min(deadline, hard_deadline)

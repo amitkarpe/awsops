@@ -923,6 +923,88 @@ const record = JSON.parse(process.argv[8]);
                         self.assertEqual(provider.sends, [])
                     self.assertTrue((lane / "stop-claim.private.json").is_file())
 
+    def test_diagnostic_only_lifecycle_pins_request_and_always_stops(self):
+        from awsops.runtime import issue90_ledger_diagnostic as diagnostic
+
+        class Provider(FakeRuntimeProvider):
+            def send_once(self, request):
+                answer = super().send_once(request)
+                if self.scenario == "unknown_send":
+                    raise TimeoutError("synthetic unknown send")
+                return answer
+
+            def invocation(self, command_id, instance_id):
+                if self.scenario == "refusal":
+                    value = {"state": "REFUSED", "code": "LEDGER_READONLY",
+                             "prior_record_count": {}, "diagnostic_stage": "FILE_LOOKUP"}
+                    return {"Status": "Success", "ResponseCode": 0,
+                            "StandardOutputContent": json.dumps(value),
+                            "StandardErrorContent": ""}, "fake-read"
+                if self.scenario == "unknown_read":
+                    return {"Status": "InProgress"}, "fake-read"
+                return super().invocation(command_id, instance_id)
+
+            def describe_instance(self, instance_id):
+                if self.scenario == "stop_read_failure" and self.sends and not self.stop_calls:
+                    raise TimeoutError("synthetic pre-stop read failure")
+                return super().describe_instance(instance_id)
+
+        scenarios = ("success", "refusal", "prestart_refusal", "unknown_send",
+                     "unknown_read", "interrupt", "stop_read_failure", "evidence_failure")
+        for scenario in scenarios:
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as temp:
+                lane, repo = Path(temp) / "private", Path(temp) / "repo"
+                with (patch.object(operator, "PRIVATE_LANE", lane),
+                      patch.object(operator, "RUNTIME_OWNER_UID", os.getuid()),
+                      patch.object(operator, "RUNTIME_OWNER_GID", os.getgid())):
+                    config, target, rows = _make_runtime_case(lane, repo, now=int(time.time()))
+                    command = operator._ledger_probe(config)
+                    step = operator.Step("ledger_readback", command, 30, json_state="NO_PRIOR_RECORDS")
+                    request = operator.build_ssm_request(target, diagnostic.REQUEST_LABEL, step)
+                    request_path = lane / "diagnostic-request.private.json"
+                    _write_private(request_path, request)
+                    provider = Provider(config, rows, scenario=scenario)
+                    clock = FakeLifecycleClock()
+                    runner = diagnostic.LedgerDiagnostic(config, provider, None,
+                        monotonic=clock.monotonic, sleep=clock.sleep, repo_root=repo)
+                    original_write = operator.PrivateEvidence.write_once
+
+                    def write(evidence, path, value):
+                        if scenario == "evidence_failure" and path.name == "ssm-ack-01.private.json":
+                            raise OSError("synthetic evidence failure")
+                        return original_write(evidence, path, value)
+
+                    # Synthetic private target pins only; real validators,
+                    # request construction, lifecycle, parser and cleanup run.
+                    with (patch.object(diagnostic, "COMMAND_SHA256", hashlib.sha256(command.encode()).hexdigest()),
+                          patch.object(diagnostic, "REQUEST_SHA256", hashlib.sha256(request_path.read_bytes()).hexdigest()),
+                          patch.object(diagnostic, "REQUEST_BYTES", len(json.dumps(request, separators=(",", ":")).encode())),
+                          patch.object(diagnostic, "PREVIOUS_SHA256", config["previous_window"]["result_sha256"]),
+                          patch.object(operator.PrivateEvidence, "write_once", write)):
+                        if scenario == "prestart_refusal":
+                            with self.assertRaisesRegex(operator.RuntimeRefused, "IDENTITY_MISMATCH"):
+                                runner.run_diagnostic(request_path)
+                            self.assertEqual(provider.start_calls, 0)
+                            self.assertFalse(Path(config["start_claim_path"]).exists())
+                            continue
+                        result = runner.run_diagnostic(request_path)
+                        self.assertEqual(provider.start_calls, 1)
+                        self.assertEqual(provider.stop_calls, 1)
+                        self.assertEqual(result["cleanup"]["final_state"], "stopped")
+                        self.assertEqual(result["session_cleanup"], "NOT_APPLICABLE")
+                        self.assertLessEqual(clock.value, 1000 + 900)
+                        self.assertEqual([name for name, _ in provider.sends],
+                                         [] if scenario == "interrupt" else ["ledger_readback"])
+                        if provider.sends:
+                            self.assertEqual(provider.sends[0][1], request)
+                        if scenario in ("success", "refusal", "stop_read_failure"):
+                            self.assertIsInstance(result["diagnostic"], dict)
+                        else:
+                            self.assertEqual(result["diagnostic"], "UNKNOWN")
+                        with self.assertRaisesRegex(operator.RuntimeRefused, "CLAIM_COLLISION"):
+                            runner.run_diagnostic(request_path)
+                        self.assertEqual(provider.start_calls, 1)
+
     def test_parsed_probe_refusal_never_reaches_launcher(self):
         probe_names = ("stage_readback", "composed_state_readback",
                        "native_binding_readback")

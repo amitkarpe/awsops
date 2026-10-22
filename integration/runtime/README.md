@@ -153,3 +153,30 @@ historical results into the legacy format or reset their consumed claims.
 Ledger refusal diagnostics retain only production-defined codes and stages.
 An empty refusal count object never means an empty ledger: every accepted
 refusal still blocks launch and saves a value-free `ssm-refusal` record.
+
+### One-command FILE_LOOKUP diagnostic
+
+`python -m awsops.runtime.issue90_ledger_diagnostic` is a separate, fixed
+Issue90 diagnostic entrypoint. It requires `--execute-ledger-diagnostic`,
+`--private-config`, `--config-sha256`, and `--request`. The private config reuses
+the existing exact LAB binding/property baselines, pins the executing Git HEAD
+and genuine latest stopped predecessor, and names fresh exclusive claims.
+The request file must match the source-pinned accepted request bytes; the
+command, target and Comment are not regenerated for another target/run label.
+The actual run ID is separately recorded in local claims/evidence.
+
+Local validation precedes SDK construction. Fresh identity, stopped target,
+property and Start/Stop DryRun checks precede Start. The lifecycle has five
+active minutes plus ten stop-reserve minutes, including a final SDK-call margin.
+Only the pinned 30-second ledger command can be sent. Recognized refusal is a
+useful diagnostic result, never permission to launch or repair. Unknown send is
+not resent; only acknowledged command readback may be polled. Finally cleanup
+attempts exact Stop independently of SSM/evidence/pre-stop-read failures and
+requires independent STOPPED readback. Interrupts enter the same cleanup.
+
+There is no launcher, READY notifier, interactive session, forwarding, ledger
+provisioning, config mutation or S3 path. Session termination is not applicable.
+The USD1 operational estimate within the existing USD100 total authority is not
+a hard billing cap. Source acceptance and offline tests are not live permission,
+current guest evidence or proof of an actual human Reject. Manager must accept
+and merge the exact source before the already-authorized diagnostic window.
