@@ -484,25 +484,37 @@ def _ledger_probe(config: dict[str, Any]) -> str:
     script = r'''import json,sqlite3,stat,sys
 from pathlib import Path
 p=Path(sys.argv[1]); owner=int(sys.argv[2])
-def out(state,code=None,counts=None): print(json.dumps({'state':state,'code':code,'prior_record_count':counts or {}},separators=(',',':')))
+def out(state,code=None,counts=None,diagnostic_stage=None):
+ result={'state':state,'code':code,'prior_record_count':counts or {}}
+ if diagnostic_stage is not None: result['diagnostic_stage']=diagnostic_stage
+ print(json.dumps(result,separators=(',',':')))
+stage='FILE_LOOKUP'
 try:
  st=p.lstat()
+ stage='SIDECAR_LOOKUP'
  for suffix in ('-journal','-wal','-shm'):
   try: Path(str(p)+suffix).lstat(); out('REFUSED','LEDGER_SIDECAR'); raise SystemExit(0)
   except FileNotFoundError: pass
+ stage='PARENT_METADATA'
  parent=p.parent.lstat()
+ stage='PATH_VALIDATION'
  if (p.is_symlink() or p.resolve(strict=True)!=p or p.parent.is_symlink()
      or not stat.S_ISDIR(parent.st_mode) or parent.st_uid!=owner
      or not stat.S_ISREG(st.st_mode) or (st.st_uid,st.st_gid,stat.S_IMODE(st.st_mode))!=(owner,owner,0o600)): out('REFUSED','LEDGER_METADATA'); raise SystemExit(0)
+ stage='READONLY_OPEN'
  db=sqlite3.connect(p.as_uri()+'?mode=ro&immutable=1',uri=True,timeout=2)
+ stage='SCHEMA_QUERY'
  tables={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}; required={'canaries','operations','application_authority'}
  if not required<=tables: out('REFUSED','LEDGER_SCHEMA'); raise SystemExit(0)
+ stage='COUNT_QUERY'
  counts={name:db.execute('SELECT COUNT(*) FROM "'+name+'"').fetchone()[0] for name in sorted(required)}
  counts['native_owner_decisions']=db.execute('SELECT COUNT(*) FROM native_owner_decisions').fetchone()[0] if 'native_owner_decisions' in tables else 0
+ stage='DATABASE_CLOSE'
  db.close()
+ stage='COMPLETE'
  out('NO_PRIOR_RECORDS' if not sum(counts.values()) else 'PRIOR_RECORDS_RECONCILE',None,counts)
 except SystemExit: raise
-except Exception: out('REFUSED','LEDGER_READONLY')
+except Exception: out('REFUSED','LEDGER_READONLY',diagnostic_stage=stage)
 '''
     return _compressed_python(script, [config["remote"]["application_database"],
                                       str(config["remote"]["owner_uid"])],
