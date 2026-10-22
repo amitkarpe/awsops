@@ -180,3 +180,39 @@ The USD1 operational estimate within the existing USD100 total authority is not
 a hard billing cap. Source acceptance and offline tests are not live permission,
 current guest evidence or proof of an actual human Reject. Manager must accept
 and merge the exact source before the already-authorized diagnostic window.
+
+### Explicit application-ledger initialization
+
+The native `receipt.sqlite3` DecisionStore and application `canary.sqlite` are
+separate stores. The authenticated `pause_gate` producer normally calls
+`prepare_native_canary`, which provisions application tables before reading the
+fixed target and persisting a fresh owner/job-bound packet. The runtime-only
+operator deliberately requires that application store before launching the app.
+A first installation therefore needs an explicit setup step before that operator;
+missing storage is never permission to bypass its gate.
+
+The existing producer module now exposes a separate operator-only command:
+
+```sh
+python -m awsops.runtime.prepare_native_canary --initialize-application-ledger --expected-native-sha256 "$NATIVE_CONFIG_SHA256" --expected-binding-sha256 "$TARGET_BINDING_SHA256" --source-revision "$INSTALLED_NATIVE_REVISION"
+```
+
+The CLI fixes the existing isolated root and requires its owner context, current
+native/read config, source marker, target binding and valid existing native
+DecisionStore. It makes no SDK calls and creates only an absent application file
+through the existing inert schema constructors. It does not create a packet,
+principal, owner decision, canonical receipt or approval. The native source pin
+and initializer code hash are reported separately. Native database bytes and
+existing identity/config files are preserved. Existing application files,
+sidecars and partial initialization refuse for reconciliation; failure never
+silently deletes or replaces the partial file.
+
+This is source functionality, not deployment or live authority. Before any real
+use, separately authorize the exact reviewed initializer/pins, guest preparation,
+absent-file check and bounded host cleanup. Keep the app stopped during setup,
+retain the initialization output privately, and verify native bytes plus schema
+and zero application rows before considering runtime launch. A lost ledger after
+prior use requires evidence recovery; do not use empty initialization to erase
+unknown packets/decisions. Later cards still require authenticated server
+`req.user`, matching tenant/job generation, fresh provider reads and genuine
+human Reject. Provider approval remains fail-closed.
