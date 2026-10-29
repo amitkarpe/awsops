@@ -13,8 +13,13 @@ not an enterprise production platform. **BUILD → DEMONSTRATE → IMPROVE.**
 6. Minimal meaningful tests and evidence only; reuse completed proof.
 7. Do not repeatedly request GO for routine development.
 8. Manager owns Defence Factory technical decisions, acceptance, exact-head
-   review and eligible merges under Manager Issue #13; existing AWSOPS X remains
-   the sole implementation writer. G/owner review applies only when explicitly
+   review and eligible merges under Manager Issue #13 and the [canonical policy](https://github.com/amitkarpe/manager/blob/main/projects/defence-factory/POLICY.md).
+   Under [Manager Issue19](https://github.com/amitkarpe/manager/issues/19), Home remains
+   sole writer until Manager records release, then admits ONE identified
+   repository-bound cloud successor with approved repo/source scope only. No
+   concurrent Home writes or duplicate lane; retain Home session/history for recovery.
+   All product-auth, LAB/PROD, protected #89, cost, provider, IAM, secret and audience
+   boundaries remain unchanged. G/owner review applies only when explicitly
    required by an active instruction. DOT is not a writer; approved scope
    continues without another GO.
 9. Optional hardening must NOT block MVP milestones.
