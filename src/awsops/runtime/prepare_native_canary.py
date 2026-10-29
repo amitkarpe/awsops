@@ -219,3 +219,124 @@ def prepare_native_canary(message: dict, *, database: Path, binding_file: Path,
             "expires_at": authority.decision_expires_at,
             "binding_digest": canonical_digest({
                 "binding_digest": canonical_digest(native), "authority_digest": authority.digest})}
+
+
+def initialize_application_ledger(*, expected_native_sha256: str,
+                                  expected_binding_sha256: str,
+                                  source_revision: str,
+                                  root: Path = Path('/opt/awsops-native-canary')) -> dict:
+    """Explicit operator setup, never an owner decision or pause preparation.
+
+    Only an absent application file may be initialized. Existing/partial files
+    require reconciliation; neither native records nor application rows are
+    replaced. The CLI fixes root; injection is for local deployment fixtures.
+    """
+    import hashlib
+
+    def digest(path: Path) -> str:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    for value in (expected_native_sha256, expected_binding_sha256):
+        require_text(value, r"[a-f0-9]{64}", "private input digest")
+    require_text(source_revision, r"[a-f0-9]{40}", "source revision")
+    if os.getuid() == 0 or not root.is_absolute() or root.resolve(strict=True) != root:
+        raise ValueError("PRIVATE_RUNTIME_ROOT_REQUIRED")
+    state = root / 'state'
+    for directory in (root, state):
+        st = directory.lstat()
+        if (not stat.S_ISDIR(st.st_mode) or directory.is_symlink()
+                or (st.st_uid, st.st_gid) != (os.getuid(), os.getgid())
+                or stat.S_IMODE(st.st_mode) != 0o700):
+            raise ValueError("PRIVATE_RUNTIME_ROOT_REQUIRED")
+    native_file, read_file, binding_file = (state / n for n in
+                                           ('native.json', 'read.json', 'binding.private.json'))
+    for path, limit in ((native_file, 8192), (read_file, 8192), (binding_file, 4096)):
+        _private_regular(path, max_bytes=limit)
+    if digest(native_file) != expected_native_sha256 or digest(binding_file) != expected_binding_sha256:
+        raise ValueError("INITIALIZATION_PRIVATE_BINDING_DRIFT")
+    native = json.loads(native_file.read_text())
+    fields = {'version','enabled','agent_id','python','source_root','database',
+              'source_revision','application_database','application_binding','source_version'}
+    if (type(native) is not dict or set(native) != fields
+            or type(native['version']) is not int or native['version'] != 1
+            or native['enabled'] is not True or native['python'] != '/usr/bin/python3'
+            or native['source_root'] != str(root / 'awsops')
+            or native['database'] not in {str(state / 'receipt.sqlite3'), str(state / 'native.sqlite')}
+            or native['application_database'] != str(state / 'canary.sqlite')
+            or native['application_binding'] != str(binding_file)
+            or native['source_revision'] != source_revision):
+        raise ValueError("INITIALIZATION_NATIVE_CONFIG_UNSUPPORTED")
+    require_text(native['agent_id'], r"[A-Za-z0-9_.:-]{1,128}", "existing agent")
+    require_text(native['source_version'], r"v[0-9]+\.[0-9]+\.[0-9]+-mock", "source version")
+    _verify_source_revision(root / 'awsops/SOURCE_REVISION', source_revision)
+    private = json.loads(binding_file.read_text())
+    if (type(private) is not dict or set(private) != {'account_id', 'bucket'}
+            or type(private['bucket']) is not str or BUCKET.fullmatch(private['bucket']) is None):
+        raise ValueError("INVALID_PRIVATE_CANARY_BINDING")
+    binding = CanaryBinding(private['account_id'], private['bucket'])
+    settings, _ = load_config(read_file)
+    if (settings['profile'] != 'amit' or settings['region'] != REGION
+            or settings['source_account_id'] != binding.account_id):
+        raise ValueError("UNAPPROVED_LAB_BINDING")
+    application = state / 'canary.sqlite'
+    native_database = Path(native['database'])
+    _private_regular(native_database, max_bytes=16 * 1024 * 1024)
+    if (stat.S_IMODE(native_database.stat().st_mode) != 0o600
+            or native_database.stat().st_gid != os.getgid()):
+        raise ValueError("PRIVATE_RUNTIME_FILE_REQUIRED")
+    DecisionStore.validate_existing(native_database)  # Read-only; never initializes it.
+    before = digest(native_database)
+    for path in (application, *(Path(str(application) + s) for s in ('-journal','-wal','-shm'))):
+        if path.exists() or path.is_symlink():
+            raise ValueError("APPLICATION_LEDGER_ALREADY_EXISTS_RECONCILE")
+    # Exclusive reservation prevents a concurrent initializer from adopting an
+    # existing file. A later failure preserves this partial file for inspection.
+    fd = os.open(application, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
+    try:
+        os.fchmod(fd, 0o600)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    _provision_ledgers(None, application, binding, source_revision=source_revision,
+                       source_version=native['source_version'], clock=time.time)
+    with sqlite3.connect(application.as_uri() + '?mode=ro&immutable=1', uri=True) as db:
+        if any(db.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
+               for table in ('canaries', 'operations', 'application_authority')):
+            raise ValueError("INITIALIZATION_UNEXPECTED_RECORDS")
+    if digest(native_database) != before:
+        raise ValueError("INITIALIZATION_NATIVE_LEDGER_CHANGED")
+    with application.open('rb') as stream:
+        os.fsync(stream.fileno())
+    fd = os.open(state, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    return {'state': 'INITIALIZED_SCHEMA_ONLY', 'native_source_revision': source_revision,
+            'initializer_sha256': digest(Path(__file__)),
+            'native_ledger_sha256': before, 'application_ledger_sha256': digest(application),
+            'authority_records': 0, 'decision_records': 0, 'dispatch_allowed': False}
+
+
+def main(argv=None) -> int:
+    import argparse
+    parser = argparse.ArgumentParser(description='Explicit absent application-ledger setup; no AWS or decisions.')
+    parser.add_argument('--initialize-application-ledger', action='store_true')
+    parser.add_argument('--expected-native-sha256', required=True)
+    parser.add_argument('--expected-binding-sha256', required=True)
+    parser.add_argument('--source-revision', required=True)
+    args = parser.parse_args(argv)
+    if not args.initialize_application_ledger:
+        parser.error('requires --initialize-application-ledger')
+    try:
+        result = initialize_application_ledger(expected_native_sha256=args.expected_native_sha256,
+            expected_binding_sha256=args.expected_binding_sha256, source_revision=args.source_revision)
+    except Exception:
+        print('{"state":"REFUSED","code":"APPLICATION_LEDGER_INITIALIZATION_REFUSED","dispatch_allowed":false}')
+        return 2
+    print(json.dumps(result, sort_keys=True, separators=(',', ':')))
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

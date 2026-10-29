@@ -1,6 +1,8 @@
 """Native callback bridge contract; approval is synthetic and MOCK-only."""
 from dataclasses import replace
 import json
+import hashlib
+from unittest.mock import patch
 from pathlib import Path
 import subprocess
 import sqlite3
@@ -226,6 +228,71 @@ class NativeCanaryApprovalTests(unittest.TestCase):
                     source_revision_file=source_file, session_factory=session_factory,
                     provider_factory=lambda *_args: self.fail("provider construction preceded source check"),
                     clock=lambda: fake_s3.clock[0])
+
+    def test_explicit_absent_ledger_initialization_has_no_packet_or_provider(self):
+        from awsops.runtime import prepare_native_canary as producer
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            root.chmod(0o700)
+            state = root / 'state'
+            state.mkdir(mode=0o700)
+            source = root / 'awsops'
+            source.mkdir()
+            revision = 'a' * 40
+            (source / 'SOURCE_REVISION').write_text(revision + '\n')
+            (source / 'SOURCE_REVISION').chmod(0o644)
+            native_db = state / 'receipt.sqlite3'
+            DecisionStore(native_db)
+            native_bytes = native_db.read_bytes()
+            account = '123456789012'  # Synthetic, never exported as live evidence.
+            binding = state / 'binding.private.json'
+            binding.write_text(json.dumps({'account_id': account,
+                'bucket': 'awsops-dev-issue90-s3-canary-abcdefabcdef'}))
+            read = state / 'read.json'
+            read.write_text(json.dumps({'profile': 'amit', 'region': 'ap-southeast-1',
+                'source_account_id': account, 'accounts': [
+                    {'alias': alias, 'account_id': account if i == 0 else str(i).zfill(12)}
+                    for i, alias in enumerate(('lab-dev','lab-poc','lab-qa','lab-sec'))]}))
+            native = state / 'native.json'
+            native.write_text(json.dumps({'version': 1, 'enabled': True, 'agent_id': 'existing-agent',
+                'python': '/usr/bin/python3', 'source_root': str(source), 'database': str(native_db),
+                'source_revision': revision, 'application_database': str(state / 'canary.sqlite'),
+                'application_binding': str(binding), 'source_version': 'v1.0.0-mock'}))
+            for f in (binding, read, native):
+                f.chmod(0o600)
+            args = dict(root=root, source_revision=revision,
+                expected_native_sha256=hashlib.sha256(native.read_bytes()).hexdigest(),
+                expected_binding_sha256=hashlib.sha256(binding.read_bytes()).hexdigest())
+            application = state / 'canary.sqlite'
+            before = {f: f.read_bytes() for f in (native_db, native, binding, read)}
+            with self.assertRaisesRegex(ValueError, 'PRIVATE_BINDING_DRIFT'):
+                producer.initialize_application_ledger(**{**args, 'expected_binding_sha256': 'f' * 64})
+            self.assertFalse(application.exists())
+            # No SDK import/client, provider, synthetic authority or decision.
+            with patch.dict(sys.modules, {'boto3': None}):
+                result = producer.initialize_application_ledger(**args)
+            self.assertEqual(result['state'], 'INITIALIZED_SCHEMA_ONLY')
+            self.assertFalse(result['dispatch_allowed'])
+            self.assertEqual(application.stat().st_mode & 0o777, 0o600)
+            with sqlite3.connect(application) as db:
+                for table in ('canaries', 'operations', 'application_authority'):
+                    self.assertEqual(db.execute(f'SELECT COUNT(*) FROM {table}').fetchone()[0], 0)
+                self.assertFalse(db.execute("SELECT 1 FROM sqlite_master WHERE name='native_owner_decisions'").fetchall())
+            for f, data in before.items():
+                self.assertEqual(f.read_bytes(), data)
+            initialized = application.read_bytes()
+            with self.assertRaisesRegex(ValueError, 'ALREADY_EXISTS_RECONCILE'):
+                producer.initialize_application_ledger(**args)
+            self.assertEqual(application.read_bytes(), initialized)
+            self.assertEqual(native_db.read_bytes(), native_bytes)
+            # A partial failure is retained, never silently retried or erased.
+            application.unlink()  # Synthetic fixture reset only.
+            with patch.object(producer, '_provision_ledgers', side_effect=ValueError('synthetic failure')):
+                with self.assertRaisesRegex(ValueError, 'synthetic failure'):
+                    producer.initialize_application_ledger(**args)
+            self.assertTrue(application.exists())
+            with self.assertRaisesRegex(ValueError, 'ALREADY_EXISTS_RECONCILE'):
+                producer.initialize_application_ledger(**args)
 
     def test_default_node_dispatch_runs_private_child_and_reopens_synthetic_reject_receipt(self):
         with tempfile.TemporaryDirectory() as directory:
