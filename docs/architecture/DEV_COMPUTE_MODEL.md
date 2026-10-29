@@ -5,6 +5,128 @@ Updated: 2026-10-06. M1–M5 source/runbook work is merged. #83 OIDC identity
 is PROVEN at run 37450622218; [#86's latest receipt](https://github.com/amitkarpe/awsops/issues/86) owns live Config acquisition status. This is the canonical #77 technical engineering/resume runbook.
 Resource decisions remain owned by #14 and live mutation gates by #62/#70.
 
+## 29 October 2026 cloud handoff
+
+[Manager Issue19](https://github.com/amitkarpe/manager/issues/19) is the current
+migration index and transfer/closure authority. This section is the cloud entry
+point; older #77 milestone receipts below remain historical. Source baseline is
+[PR127](https://github.com/amitkarpe/awsops/pull/127), merged
+`0f18adaaff27f14159ad4ef6d9827105691fb743`. Read the latest accepted Manager19
+checkpoint and this document's eventual merge before selecting an execution pin.
+One repository writer only: release/reconcile Home before admitting a cloud VM.
+A queued task, environment creation or source merge does not prove live readiness.
+
+### Copyable source-only first task
+
+> Work in `amitkarpe/awsops` at Manager19's accepted merged revision. Read the
+> repository instructions and current context, Manager19 and Issue90; verify
+> origin/branch/HEAD and preserve existing work. Reconcile writer release first.
+> Inspect the merged explicit application-ledger initializer and prepare its
+> smallest exact deployment/recovery proposal with first-install versus lost-data
+> proof. Do not start EC2/SSM, create a ledger, launch an app, invoke credentials,
+> dispatch a workflow or change Cloudflare/IAM/resources. Reuse recorded source
+> checks; validate only a demonstrated change. Return one cohesive PR if needed,
+> exact checks, unknowns and the next gate to Manager19. Do not create another writer.
+
+If a repository-scoped proxy cannot read Manager19, obtain its accepted public
+handoff text from the owner; do not copy a PAT or silently attach another repository.
+
+### VM setup and source verification
+
+Use a repository-bound Linux workspace. CI uses Python3.12 and Node24; verify
+actual VM tools rather than assuming its defaults match. Docker with the Compose
+plugin is needed for configuration validation only; Chromium and system libraries
+are needed for the synthetic browser check. Dashboard versions come from its
+lockfile (currently Playwright1.63.0 and Vite8.2.4), not global installs. Git and
+GitHub publication/readback capability are needed. Optional provider code uses
+`integration/compliance_agent/requirements.txt` (boto3 1.43.98, MCP1.30.0,
+Pydantic2.13.5); do not install or authenticate provider dependencies merely for
+a docs change. Existing local CLI versions are not cloud requirements/proof.
+
+For a changed source path that needs CI parity, use the existing entrypoint:
+
+```sh
+python3 scripts/cloud_verify.py --bootstrap
+```
+
+It performs locked installs/audit, pinned public-fixture fetches, source contracts,
+Compose configuration, builds and synthetic browser checks. It does not start the
+retained app or call AWS. Allow its reviewed package/CDN/GitHub fixture destinations
+in the environment setup; report blocked downloads instead of weakening checks.
+Without `--bootstrap`, missing dependencies/fixtures and skipped downloads/audit
+remain incomplete parity. Prefer the smallest relevant existing check for edits;
+docs-only handoff uses diff check and its automatic CI, no repeated local suite.
+Native fixtures, browser binaries and dependency caches are generated inputs,
+not durable owner evidence; private ledgers/config must never enter the image.
+
+### Platform capabilities and actual gates
+
+Vendor capabilities checked 29 October; this task did not create/test a cloud
+account/environment or entitlement. Limits, VM tools, available connectors and
+subscription usage must be verified in the selected session; no unlimited runtime
+or credits claim. Source/Issue/PR history is durable; commit changes and retain
+public-safe run/check references before a VM is paused/reclaimed.
+
+| Surface | Supported route and limitation |
+| --- | --- |
+| Codex Cloud | Published repository environment with install/start configuration and network controls. Native AWS OIDC supports CLI/boto3 only after an attached trusted connection with exact issuer/audience/subject and resource permissions. Personal Home skills/auth are not inherited; browser/computer-use support is not promised. |
+| Claude Code cloud | Repository VM with configurable setup/network. Inspect actual versions, including Node24 availability. Built-in GitHub tools or REST `gh api` can use its attached-repository proxy; GraphQL `gh issue`/`gh pr` can be refused. Local MCP/auth and repository `enabledPlugins` do not auto-install. Interactive AWS SSO is unsupported. Setup scripts precede environment variables. |
+| GitHub Actions | Existing CI is source/synthetic. `awsops-readonly.yml` separately uses the approved main-only Environment and Actions OIDC role for fixed Config reads; do not dispatch it for handoff. Actions trust and its private secrets do not authenticate a coding VM. |
+| CLI / supported plugin | Use an explicitly available approved connector or exact CLI identity where authorized; tool presence is not callability/authority. Do not copy Home credentials, restart local MCP, or turn an HTTP bearer network-secret feature into assumed AWS SigV4/OIDC access. |
+
+Official references: [Codex cloud environments](https://learn.chatgpt.com/docs/environments/cloud-environments),
+[Claude cloud environments](https://code.claude.com/docs/en/cloud-environments),
+[GitHub Actions OIDC](https://docs.github.com/en/actions/concepts/security/openid-connect).
+No IAM/federation connection is configured by this guide. Long-term provider work
+should use the accepted cloud VM and a supported federated identity; if missing,
+return the exact trust/connection requirement without changing it. Local SSO cache,
+a product subscription and Actions OIDC are distinct identities. Do not copy or
+reuse quarantined/exposed credentials. A valid supported scoped replacement is an
+operator prerequisite, not something to invent in a cloud bootstrap script.
+
+### Source, guest state and initialization boundary
+
+The [accepted diagnostic](https://github.com/amitkarpe/awsops/issues/90#issuecomment-6344956805)
+observed the application file missing, with a traversable owner0700 parent, then
+independently verified STOPPED22Oct23:45SGT. It did not prove no historical ledger
+was lost. The native DecisionStore, application ledger and authenticated owner
+identity are separate. Installed runtime948e is historical guest evidence; PR127's
+merged explicit initializer is source-only and was never deployed/executed there.
+Full upstream app revision remains unverified. Fresh endpoint verification in the
+handoff is UNKNOWN; an unavailable backend or anonymous Access challenge is not login.
+
+See [runtime initialization](../../integration/runtime/README.md#explicit-application-ledger-initialization).
+Any future exact setup Goal must pin deployed code/config/binding, establish
+first-install provenance or recover lost history, preserve native bytes/rows and
+all original claims/backups, keep existing/partial files fail-closed, and verify
+schema-only zero rows without inventing a packet, principal or approval. The
+approved constructor path is `prepare_native_canary`; normal packet preparation
+still comes from authenticated `pause_gate` server context and fresh provider reads.
+Only the real owner can log in and Reject a fresh bound packet. Approve/remediation
+needs its genuine batch-specific approval; target binding and synthetic fixtures
+never grant it. Preserve #89 fixtures, personal-LAB/Region boundaries and USD100
+TOTAL incremental authority (no monthly reset or billing-cap claim).
+
+### Recovery, rollback and local-only inputs
+
+Public clone includes code, schemas, pins and sanitized evidence links. It lacks
+private account/target mappings, source/config/backup hashes, original claims,
+SQLite ledgers, login state and installed journal/backup bytes. Request only the
+exact approved private input through a supported secure route; do not export Home
+auth/browser state or the private evidence tree. Missing inputs stay BLOCKED.
+Neither cloud service can infer guest state from a cloned README or synthetic receipt.
+
+Source rollback is a reviewed revert PR. Guest rollback is a separate exact
+operation: use recorded config-before-source ordering and versioned journals with
+complete backup readback and original metadata, stop on unknown/partial state and
+never replay original migrations. Do not delete ledgers/backups to obtain a clean
+start. Host windows still require the reviewed independent Stop/STOPPED finally;
+process RuntimeMaxSec does not stop EC2 billing. Terminate only an actual owned
+forwarding session/process; RunCommand alone has no interactive session to invent.
+Preserve the permanent owner-only protected hostname across windows. No Home
+service/tunnel/evidence cleanup is part of source handoff; replacement consumers
+and rollback must be proven first.
+
 ## Scope: #77 technical runbook, not current #90 worker routing
 
 The cloud workflow and recovery procedures below retain #77's accepted technical

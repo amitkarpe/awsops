@@ -2,7 +2,7 @@
 
 Repository: `amitkarpe/awsops`; `aws-secops` remains reference/archive only.
 
-Updated 21 October 2026. Manager coordinates; the same existing repository X is
+Updated 29 October 2026. Manager coordinates; the same existing repository X is
 sole writer under the current #90 owner override. Routine FAST communication uses
 the existing conversation/queue; admission is not execution. Active task scope
 controls work. The #77 [technical runbook](docs/architecture/DEV_COMPUTE_MODEL.md)
@@ -25,22 +25,35 @@ Issue13; the existing repository X is the sole writer. G/owner review applies
 only when explicitly required. Keep personal-LAB, per-batch authenticated
 approval, protected #89, and source-versus-live evidence boundaries.
 
-## Latest accepted Issue #90 runtime checkpoint
+## Cloud handoff and recovery — Manager Issue #19
 
-The [17 October checkpoint](https://github.com/amitkarpe/awsops/issues/90#issuecomment-6236410010)
-records source `948e8bb6b1d6915d2f585e2a2e5c20cc7caf3ced` installed and the
-config-only resume reaching isolated launcher READY at 22:56 SGT. Launcher
-cleanup and an independent EC2 readback reported STOPPED at 23:10 SGT. This is
-the last accepted observation, not a fresh provider-state read.
+[Manager #19](https://github.com/amitkarpe/manager/issues/19) owns the cloud handoff,
+review and backlog-transfer acceptance. This Home writer must be released before
+one cloud writer is admitted. Start from the
+[portable entry checklist](docs/architecture/DEV_COMPUTE_MODEL.md#29-october-2026-cloud-handoff).
+No cloud environment, identity connection or live operation was activated by the
+handoff. Issues remain open until Manager accepts their explicit disposition.
 
-The genuine owner Reject receipt is `NOT_VERIFIED`; this does not establish
-whether an owner action occurred or indicate a verifier defect. S3 remediation
-and cleanup were `NOT_RUN`. The full upstream LibreChat revision remains
-`UNVERIFIED`, and the runtime-only executor has offline proof only. Preserve
-these distinctions and the historical PR13 draft; do not treat source or offline
-proof as a live decision or provider operation.
+Latest source: [PR127](https://github.com/amitkarpe/awsops/pull/127) merged
+`0f18adaaff27f14159ad4ef6d9827105691fb743`. It exposes explicit schema-only setup
+for an absent application ledger; it creates no owner/packet/decision and has
+not run on the guest. Do not initialize a potentially lost ledger without
+reconciling its history and separate exact owner authority.
 
-Next: when the owner is available, use the reviewed runtime-only path for a real
-normal-login Reject and verify its bound receipt plus independent STOPPED
-readback. Any later provider write still requires a genuine authenticated
-Approve Once for its fresh exact batch.
+Latest accepted guest fact: [the one-shot diagnostic](https://github.com/amitkarpe/awsops/issues/90#issuecomment-6344956805)
+observed application-ledger NOT_FOUND with an accessible owner0700 parent;
+independent EC2 STOPPED was verified 22 October 23:45 SGT. This is historical,
+not a fresh cloud/provider-state read. Installed source remains the accepted
+`948e8bb6b1d6915d2f585e2a2e5c20cc7caf3ced` overlay; merged source is not deployment.
+The native DecisionStore is separate from the missing application store.
+
+Genuine owner Reject remains NOT_RUN; provider/compliance/freshness verification
+and full upstream LibreChat revision remain separately unverified. No S3
+remediation or cleanup is accepted. The permanent protected Issue90 hostname
+retains owner-only OTP/720h Access; preserve it and the unrelated public MOCK
+Worker. Private source/config/claims/ledger backups and live bindings remain
+Home-owned inputs, not files available in a cloud clone. Historical draft13
+must not be merged or used to claim runtime acceptance; preserve its remote
+commits pending Manager's close-without-merge decision. Protected #89 remains
+untouched. Next source task is pin-aware handoff/recovery under Manager19;
+guest setup, host/session actions and real human decisions need their exact gates.
