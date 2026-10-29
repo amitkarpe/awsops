@@ -2,8 +2,9 @@
 
 Repository: `amitkarpe/awsops`; `aws-secops` remains reference/archive only.
 
-Updated 29 October 2026. Manager coordinates; the same existing repository X is
-sole writer under the current #90 owner override. Routine FAST communication uses
+Updated 29 October 2026. Manager Issue19 governs the active cloud migration;
+Home remains sole writer until Manager records release and admits one identified
+repository-bound cloud successor, without concurrent Home writes. Routine FAST communication uses
 the existing conversation/queue; admission is not execution. Active task scope
 controls work. The #77 [technical runbook](docs/architecture/DEV_COMPUTE_MODEL.md)
 does not replace this routing. Completed M1 and DOT/cloud evidence is archived in
@@ -21,7 +22,7 @@ No separate dispatcher or cross-account architecture for this MVP.
 The [current owner override](https://github.com/amitkarpe/awsops/issues/90#issuecomment-6207039365)
 supersedes earlier DOT-only, USD10 and repeated live-GO language. Manager owns
 technical research, delivery, exact-head review and eligible merges under
-Issue13; the existing repository X is the sole writer. G/owner review applies
+Issue13; writer transition follows Manager Issue19 and AGENTS.md. G/owner review applies
 only when explicitly required. Keep personal-LAB, per-batch authenticated
 approval, protected #89, and source-versus-live evidence boundaries.
 
@@ -32,7 +33,8 @@ review and backlog-transfer acceptance. This Home writer must be released before
 one cloud writer is admitted. Start from the
 [portable entry checklist](docs/architecture/DEV_COMPUTE_MODEL.md#29-october-2026-cloud-handoff).
 No cloud environment, identity connection or live operation was activated by the
-handoff. Issues remain open until Manager accepts their explicit disposition.
+handoff. Manager accepted remaining-backlog transfer and owns central closures;
+historical #90 product acceptance remains unresolved, not completed by transfer.
 
 Latest source: [PR127](https://github.com/amitkarpe/awsops/pull/127) merged
 `0f18adaaff27f14159ad4ef6d9827105691fb743`. It exposes explicit schema-only setup

@@ -14,7 +14,7 @@ not an enterprise production platform. **BUILD → DEMONSTRATE → IMPROVE.**
 7. Do not repeatedly request GO for routine development.
 8. Under Manager Issue13, Manager owns Defence Factory technical delivery,
    exact-head review and eligible merges, and coordinates the existing
-   repository X as sole writer. G/owner review is needed only when an active
+   repository writer under the transition below. G/owner review is needed only when an active
    instruction explicitly requires it. Follow the [canonical policy](https://github.com/amitkarpe/manager/blob/main/projects/defence-factory/POLICY.md)
    for standing ownership and decision rights; DOT is not a writer.
 9. Optional hardening must NOT block MVP milestones.
@@ -75,6 +75,17 @@ Working default:
 - The existing repository X owns live environment facts, implementation, low-level CLI/SSM/AWS execution and validation, and must challenge stale/infeasible plans.
 - Manager owns technical research, repository discovery, design and resolution of routine blockers for Defence Factory. Manager reviews exact PR heads and merges eligible work; G/owner review applies only when explicitly required.
 - Local `SPEC.md` plus the owning Issue/user instruction define actual AWS authority. Agent OS guidance never widens permission.
+
+## Writer transition — Manager Issue19
+
+[Manager Issue19](https://github.com/amitkarpe/manager/issues/19) governs the active
+cloud migration under the [canonical ownership policy](https://github.com/amitkarpe/manager/blob/main/projects/defence-factory/POLICY.md).
+Home remains sole writer until Manager records its release there; Manager then
+admits ONE identified, repository-bound cloud successor. No concurrent Home writes
+or duplicate lane; retain the original Home session/history for recovery. The
+successor inherits only approved repository/source scope. Product authentication,
+LAB/PROD, protected #89, cost, provider, IAM, secret and audience boundaries remain
+unchanged. Transferred historical Issues retain their unresolved product acceptance.
 
 ## Migration rule
 
